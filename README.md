@@ -1,6 +1,6 @@
-# [Backstage](https://backstage.io)
+# Our backstage app
 
-This is your newly scaffolded Backstage App, Good Luck!
+our own version of backstage where we can test the plugin locally
 
 To start the app, run:
 
