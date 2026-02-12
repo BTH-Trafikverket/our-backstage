@@ -20,7 +20,8 @@
     "lint": "backstage-cli repo lint --since origin/main",
     "lint:all": "backstage-cli repo lint",
     "prettier:check": "prettier --check .",
-    "new": "backstage-cli new"
+    "new": "backstage-cli new",
+    "dev:env": "envx -f .env.local -- yarn start"
   },
   "workspaces": {
     "packages": [
@@ -31,8 +32,8 @@
   "devDependencies": {
     "@backstage/cli": "^0.35.2",
     "@backstage/e2e-test-utils": "^0.1.1",
-    "@playwright/test": "^1.32.3",
     "@jest/environment-jsdom-abstract": "^30.0.0",
+    "@playwright/test": "^1.32.3",
     "@types/jest": "^30.0.0",
     "jest": "^30.2.0",
     "jsdom": "^27.1.0",

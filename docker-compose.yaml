@@ -1,0 +1,12 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: backstage
+      POSTGRES_PASSWORD: backstage
+      POSTGRES_DB: backstage
+      # If you want to set a timezone you can use the following environment variables, this is handy when trying to figure out when scheduled tasks will run!
+      # TZ: Europe/Stockholm
+      # PGTZ: Europe/Stockholm
+    ports:
+      - 5432:5432

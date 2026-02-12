@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO="BTH-Trafikverket/our-backstage"
+
+WORKFLOW="dev-secrets-bundle.yml"
+ARTIFACT="dev-secrets-bundle"
+
+command -v gh >/dev/null 2>&1 || { echo "GitHub CLI (gh) is required. Install it first."; exit 1; }
+command -v git >/dev/null 2>&1 || { echo "git is required."; exit 1; }
+
+# Ensure authenticated
+if ! gh auth status >/dev/null 2>&1; then
+  echo "Logging in to GitHub CLI..."
+  gh auth login
+fi
+
+echo "Triggering workflow (may require environment approval)..."
+gh workflow run "$WORKFLOW" -R "$REPO" >/dev/null
+
+sleep 2
+
+RUN_ID="$(gh run list -R "$REPO" --workflow "$WORKFLOW" --limit 1 --json databaseId -q '.[0].databaseId')"
+
+echo "Waiting for run $RUN_ID to complete..."
+gh run watch "$RUN_ID" -R "$REPO" --exit-status
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+echo "Downloading artifact..."
+gh run download "$RUN_ID" -R "$REPO" -n "$ARTIFACT" -D "$TMP_DIR"
+
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+mkdir -p "$PROJECT_ROOT/.secrets"
+
+cp "$TMP_DIR/.env.local" "$PROJECT_ROOT/.env.local"
+cp "$TMP_DIR/app.pem" "$PROJECT_ROOT/.secrets/app.pem"
+chmod 600 "$PROJECT_ROOT/.secrets/app.pem" || true
+
+echo ""
+echo "✅ Installed:"
+echo "  - $PROJECT_ROOT/.env.local"
+echo "  - $PROJECT_ROOT/.secrets/app.pem"
+echo ""
+echo "Next: load .env.local (envx/dotenv/direnv) and run Backstage."
