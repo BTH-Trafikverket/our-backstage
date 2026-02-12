@@ -2,7 +2,6 @@
 set -euo pipefail
 
 REPO="BTH-Trafikverket/our-backstage"
-
 WORKFLOW="dev-secrets-bundle.yml"
 ARTIFACT="dev-secrets-bundle"
 
@@ -31,11 +30,29 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 echo "Downloading artifact..."
 gh run download "$RUN_ID" -R "$REPO" -n "$ARTIFACT" -D "$TMP_DIR"
 
+# Find files even if gh created a subfolder
+ENV_FILE="$(find "$TMP_DIR" -type f -name ".env.local" -print -quit)"
+PEM_FILE="$(find "$TMP_DIR" -type f -name "app.pem" -print -quit)"
+
+if [[ -z "${ENV_FILE:-}" ]]; then
+  echo "ERROR: .env.local not found in downloaded artifact."
+  echo "Downloaded files:"
+  find "$TMP_DIR" -maxdepth 5 -type f -print
+  exit 1
+fi
+
+if [[ -z "${PEM_FILE:-}" ]]; then
+  echo "ERROR: app.pem not found in downloaded artifact."
+  echo "Downloaded files:"
+  find "$TMP_DIR" -maxdepth 5 -type f -print
+  exit 1
+fi
+
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 mkdir -p "$PROJECT_ROOT/.secrets"
 
-cp "$TMP_DIR/.env.local" "$PROJECT_ROOT/.env.local"
-cp "$TMP_DIR/app.pem" "$PROJECT_ROOT/.secrets/app.pem"
+cp "$ENV_FILE" "$PROJECT_ROOT/.env.local"
+cp "$PEM_FILE" "$PROJECT_ROOT/.secrets/app.pem"
 chmod 600 "$PROJECT_ROOT/.secrets/app.pem" || true
 
 echo ""
