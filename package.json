@@ -6,7 +6,8 @@
     "node": "22 || 24"
   },
   "scripts": {
-    "start": "backstage-cli repo start",
+    "start": "dotenvx run --env-file=.env.local -- backstage-cli repo start",
+    "start:raw": "backstage-cli repo start",
     "build:backend": "yarn workspace backend build",
     "build:all": "backstage-cli repo build --all",
     "build-image": "yarn workspace backend build-image",
@@ -20,8 +21,7 @@
     "lint": "backstage-cli repo lint --since origin/main",
     "lint:all": "backstage-cli repo lint",
     "prettier:check": "prettier --check .",
-    "new": "backstage-cli new",
-    "dev:env": "envx -f .env.local -- yarn start"
+    "new": "backstage-cli new"
   },
   "workspaces": {
     "packages": [
@@ -32,6 +32,7 @@
   "devDependencies": {
     "@backstage/cli": "^0.35.2",
     "@backstage/e2e-test-utils": "^0.1.1",
+    "@dotenvx/dotenvx": "^1.52.0",
     "@jest/environment-jsdom-abstract": "^30.0.0",
     "@playwright/test": "^1.32.3",
     "@types/jest": "^30.0.0",
