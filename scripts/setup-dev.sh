@@ -55,9 +55,41 @@ cp "$ENV_FILE" "$PROJECT_ROOT/.env.local"
 cp "$PEM_FILE" "$PROJECT_ROOT/.secrets/app.pem"
 chmod 600 "$PROJECT_ROOT/.secrets/app.pem" || true
 
+# ---- Validate required keys exist in .env.local ----
+REQUIRED_KEYS=(
+  "TECHDOCS_S3_BUCKET_NAME"
+  "TECHDOCS_S3_REGION"
+  "AWS_ACCESS_KEY_ID"
+  "AWS_SECRET_ACCESS_KEY"
+  "AWS_REGION"
+)
+
+missing=()
+for key in "${REQUIRED_KEYS[@]}"; do
+  # Accept lines like KEY=value (ignore commented lines)
+  if ! grep -Eq "^[[:space:]]*${key}=" "$PROJECT_ROOT/.env.local"; then
+    missing+=("$key")
+  fi
+done
+
+if (( ${#missing[@]} > 0 )); then
+  echo ""
+  echo "❌ Installed secrets, but .env.local is missing required variables:"
+  for k in "${missing[@]}"; do
+    echo "  - $k"
+  done
+  echo ""
+  echo "Fix: add them to your GitHub Environment secrets/vars that build the dev-secrets-bundle artifact,"
+  echo "then re-run this script."
+  exit 1
+fi
+
 echo ""
 echo "✅ Installed:"
 echo "  - $PROJECT_ROOT/.env.local"
 echo "  - $PROJECT_ROOT/.secrets/app.pem"
+echo ""
+echo "✅ Verified required TechDocs reader vars exist in .env.local:"
+printf "  - %s\n" "${REQUIRED_KEYS[@]}"
 echo ""
 echo "Next: load .env.local (envx/dotenv/direnv) and run Backstage."

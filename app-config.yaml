@@ -59,11 +59,14 @@ proxy:
   #     changeOrigin: true
 
 techdocs:
-  builder: 'local'
-  generator:
-    runIn: 'docker'
+  builder: external
   publisher:
-    type: 'local'
+    type: awsS3
+    awsS3:
+      bucketName: ${TECHDOCS_S3_BUCKET_NAME}
+      region: ${TECHDOCS_S3_REGION}
+      # optional, but helps when running locally:
+      s3ForcePathStyle: false
 
 scaffolder:
   # see https://backstage.io/docs/features/software-templates/configuration for software template options

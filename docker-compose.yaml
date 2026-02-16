@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17
+    image: postgres:17-bookworm
     environment:
       POSTGRES_USER: backstage
       POSTGRES_PASSWORD: backstage
