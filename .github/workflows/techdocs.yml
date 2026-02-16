@@ -13,6 +13,10 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: techdocs-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -21,20 +25,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node (cache npm)
+      - name: Use Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
-      - name: Setup Python (cache pip)
-        uses: actions/setup-python@v5
+      - name: Cache npm (for npx downloads)
+        uses: actions/cache@v4
         with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Install MkDocs TechDocs runtime (provides mkdocs)
-        run: pip install "mkdocs-techdocs-core==1.*"
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-techdocs-${{ hashFiles('**/yarn.lock', '**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-techdocs-
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -42,12 +44,12 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.TECHDOCS_S3_REGION }}
 
-      - name: Generate docs (no Docker)
-        run: npx @techdocs/cli@1.10.2 generate --source-dir . --output-dir site --no-docker
+      - name: Generate docs (uses Docker by default)
+        run: npx @techdocs/cli generate --source-dir . --output-dir site
 
       - name: Publish to S3
         run: |
-          npx @techdocs/cli@1.10.2 publish \
+          npx @techdocs/cli publish \
             --publisher-type awsS3 \
             --storage-name "${{ secrets.TECHDOCS_S3_BUCKET_NAME }}" \
             --directory site \
