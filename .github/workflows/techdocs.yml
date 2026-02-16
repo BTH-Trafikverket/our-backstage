@@ -3,11 +3,11 @@ name: Publish TechDocs
 on:
   push:
     branches: [main]
-    # Only run when docs-related files change (saves Actions minutes)
     paths:
       - "docs/**"
       - "mkdocs.yml"
       - "catalog-info.yaml"
+      - ".github/workflows/techdocs.yml"
 
 permissions:
   contents: read
@@ -21,35 +21,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node (with npm cache)
+      - name: Setup Node (cache npm)
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
+      - name: Setup Python (cache pip)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install MkDocs TechDocs runtime (provides mkdocs)
+        run: pip install "mkdocs-techdocs-core==1.*"
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
-        timeout-minutes: 1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.TECHDOCS_S3_REGION }}
 
-      - name: Cache techdocs-cli
-        id: cache-techdocs
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-techdocs-cli-${{ hashFiles('**/package-lock.json') }}
-
-      - name: Install techdocs-cli
-        run: npm install -g @techdocs/cli
-
       - name: Generate docs (no Docker)
-        run: techdocs-cli generate --source-dir . --output-dir site --no-docker
+        run: npx @techdocs/cli@1.10.2 generate --source-dir . --output-dir site --no-docker
 
       - name: Publish to S3
         run: |
-          techdocs-cli publish \
+          npx @techdocs/cli@1.10.2 publish \
             --publisher-type awsS3 \
             --storage-name "${{ secrets.TECHDOCS_S3_BUCKET_NAME }}" \
             --directory site \
