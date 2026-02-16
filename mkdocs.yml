@@ -1,5 +1,9 @@
 site_name: our-backstage
 site_description: Local Backstage instance for developing and testing internal plugins
+
+repo_url: https://github.com/BTH-Trafikverket/our-backstage
+edit_uri: edit/main/docs/
+
 nav:
   - Home: index.md
 plugins:
