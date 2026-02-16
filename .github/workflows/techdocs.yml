@@ -3,6 +3,11 @@ name: Publish TechDocs
 on:
   push:
     branches: [main]
+    # Only run when docs-related files change (saves Actions minutes)
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "catalog-info.yaml"
 
 permissions:
   contents: read
@@ -16,14 +21,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node
+      - name: Use Node (with npm cache)
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Show GitHub ref
-        run: |
-          echo "ref=$GITHUB_REF"
-          echo "repository=$GITHUB_REPOSITORY"
+          cache: npm
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         timeout-minutes: 1
@@ -31,14 +34,18 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.TECHDOCS_S3_REGION }}
 
-      - name: Debug AWS identity
-        run: aws sts get-caller-identity
+      - name: Cache techdocs-cli
+        id: cache-techdocs
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-techdocs-cli-${{ hashFiles('**/package-lock.json') }}
 
       - name: Install techdocs-cli
         run: npm install -g @techdocs/cli
 
-      - name: Generate docs
-        run: techdocs-cli generate --source-dir . --output-dir site
+      - name: Generate docs (no Docker)
+        run: techdocs-cli generate --source-dir . --output-dir site --no-docker
 
       - name: Publish to S3
         run: |

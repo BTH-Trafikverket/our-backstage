@@ -1,0 +1,6 @@
+site_name: our-backstage
+site_description: Local Backstage instance for developing and testing internal plugins
+nav:
+  - Home: index.md
+plugins:
+  - techdocs-core
