@@ -75,29 +75,32 @@ catalog:
   import:
     entityFilename: catalog-info.yaml
     pullRequestBranchName: backstage-integration
+
   rules:
     - allow: [Component, System, API, Resource, Location]
 
-  # Your overwrite: githubOrg provider
   providers:
+    # Keeps syncing users/groups from the org
     githubOrg:
       id: production
       githubUrl: https://github.com
       orgs: ['BTH-Trafikverket']
       schedule:
-        initialDelay: { seconds: 30 }
-        frequency: { seconds: 30 }
+        initialDelay: { seconds: 10 }
+        frequency: { minutes: 30 }
         timeout: { minutes: 50 }
 
-  # Keeping your existing example locations (safe to keep even if you also use githubOrg)
-  locations:
-    - type: file
-      target: ../../examples/entities.yaml
-
-    - type: file
-      target: ../../examples/template/template.yaml
-      rules:
-        - allow: [Template]
+    # Scans repos in the org for /catalog-info.yaml and ingests entities
+    github:
+      bth:
+        organization: BTH-Trafikverket
+        catalogPath: /catalog-info.yaml
+        filters:
+          branch: main
+        schedule:
+          initialDelay: { seconds: 20 }
+          frequency: { minutes: 30 }
+          timeout: { minutes: 10 }
 
 kubernetes:
   # see https://backstage.io/docs/features/kubernetes/configuration for kubernetes configuration options
