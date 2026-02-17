@@ -38,6 +38,7 @@ import { catalogEntityCreatePermission } from '@backstage/plugin-catalog-common/
 import { NotificationsPage } from '@backstage/plugin-notifications';
 import { SignalsDisplay } from '@backstage/plugin-signals';
 import { githubAuthApiRef } from '@backstage/core-plugin-api';
+import { BackstagePluginGamificationPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
 
 const app = createApp({
 	apis,
@@ -109,6 +110,7 @@ const routes = (
 		<Route path="/settings" element={<UserSettingsPage />} />
 		<Route path="/catalog-graph" element={<CatalogGraphPage />} />
 		<Route path="/notifications" element={<NotificationsPage />} />
+		<Route path="/backstage-plugin-gamification" element={<BackstagePluginGamificationPage />} />
 	</FlatRoutes>
 );
 

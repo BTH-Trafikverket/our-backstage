@@ -41,6 +41,7 @@
     "@backstage/plugin-user-settings": "^0.8.31",
     "@backstage/theme": "^0.7.1",
     "@backstage/ui": "^0.11.0",
+    "@internal/backstage-plugin-backstage-plugin-gamification": "workspace:^",
     "@material-ui/core": "^4.12.2",
     "@material-ui/icons": "^4.9.1",
     "react": "^18.0.2",
