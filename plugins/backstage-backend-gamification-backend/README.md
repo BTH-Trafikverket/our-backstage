@@ -16,7 +16,9 @@ Then add the plugin to your backend in `packages/backend/src/index.ts`:
 ```ts
 const backend = createBackend();
 // ...
-backend.add(import('@internal/backstage-plugin-backstage-backend-gamification-backend'));
+backend.add(
+  import('@internal/backstage-plugin-backstage-backend-gamification-backend'),
+);
 ```
 
 ## Development

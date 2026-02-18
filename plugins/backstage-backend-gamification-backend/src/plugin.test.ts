@@ -24,9 +24,11 @@ describe('plugin', () => {
       features: [backstageBackendGamificationPlugin],
     });
 
-    await request(server).get('/api/backstage-backend-gamification/todos').expect(200, {
-      items: [],
-    });
+    await request(server)
+      .get('/api/backstage-backend-gamification/todos')
+      .expect(200, {
+        items: [],
+      });
 
     const createRes = await request(server)
       .post('/api/backstage-backend-gamification/todos')
@@ -102,7 +104,7 @@ describe('plugin', () => {
             listTodos: jest.fn().mockRejectedValue(new AuthenticationError()),
             getTodo: jest.fn().mockRejectedValue(new NotAllowedError()),
           }),
-        })
+        }),
       ],
     });
 
@@ -114,13 +116,17 @@ describe('plugin', () => {
       error: { name: 'ConflictError' },
     });
 
-    const listRes = await request(server).get('/api/backstage-backend-gamification/todos');
+    const listRes = await request(server).get(
+      '/api/backstage-backend-gamification/todos',
+    );
     expect(listRes.status).toBe(401);
     expect(listRes.body).toMatchObject({
       error: { name: 'AuthenticationError' },
     });
 
-    const getRes = await request(server).get('/api/backstage-backend-gamification/todos/123');
+    const getRes = await request(server).get(
+      '/api/backstage-backend-gamification/todos/123',
+    );
     expect(getRes.status).toBe(403);
     expect(getRes.body).toMatchObject({
       error: { name: 'NotAllowedError' },
