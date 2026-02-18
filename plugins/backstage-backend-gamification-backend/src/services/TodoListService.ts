@@ -19,6 +19,7 @@ import {
   createServiceFactory,
   createServiceRef,
   LoggerService,
+  DatabaseService
 } from '@backstage/backend-plugin-api';
 import { NotFoundError } from '@backstage/errors';
 import { catalogServiceRef } from '@backstage/plugin-catalog-node';

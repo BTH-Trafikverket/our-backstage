@@ -4,6 +4,9 @@ import { z } from 'zod';
 import express from 'express';
 import Router from 'express-promise-router';
 import { todoListServiceRef } from './services/TodoListService';
+import { coreServices } from '@backstage/backend-plugin-api';
+
+
 
 export async function createRouter({
   httpAuth,
@@ -12,8 +15,10 @@ export async function createRouter({
   httpAuth: HttpAuthService;
   todoList: typeof todoListServiceRef.T;
 }): Promise<express.Router> {
+  const knex = await coreServices.database
   const router = Router();
   router.use(express.json());
+  
 
   // TEMPLATE NOTE:
   // Zod is a powerful library for data validation and recommended in particular
@@ -49,3 +54,5 @@ export async function createRouter({
 
   return router;
 }
+
+

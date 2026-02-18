@@ -3,7 +3,7 @@ import {
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
 import { createRouter } from './router';
-import { todoListServiceRef } from './services/TodoListService';
+import { initGameDb } from './database';
 
 /**
  * backstageBackendGamificationPlugin backend plugin
@@ -15,18 +15,19 @@ export const backstageBackendGamificationPlugin = createBackendPlugin({
   register(env) {
     env.registerInit({
       deps: {
-        httpAuth: coreServices.httpAuth,
-        httpRouter: coreServices.httpRouter,
-        todoList: todoListServiceRef,
+        database: coreServices.database,
+        logger: coreServices.logger,        
       },
-      async init({ httpAuth, httpRouter, todoList }) {
-        httpRouter.use(
-          await createRouter({
-            httpAuth,
-            todoList,
-          }),
-        );
-      },
-    });
-  },
+      async init({ database, logger }) {
+        await initGameDb({
+          database,
+          migrationPackageName: "@internal/backstage-plugin-backstage-backend-gamification-backend",
+        });
+
+        logger.info('gameifications migrations applied');
+          },
+        });
+},
 });
+
+
