@@ -12,7 +12,7 @@ export async function up(knex: Knex): Promise<void> {
     table.integer('xp_reward').notNullable();
 
     table
-      .timestamp('create_at', { useTz: true })
+      .timestamp('created_at', { useTz: true })
       .notNullable()
       .defaultTo(knex.fn.now());
     table
