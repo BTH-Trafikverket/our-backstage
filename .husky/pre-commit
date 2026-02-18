@@ -1,2 +1,35 @@
-yarn fix || exit 1
-git add -A
+#!/bin/sh
+
+run_with_spinner () {
+  msg="$1"
+  shift
+
+  # run command in background
+  "$@" &
+  pid=$!
+
+  # spinner
+  spin='-\|/'
+  i=0
+  printf "%s " "$msg"
+  while kill -0 "$pid" 2>/dev/null; do
+    i=$(( (i + 1) % 4 ))
+    printf "\b%s" "$(printf "%s" "$spin" | cut -c $((i+1)) )"
+    sleep 0.1
+  done
+
+  wait "$pid"
+  rc=$?
+  if [ $rc -eq 0 ]; then
+    printf "\b✓\n"
+  else
+    printf "\b✗\n"
+  fi
+  return $rc
+}
+
+run_with_spinner "🧹 Running auto-fix (yarn fix)..." yarn fix || exit 1
+run_with_spinner "📌 Restaging changes..." git add -A || exit 1
+
+echo "✅ pre-commit done"
+exit 0
