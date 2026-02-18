@@ -16,7 +16,6 @@ backend:
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
     credentials: true
 
-  # You overwrote the default sqlite dev DB with Postgres
   database:
     client: pg
     connection:
