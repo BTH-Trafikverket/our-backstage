@@ -4,10 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - "docs/**"
-      - "mkdocs.yml"
-      - "catalog-info.yaml"
-      - ".github/workflows/techdocs.yml"
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'catalog-info.yaml'
+      - '.github/workflows/techdocs.yml'
 
 permissions:
   contents: read

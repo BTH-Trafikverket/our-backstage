@@ -1,1 +1,4 @@
-export { backstagePluginGamificationPlugin, BackstagePluginGamificationPage } from './plugin';
+export {
+  backstagePluginGamificationPlugin,
+  BackstagePluginGamificationPage,
+} from './plugin';

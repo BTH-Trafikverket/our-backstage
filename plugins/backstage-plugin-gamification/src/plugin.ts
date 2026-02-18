@@ -12,11 +12,12 @@ export const backstagePluginGamificationPlugin = createPlugin({
   },
 });
 
-export const BackstagePluginGamificationPage = backstagePluginGamificationPlugin.provide(
-  createRoutableExtension({
-    name: 'BackstagePluginGamificationPage',
-    component: () =>
-      import('./components/ExampleComponent').then(m => m.ExampleComponent),
-    mountPoint: rootRouteRef,
-  }),
-);
+export const BackstagePluginGamificationPage =
+  backstagePluginGamificationPlugin.provide(
+    createRoutableExtension({
+      name: 'BackstagePluginGamificationPage',
+      component: () =>
+        import('./components/ExampleComponent').then(m => m.ExampleComponent),
+      mountPoint: rootRouteRef,
+    }),
+  );

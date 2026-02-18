@@ -11,19 +11,20 @@ Our own version of Backstage where we can test the plugin locally.
 
 ## First-time setup
 
-1) Install dependencies:
+1. Install dependencies:
 
 ```sh
 yarn install
 ```
 
-2) Install secrets
+2. Install secrets
 
 ```sh
 ./scripts/setup-dev.sh
 ```
 
-3) start backstage
+3. start backstage
+
 ```sh
 yarn start
 ```

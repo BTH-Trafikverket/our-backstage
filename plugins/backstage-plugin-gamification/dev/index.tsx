@@ -1,5 +1,8 @@
 import { createDevApp } from '@backstage/dev-utils';
-import { backstagePluginGamificationPlugin, BackstagePluginGamificationPage } from '../src/plugin';
+import {
+  backstagePluginGamificationPlugin,
+  BackstagePluginGamificationPage,
+} from '../src/plugin';
 
 createDevApp()
   .registerPlugin(backstagePluginGamificationPlugin)

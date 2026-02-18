@@ -2,10 +2,7 @@ import { ExampleComponent } from './ExampleComponent';
 import { rest } from 'msw';
 import { setupServer } from 'msw/node';
 import { screen } from '@testing-library/react';
-import {
-  registerMswTestHooks,
-  renderInTestApp,
-} from '@backstage/test-utils';
+import { registerMswTestHooks, renderInTestApp } from '@backstage/test-utils';
 
 describe('ExampleComponent', () => {
   const server = setupServer();
