@@ -1,0 +1,9 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Auto-fix (format/lint fixes) and include them in the commit
+yarn fix || exit 1
+git add -A
+
+# Do not block commit on checks here (fast workflow).
+exit 0
