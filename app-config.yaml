@@ -28,7 +28,7 @@ backend:
     backstage-plugin-gamification:
       connection:
         database: ${DB_NAME}
-        
+
 integrations:
   github:
     - host: github.com

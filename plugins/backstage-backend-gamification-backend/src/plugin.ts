@@ -16,18 +16,17 @@ export const backstageBackendGamificationPlugin = createBackendPlugin({
     env.registerInit({
       deps: {
         database: coreServices.database,
-        logger: coreServices.logger,        
+        logger: coreServices.logger,
       },
       async init({ database, logger }) {
         await initGameDb({
           database,
-          migrationPackageName: "@internal/backstage-plugin-backstage-backend-gamification-backend",
+          migrationPackageName:
+            '@internal/backstage-plugin-backstage-backend-gamification-backend',
         });
 
         logger.info('gameifications migrations applied');
-          },
-        });
-},
+      },
+    });
+  },
 });
-
-
