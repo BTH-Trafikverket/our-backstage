@@ -39,6 +39,7 @@ import { NotificationsPage } from '@backstage/plugin-notifications';
 import { SignalsDisplay } from '@backstage/plugin-signals';
 import { githubAuthApiRef } from '@backstage/core-plugin-api';
 import { BackstagePluginGamificationPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
+import { GamificationXpDebugPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
 
 const app = createApp({
   apis,
@@ -114,6 +115,8 @@ const routes = (
       path="/backstage-plugin-gamification"
       element={<BackstagePluginGamificationPage />}
     />
+    <Route path="/gamification/xp" element={<GamificationXpDebugPage />} />
+    dd
   </FlatRoutes>
 );
 
