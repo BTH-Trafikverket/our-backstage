@@ -1,30 +1,31 @@
 import { HttpAuthService } from '@backstage/backend-plugin-api';
-import { InputError } from '@backstage/errors';
+import type { Knex } from 'knex';
 import express from 'express';
 import Router from 'express-promise-router';
-import { questCreationSchema } from './schemas/schemaBarrel';
+import { createQuestsRouter } from './routes/questsRouter';
+import { QuestsRepository } from './repositories/questsRepository';
+import { QuestsService } from './services/questsService';
 
-export async function createRouter({
+export function createRouter({
   httpAuth,
+  knex,
 }: {
   httpAuth: HttpAuthService;
-}): Promise<express.Router> {
+  knex: Knex;
+}): express.Router {
   const router = Router();
   router.use(express.json());
 
-  router.post('/quests', async (req, res) => {
-    const parsed = questCreationSchema.safeParse(req.body);
-    if (!parsed.success) {
-      throw new InputError(parsed.error.toString());
-    }
+  const questsRepo = new QuestsRepository(knex);
+  const questsService = new QuestsService({ questsRepo });
 
-    const result = await (parsed.data,
-    {
-      credentials: await httpAuth.credentials(req, { allow: ['user'] }),
-    });
-
-    res.status(201).json(result);
-  });
+  router.use(
+    '/quests',
+    createQuestsRouter({
+      httpAuth,
+      createQuest: (data, opts) => questsService.createQuest(data, opts),
+    }),
+  );
 
   return router;
 }

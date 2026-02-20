@@ -4,6 +4,7 @@ import {
 } from '@backstage/backend-plugin-api';
 import { initGameDb } from './database';
 import { runSeeds } from './seed';
+import { createRouter } from './router';
 
 export const backstageBackendGamificationPlugin = createBackendPlugin({
   pluginId: 'backstage-backend-gamification',
@@ -12,9 +13,11 @@ export const backstageBackendGamificationPlugin = createBackendPlugin({
       deps: {
         database: coreServices.database,
         logger: coreServices.logger,
-        config: coreServices.rootConfig, // <-- add
+        config: coreServices.rootConfig,
+        httpRouter: coreServices.httpRouter,
+        httpAuth: coreServices.httpAuth,
       },
-      async init({ database, logger, config }) {
+      async init({ database, logger, config, httpRouter, httpAuth }) {
         const knex = await initGameDb({
           database,
           migrationPackageName:
@@ -32,6 +35,8 @@ export const backstageBackendGamificationPlugin = createBackendPlugin({
           await runSeeds(knex, { reset: seedReset });
           logger.info(`gamification seeds applied (reset=${seedReset})`);
         }
+
+        httpRouter.use(createRouter({ httpAuth, knex }));
       },
     });
   },
