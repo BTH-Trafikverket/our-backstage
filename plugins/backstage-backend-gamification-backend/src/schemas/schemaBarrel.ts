@@ -1,5 +1,5 @@
-export { badgeCreationSchema } from './badgeCreationSchema';
-export { questCreationSchema } from './questCreationSchema';
+export { badgeCreationSchema } from './badges/badgeCreationSchema';
+export { questCreationSchema } from './quests/questCreationSchema';
 
-export type { BadgeCreationInput } from './badgeCreationSchema';
-export type { QuestCreationInput } from './questCreationSchema';
+export type { BadgeCreationInput } from './badges/badgeCreationSchema';
+export type { QuestCreationInput } from './quests/questCreationSchema';
