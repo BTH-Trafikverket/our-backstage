@@ -1,0 +1,45 @@
+import type { Knex } from 'knex';
+
+export type QuestRow = {
+  id: string;
+  title: string;
+  description: string;
+  interval: number;
+  xp_reward: number;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type CreateQuestRow = {
+  id: string;
+  title: string;
+  description: string;
+  interval: number;
+  xp_reward: number;
+};
+
+export class QuestsRepository {
+  private readonly db: Knex;
+
+  constructor(db: Knex) {
+    this.db = db;
+  }
+
+  async createQuest(data: CreateQuestRow): Promise<QuestRow> {
+    const rows = await this.db<QuestRow>('quests')
+      .insert({
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        interval: data.interval,
+        xp_reward: data.xp_reward,
+      })
+      .returning('*');
+
+    return rows[0];
+  }
+
+  async getQuestById(id: string): Promise<QuestRow | undefined> {
+    return this.db<QuestRow>('quests').where({ id }).first();
+  }
+}

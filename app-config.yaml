@@ -9,6 +9,14 @@ backend:
   baseUrl: ${BACKEND_BASE_URL}
   listen:
     port: ${BACKEND_PORT}
+
+  auth:
+    externalAccess:
+      - type: static
+        options:
+          token: ${POSTMAN_STATIC_TOKEN}
+          subject: postman
+
   csp:
     connect-src: ["'self'", 'http:', 'https:']
   cors:
@@ -25,9 +33,9 @@ backend:
       password: ${DB_PASSWORD}
       database: ${DB_NAME}
     plugin:
-    backstage-plugin-gamification:
-      connection:
-        database: ${DB_NAME}
+      backstage-plugin-gamification:
+        connection:
+          database: ${DB_NAME}
 
 integrations:
   github:
