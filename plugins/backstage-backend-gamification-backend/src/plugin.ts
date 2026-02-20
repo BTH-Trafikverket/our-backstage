@@ -2,14 +2,9 @@ import {
   coreServices,
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
-import { createRouter } from './router';
 import { initGameDb } from './database';
+import { runSeeds } from './seed';
 
-/**
- * backstageBackendGamificationPlugin backend plugin
- *
- * @public
- */
 export const backstageBackendGamificationPlugin = createBackendPlugin({
   pluginId: 'backstage-backend-gamification',
   register(env) {
@@ -17,15 +12,26 @@ export const backstageBackendGamificationPlugin = createBackendPlugin({
       deps: {
         database: coreServices.database,
         logger: coreServices.logger,
+        config: coreServices.rootConfig, // <-- add
       },
-      async init({ database, logger }) {
-        await initGameDb({
+      async init({ database, logger, config }) {
+        const knex = await initGameDb({
           database,
           migrationPackageName:
             '@internal/backstage-plugin-backstage-backend-gamification-backend',
         });
 
-        logger.info('gameifications migrations applied');
+        logger.info('gamification migrations applied');
+
+        const seedEnabled =
+          config.getOptionalBoolean('gamification.seed.enabled') ?? false;
+        const seedReset =
+          config.getOptionalBoolean('gamification.seed.reset') ?? false;
+
+        if (seedEnabled) {
+          await runSeeds(knex, { reset: seedReset });
+          logger.info(`gamification seeds applied (reset=${seedReset})`);
+        }
       },
     });
   },
