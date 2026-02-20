@@ -30,7 +30,6 @@ export const ExampleComponent = () => (
     </Header>
     <Content>
       <Grid container spacing={2}>
-        {/* Sidebar */}
         <Grid item xs={12} sm={3}>
           <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 1 }}>
             <Box sx={{ p: 2, display: 'flex', alignItems: 'center' }}>
@@ -52,7 +51,6 @@ export const ExampleComponent = () => (
           </Box>
         </Grid>
 
-        {/* Main Content */}
         <Grid item xs={12} sm={9}>
           <ContentHeader title="Plugin title">
             <SupportButton>
