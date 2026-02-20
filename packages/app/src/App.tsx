@@ -40,6 +40,7 @@ import { SignalsDisplay } from '@backstage/plugin-signals';
 import { githubAuthApiRef } from '@backstage/core-plugin-api';
 import { BackstagePluginGamificationPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
 import { GamificationXpDebugPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
+
 const app = createApp({
   apis,
   bindRoutes({ bind }) {

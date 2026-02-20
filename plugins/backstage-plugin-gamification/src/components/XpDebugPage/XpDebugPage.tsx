@@ -1,4 +1,5 @@
-import React from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Page,
   Header,
@@ -12,7 +13,6 @@ import {
   identityApiRef,
   useApi,
 } from '@backstage/core-plugin-api';
-import { useLocation } from 'react-router-dom';
 
 type XpStatus = {
   userRef: string;
@@ -31,11 +31,16 @@ export const XpDebugPage = () => {
   const identityApi = useApi(identityApiRef);
   const location = useLocation();
 
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | undefined>();
-  const [data, setData] = React.useState<XpStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | undefined>();
+  const [data, setData] = useState<XpStatus | null>(null);
 
-  React.useEffect(() => {
+  const userRef = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('userRef')?.trim() || undefined;
+  }, [location.search]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
@@ -43,16 +48,15 @@ export const XpDebugPage = () => {
         setLoading(true);
         setError(undefined);
 
-        // IMPORTANT: this must match your BACKEND pluginId
+        // Must match BACKEND pluginId
         const baseUrl = await discoveryApi.getBaseUrl(
           'backstage-backend-gamification',
         );
 
-        const params = new URLSearchParams(location.search);
-        const userRef = params.get('userRef')?.trim();
-
         const url = new URL(`${baseUrl}/xp`);
-        if (userRef) url.searchParams.set('userRef', userRef);
+        if (userRef) {
+          url.searchParams.set('userRef', userRef);
+        }
 
         const { token } = await identityApi.getCredentials();
 
@@ -66,11 +70,17 @@ export const XpDebugPage = () => {
         }
 
         const json = (await resp.json()) as XpStatus;
-        if (!cancelled) setData(json);
+        if (!cancelled) {
+          setData(json);
+        }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? String(e));
+        if (!cancelled) {
+          setError(e?.message ?? String(e));
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
@@ -78,23 +88,26 @@ export const XpDebugPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [discoveryApi, fetchApi, identityApi, location.search]);
+  }, [discoveryApi, fetchApi, identityApi, userRef]);
+
+  let body: JSX.Element;
+  if (loading) {
+    body = <Progress />;
+  } else if (error) {
+    body = <pre style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>;
+  } else {
+    body = (
+      <pre style={{ whiteSpace: 'pre-wrap' }}>
+        {JSON.stringify(data, null, 2)}
+      </pre>
+    );
+  }
 
   return (
     <Page themeId="home">
       <Header title="Gamification XP" subtitle="Debug view for XP payload" />
       <Content>
-        <InfoCard title="XP status">
-          {loading ? (
-            <Progress />
-          ) : error ? (
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>
-          ) : (
-            <pre style={{ whiteSpace: 'pre-wrap' }}>
-              {JSON.stringify(data, null, 2)}
-            </pre>
-          )}
-        </InfoCard>
+        <InfoCard title="XP status">{body}</InfoCard>
       </Content>
     </Page>
   );
