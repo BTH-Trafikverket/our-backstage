@@ -9,6 +9,14 @@ backend:
   baseUrl: ${BACKEND_BASE_URL}
   listen:
     port: ${BACKEND_PORT}
+
+  auth:
+    externalAccess:
+      - type: static
+        options:
+          token: ${POSTMAN_STATIC_TOKEN}
+          subject: postman
+
   csp:
     connect-src: ["'self'", 'http:', 'https:']
   cors:
@@ -25,9 +33,9 @@ backend:
       password: ${DB_PASSWORD}
       database: ${DB_NAME}
     plugin:
-    backstage-plugin-gamification:
-      connection:
-        database: ${DB_NAME}
+      backstage-plugin-gamification:
+        connection:
+          database: ${DB_NAME}
 
 integrations:
   github:
@@ -68,7 +76,6 @@ techdocs:
     awsS3:
       bucketName: ${TECHDOCS_S3_BUCKET_NAME}
       region: ${TECHDOCS_S3_REGION}
-      # optional, but helps when running locally:
       s3ForcePathStyle: false
 
 scaffolder:
@@ -78,12 +85,19 @@ catalog:
   import:
     entityFilename: catalog-info.yaml
     pullRequestBranchName: backstage-integration
-
+  locations:
+    - type: file
+      target: ./catalog/users/alice.yaml
+      rules:
+        - allow: [User]
+    - type: file
+      target: ./catalog/users/bob.yaml
+      rules:
+        - allow: [User]
   rules:
     - allow: [Component, System, API, Resource, Location]
 
   providers:
-    # Keeps syncing users/groups from the org
     githubOrg:
       id: production
       githubUrl: https://github.com
@@ -110,3 +124,8 @@ kubernetes:
 
 permission:
   enabled: true
+
+gamification:
+  seed:
+    enabled: true
+    reset: false

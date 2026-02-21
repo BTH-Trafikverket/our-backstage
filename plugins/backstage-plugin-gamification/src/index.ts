@@ -3,5 +3,7 @@ export {
   BackstagePluginGamificationPage,
 } from './plugin';
 
-export { LevelProgressCard } from './components/LevelProgressCard';
-export type { LevelProgressCardProps } from './components/LevelProgressCard';
+export { XpDebugPage } from './components/XpDebugPage/XpDebugPage';
+
+export { GamificationXpDebugPage } from './plugin';
+export { xpRouteRef } from './routes';

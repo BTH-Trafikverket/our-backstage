@@ -38,12 +38,17 @@ import { catalogEntityCreatePermission } from '@backstage/plugin-catalog-common/
 import { NotificationsPage } from '@backstage/plugin-notifications';
 import { SignalsDisplay } from '@backstage/plugin-signals';
 import { githubAuthApiRef } from '@backstage/core-plugin-api';
+<<<<<<< HEAD
 
 import { Box } from '@mui/material';
 import {
   BackstagePluginGamificationPage,
   LevelProgressCard,
 } from '@internal/backstage-plugin-backstage-plugin-gamification';
+=======
+import { BackstagePluginGamificationPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
+import { GamificationXpDebugPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
+>>>>>>> 3e27d8d2a5010ef972c5c48ca624fee286d3fa23
 
 const app = createApp({
   apis,
@@ -132,6 +137,8 @@ const routes = (
       path="/backstage-plugin-gamification"
       element={<BackstagePluginGamificationPage />}
     />
+    <Route path="/gamification/xp" element={<GamificationXpDebugPage />} />
+    dd
   </FlatRoutes>
 );
 
