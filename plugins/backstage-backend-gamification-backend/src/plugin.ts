@@ -2,7 +2,7 @@ import {
   coreServices,
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
-import { createRouter } from './router';
+//import { createRouter } from './router';
 import { initGameDb } from './database';
 
 /**
