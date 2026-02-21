@@ -2,10 +2,6 @@ import {
   coreServices,
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
-<<<<<<< HEAD
-//import { createRouter } from './router';
-=======
->>>>>>> 3e27d8d2a5010ef972c5c48ca624fee286d3fa23
 import { initGameDb } from './database';
 import { runSeeds } from './seed';
 import { createRouter } from './router';

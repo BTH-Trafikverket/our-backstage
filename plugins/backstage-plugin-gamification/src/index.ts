@@ -1,9 +1,10 @@
 export {
   backstagePluginGamificationPlugin,
   BackstagePluginGamificationPage,
+  GamificationXpDebugPage,
 } from './plugin';
 
-export { XpDebugPage } from './components/XpDebugPage/XpDebugPage';
+export { rootRouteRef, xpRouteRef } from './routes';
 
-export { GamificationXpDebugPage } from './plugin';
-export { xpRouteRef } from './routes';
+// valfritt, men bra att ha:
+export { XpDebugPage } from './components/XpDebugPage/XpDebugPage';

@@ -38,17 +38,8 @@ import { catalogEntityCreatePermission } from '@backstage/plugin-catalog-common/
 import { NotificationsPage } from '@backstage/plugin-notifications';
 import { SignalsDisplay } from '@backstage/plugin-signals';
 import { githubAuthApiRef } from '@backstage/core-plugin-api';
-<<<<<<< HEAD
-
-import { Box } from '@mui/material';
-import {
-  BackstagePluginGamificationPage,
-  LevelProgressCard,
-} from '@internal/backstage-plugin-backstage-plugin-gamification';
-=======
 import { BackstagePluginGamificationPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
 import { GamificationXpDebugPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
->>>>>>> 3e27d8d2a5010ef972c5c48ca624fee286d3fa23
 
 const app = createApp({
   apis,
@@ -117,7 +108,6 @@ const routes = (
     <Route path="/search" element={<SearchPage />}>
       {searchPage}
     </Route>
-
     {/* User page (/settings): show level progression card above settings */}
     <Route
       path="/settings"
@@ -130,7 +120,6 @@ const routes = (
         </>
       }
     />
-
     <Route path="/catalog-graph" element={<CatalogGraphPage />} />
     <Route path="/notifications" element={<NotificationsPage />} />
     <Route
