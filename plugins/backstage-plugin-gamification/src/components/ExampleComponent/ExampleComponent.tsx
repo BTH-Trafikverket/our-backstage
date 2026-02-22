@@ -1,25 +1,14 @@
+import { Grid, List, ListItem, ListItemText } from '@material-ui/core';
 import {
-  Typography,
-  Grid,
-  Box,
-  List,
-  ListItem,
-  ListItemText,
-  Divider,
-} from '@material-ui/core';
-import {
-  InfoCard,
   Header,
   Page,
   Content,
-  ContentHeader,
   HeaderLabel,
-  SupportButton,
+  InfoCard,
 } from '@backstage/core-components';
 import { Link, Routes, Route } from 'react-router-dom';
 import { HomePage } from '../HomePage';
 import { QuestsAdminPage } from '../QuestsAdminPage';
-import EmojiEventsIcon from '@material-ui/icons/EmojiEvents';
 
 export const ExampleComponent = () => {
   return (
@@ -34,12 +23,7 @@ export const ExampleComponent = () => {
       <Content>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={3}>
-            <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 1 }}>
-              <Box sx={{ p: 2, display: 'flex', alignItems: 'center' }}>
-                <EmojiEventsIcon />
-                <Typography variant="h6">Gamification</Typography>
-              </Box>
-              <Divider />
+            <InfoCard title="Gamification">
               <List dense>
                 <ListItem
                   button
@@ -62,7 +46,7 @@ export const ExampleComponent = () => {
                   <ListItemText primary="Badges" />
                 </ListItem>
               </List>
-            </Box>
+            </InfoCard>
           </Grid>
 
           <Grid item xs={12} sm={9}>
