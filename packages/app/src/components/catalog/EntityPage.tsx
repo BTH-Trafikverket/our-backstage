@@ -57,6 +57,7 @@ import {
   EntityKubernetesContent,
   isKubernetesAvailable,
 } from '@backstage/plugin-kubernetes';
+import { XpDebugPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
 
 const techdocsContent = (
   <EntityTechdocsContent>
@@ -302,6 +303,9 @@ const userPage = (
         </Grid>
         <Grid item xs={12} md={6}>
           <EntityOwnershipCard variant="gridItem" />
+        </Grid>
+        <Grid>
+          <XpDebugPage />
         </Grid>
       </Grid>
     </EntityLayout.Route>

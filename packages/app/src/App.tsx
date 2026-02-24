@@ -38,8 +38,11 @@ import { catalogEntityCreatePermission } from '@backstage/plugin-catalog-common/
 import { NotificationsPage } from '@backstage/plugin-notifications';
 import { SignalsDisplay } from '@backstage/plugin-signals';
 import { githubAuthApiRef } from '@backstage/core-plugin-api';
-import { BackstagePluginGamificationPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
-import { GamificationXpDebugPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
+
+import {
+  BackstagePluginGamificationPage,
+  GamificationXpDebugPage,
+} from '@internal/backstage-plugin-backstage-plugin-gamification';
 
 const app = createApp({
   apis,
@@ -86,6 +89,7 @@ const routes = (
     >
       {entityPage}
     </Route>
+
     <Route path="/docs" element={<TechDocsIndexPage />} />
     <Route
       path="/docs/:namespace/:kind/:name/*"
@@ -95,8 +99,10 @@ const routes = (
         <ReportIssue />
       </TechDocsAddons>
     </Route>
+
     <Route path="/create" element={<ScaffolderPage />} />
     <Route path="/api-docs" element={<ApiExplorerPage />} />
+
     <Route
       path="/catalog-import"
       element={
@@ -105,18 +111,22 @@ const routes = (
         </RequirePermission>
       }
     />
+
     <Route path="/search" element={<SearchPage />}>
       {searchPage}
     </Route>
+
+    {/* User page (/settings) */}
     <Route path="/settings" element={<UserSettingsPage />} />
+
     <Route path="/catalog-graph" element={<CatalogGraphPage />} />
     <Route path="/notifications" element={<NotificationsPage />} />
+
     <Route
-      path="/backstage-plugin-gamification/*"
+      path="/backstage-plugin-gamification"
       element={<BackstagePluginGamificationPage />}
     />
     <Route path="/gamification/xp" element={<GamificationXpDebugPage />} />
-    dd
   </FlatRoutes>
 );
 
