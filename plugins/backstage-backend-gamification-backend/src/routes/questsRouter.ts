@@ -77,6 +77,23 @@ export function QuestsRouter({
     res.status(204).send();
   });
 
+  router.post('/complete', async (req, res) => {
+    const parsed = questCompletionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new InputError(parsed.error.toString());
+    }
+
+    const credentials = await httpAuth.credentials(req, {
+      allow: ['user', 'service'],
+    });
+
+    const progress = await questsService.completeQuest(parsed.data.quest_id, {
+      credentials,
+    });
+
+    res.status(200).json(progress);
+  });
+
   router.get('/', async (req, res) => {
     const credentials = await httpAuth.credentials(req, {
       allow: ['user', 'service'],
