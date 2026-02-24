@@ -37,4 +37,8 @@ export class QuestsService {
   async editQuest(id: string, data: QuestEditSchema, _opts: QuestServiceOpts) {
     return this.questsRepo.editQuest(id, data);
   }
+
+  async deleteQuest(id: string, _opts: QuestServiceOpts) {
+    return this.questsRepo.deleteQuest(id);
+  }
 }

@@ -51,6 +51,24 @@ export function QuestsRouter({
     res.status(200).json(updated);
   });
 
+  router.delete('/:id', async (req, res) => {
+    const { id } = req.params;
+    if (!id) {
+      throw new InputError('Missing quest id');
+    }
+
+    const credentials = await httpAuth.credentials(req, {
+      allow: ['user', 'service'],
+    });
+
+    const deleted = await questsService.deleteQuest(id, { credentials });
+    if (!deleted) {
+      throw new NotFoundError('Quest not found');
+    }
+
+    res.status(204).send();
+  });
+
   router.get('/', async (req, res) => {
     const credentials = await httpAuth.credentials(req, {
       allow: ['user', 'service'],
