@@ -19,6 +19,14 @@ export type CreateQuestRow = {
   xp_reward: number;
 };
 
+export type QuestProgressRow = {
+  user_ref: string;
+  quest_id: string;
+  completion_count: number;
+  created_at: Date;
+  updated_at: Date;
+};
+
 export class QuestsRepository {
   private readonly db: Knex;
 
@@ -74,6 +82,7 @@ export class QuestsRepository {
     const deletedCount = await this.db('quests').where({ id }).del();
     return deletedCount > 0;
   }
+
   async completeQuestProgress(params: {
     user_ref: string;
     quest_id: string;
