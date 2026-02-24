@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const questPatchSchema = z
+export const questEditSchema = z
   .object({
     title: z.string().min(1).optional(),
     description: z.string().min(1).optional(),
@@ -17,4 +17,4 @@ export const questPatchSchema = z
     { message: 'No fields provided to update' },
   );
 
-export type QuestPatchInput = z.infer<typeof questPatchSchema>;
+export type QuestEditSchema = z.infer<typeof questEditSchema>;

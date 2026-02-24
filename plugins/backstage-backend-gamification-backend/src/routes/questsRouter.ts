@@ -1,5 +1,5 @@
 import { HttpAuthService } from '@backstage/backend-plugin-api';
-import { InputError } from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 import express from 'express';
 import Router from 'express-promise-router';
 import { questCreationSchema } from '../schemas/quests/questCreationSchema';
@@ -29,6 +29,26 @@ export function QuestsRouter({
     });
 
     res.status(201).json(result);
+  });
+
+  router.patch('/:id', async (req, res) => {
+    const { id } = req.params;
+    if (!id) {
+      throw new InputError('Missing quest id');
+    }
+
+    const credentials = await httpAuth.credentials(req, {
+      allow: ['user', 'service'],
+    });
+
+    const updated = await questsService.editQuest(id, req.body, {
+      credentials,
+    });
+    if (!updated) {
+      throw new NotFoundError('Quest not found');
+    }
+
+    res.status(200).json(updated);
   });
 
   router.get('/', async (req, res) => {
