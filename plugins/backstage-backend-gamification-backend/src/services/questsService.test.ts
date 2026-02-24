@@ -1,6 +1,6 @@
 import { QuestsService } from './questsService';
 import { QuestsRepository } from '../repositories/questsRepository';
-import { QuestCreationInput } from '../schemas/schemaBarrel';
+import { QuestCreationInput } from '../schemas/quests/questCreationSchema';
 
 // Mock the repository
 jest.mock('../repositories/questsRepository');

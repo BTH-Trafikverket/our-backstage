@@ -74,4 +74,22 @@ export class QuestsRepository {
     const deletedCount = await this.db('quests').where({ id }).del();
     return deletedCount > 0;
   }
+  async completeQuestProgress(params: {
+    user_ref: string;
+    quest_id: string;
+  }): Promise<QuestProgressRow> {
+    const rows = await this.db<QuestProgressRow>('quest_progress')
+      .insert({
+        user_ref: params.user_ref,
+        quest_id: params.quest_id,
+        completion_count: 1,
+      })
+      .onConflict(['user_ref', 'quest_id'])
+      .merge({
+        completion_count: this.db.raw('quest_progress.completion_count + 1'),
+      })
+      .returning('*');
+
+    return rows[0];
+  }
 }
