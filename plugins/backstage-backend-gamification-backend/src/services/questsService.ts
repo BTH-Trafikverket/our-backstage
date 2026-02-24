@@ -42,13 +42,7 @@ export class QuestsService {
     return this.questsRepo.deleteQuest(id);
   }
 
-  async completeQuest(questId: string, opts: QuestServiceOpts) {
-    const userRef = opts.credentials.principal?.userEntityRef;
-
-    if (!userRef) {
-      throw new Error('No user identity found');
-    }
-
+  async completeQuest(questId: string, userRef: string) {
     return this.questsRepo.completeQuestProgress({
       quest_id: questId,
       user_ref: userRef,

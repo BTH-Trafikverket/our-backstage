@@ -83,13 +83,10 @@ export function QuestsRouter({
       throw new InputError(parsed.error.toString());
     }
 
-    const credentials = await httpAuth.credentials(req, {
-      allow: ['user', 'service'],
-    });
-
-    const progress = await questsService.completeQuest(parsed.data.quest_id, {
-      credentials,
-    });
+    const progress = await questsService.completeQuest(
+      parsed.data.quest_id,
+      parsed.data.user_ref,
+    );
 
     res.status(200).json(progress);
   });
