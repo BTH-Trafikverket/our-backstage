@@ -1,4 +1,4 @@
-/*import {
+import {
   mockCredentials,
   mockErrorHandler,
   mockServices,
@@ -64,4 +64,4 @@ describe('createRouter', () => {
 
     expect(response.status).toBe(401);
   });
-});*/
+});
