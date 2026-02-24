@@ -97,7 +97,7 @@ export const QuestsAdminPage = ({
 
   useEffect(() => {
     fetchQuests();
-  }, []);
+  }, [fetchQuests]);
 
   const handleInputChange = (
     field: keyof CreateQuestFormData,
