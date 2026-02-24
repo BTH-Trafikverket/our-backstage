@@ -69,4 +69,9 @@ export class QuestsRepository {
 
     return rows[0];
   }
+
+  async deleteQuest(id: string): Promise<boolean> {
+    const deletedCount = await this.db('quests').where({ id }).del();
+    return deletedCount > 0;
+  }
 }
