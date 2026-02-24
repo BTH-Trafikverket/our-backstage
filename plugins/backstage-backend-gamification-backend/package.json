@@ -14,6 +14,7 @@
     "role": "backend-plugin",
     "pluginId": "backstage-backend-gamification"
   },
+  "configSchema": "config.d.ts",
   "scripts": {
     "start": "backstage-cli package start",
     "build": "backstage-cli package build",
@@ -46,6 +47,7 @@
     "supertest": "^6.2.4"
   },
   "files": [
-    "dist"
+    "dist",
+    "config.d.ts"
   ]
 }
