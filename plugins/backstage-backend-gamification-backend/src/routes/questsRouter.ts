@@ -2,7 +2,7 @@ import { HttpAuthService } from '@backstage/backend-plugin-api';
 import { InputError } from '@backstage/errors';
 import express from 'express';
 import Router from 'express-promise-router';
-import { questCreationSchema } from '../schemas/schemaBarrel';
+import { questCreationSchema } from '../schemas/quests/questCreationSchema';
 import { QuestsService } from '../services/questsService';
 
 export function QuestsRouter({

@@ -1,4 +1,4 @@
-import { QuestCreationInput } from '../schemas/schemaBarrel';
+import { QuestCreationInput } from '../schemas/quests/questCreationSchema';
 import { QuestsRepository } from '../repositories/questsRepository';
 
 type QuestServiceOpts = {
