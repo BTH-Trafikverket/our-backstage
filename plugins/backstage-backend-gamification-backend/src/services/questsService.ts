@@ -1,4 +1,6 @@
 import { QuestCreationInput } from '../schemas/quests/questCreationSchema';
+import { QuestEditSchema } from '../schemas/quests/questEditSchema';
+
 import { QuestsRepository } from '../repositories/questsRepository';
 
 type QuestServiceOpts = {
@@ -30,5 +32,9 @@ export class QuestsService {
 
   async getQuestById(id: string, _opts: QuestServiceOpts) {
     return this.questsRepo.getQuestById(id);
+  }
+
+  async editQuest(id: string, data: QuestEditSchema, _opts: QuestServiceOpts) {
+    return this.questsRepo.editQuest(id, data);
   }
 }
