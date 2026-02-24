@@ -1,4 +1,5 @@
 import type { Knex } from 'knex';
+import type { QuestEditSchema } from '../schemas/quests/questEditSchema';
 
 export type QuestRow = {
   id: string;
@@ -39,7 +40,33 @@ export class QuestsRepository {
     return rows[0];
   }
 
+  async getQuests(): Promise<QuestRow[]> {
+    return await this.db<QuestRow>('quests').select('*');
+  }
+
   async getQuestById(id: string): Promise<QuestRow | undefined> {
     return this.db<QuestRow>('quests').where({ id }).first();
+  }
+
+  async editQuest(
+    id: string,
+    data: QuestEditSchema,
+  ): Promise<QuestRow | undefined> {
+    const updateData: Partial<
+      Omit<QuestRow, 'id' | 'created_at' | 'updated_at'>
+    > = {};
+
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined)
+      updateData.description = data.description;
+    if (data.interval !== undefined) updateData.interval = data.interval;
+    if (data.xp_reward !== undefined) updateData.xp_reward = data.xp_reward;
+
+    const rows = await this.db<QuestRow>('quests')
+      .where({ id })
+      .update(updateData)
+      .returning('*');
+
+    return rows[0];
   }
 }

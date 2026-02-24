@@ -122,7 +122,10 @@ const routes = (
     <Route path="/catalog-graph" element={<CatalogGraphPage />} />
     <Route path="/notifications" element={<NotificationsPage />} />
 
-    <Route path="/gamification" element={<BackstagePluginGamificationPage />} />
+    <Route
+      path="/backstage-plugin-gamification"
+      element={<BackstagePluginGamificationPage />}
+    />
     <Route path="/gamification/xp" element={<GamificationXpDebugPage />} />
   </FlatRoutes>
 );
