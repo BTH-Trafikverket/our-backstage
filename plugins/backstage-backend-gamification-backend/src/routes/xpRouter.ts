@@ -11,7 +11,7 @@ function isValidUserEntityRef(ref: string) {
   return /^user:[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(ref);
 }
 
-export function createXpRouter(options: {
+export function XpRouter(options: {
   httpAuth: HttpAuthService;
   userInfo: UserInfoService;
   knex: Knex;

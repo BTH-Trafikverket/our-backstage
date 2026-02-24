@@ -5,10 +5,10 @@ import {
 import type { Knex } from 'knex';
 import express from 'express';
 import Router from 'express-promise-router';
-import { createQuestsRouter } from './routes/questsRouter';
+import { QuestsRouter } from './routes/questsRouter';
 import { QuestsRepository } from './repositories/questsRepository';
 import { QuestsService } from './services/questsService';
-import { createXpRouter } from './routes/xpRouter';
+import { XpRouter } from './routes/xpRouter';
 
 export function createRouter({
   httpAuth,
@@ -27,14 +27,13 @@ export function createRouter({
 
   router.use(
     '/quests',
-    createQuestsRouter({
+    QuestsRouter({
       httpAuth,
-      createQuest: (data, opts) => questsService.createQuest(data, opts),
-      questService: questsService,
+      questsService,
     }),
   );
 
-  router.use('/xp', createXpRouter({ httpAuth, userInfo, knex }));
+  router.use('/xp', XpRouter({ httpAuth, userInfo, knex }));
 
   return router;
 }

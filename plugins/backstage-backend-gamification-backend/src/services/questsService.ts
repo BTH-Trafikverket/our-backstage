@@ -1,7 +1,7 @@
 import { QuestCreationInput } from '../schemas/schemaBarrel';
 import { QuestsRepository } from '../repositories/questsRepository';
 
-type CreateQuestOpts = {
+type QuestServiceOpts = {
   credentials: any;
 };
 
@@ -12,7 +12,7 @@ export class QuestsService {
     this.questsRepo = questsRepo;
   }
 
-  async createQuest(data: QuestCreationInput, _opts: CreateQuestOpts) {
+  async createQuest(data: QuestCreationInput, _opts: QuestServiceOpts) {
     const id = crypto.randomUUID();
 
     return this.questsRepo.createQuest({
@@ -24,11 +24,11 @@ export class QuestsService {
     });
   }
 
-  async getQuests(_opts: { credentials: any }) {
+  async getQuests(_opts: QuestServiceOpts) {
     return this.questsRepo.getQuests();
   }
 
-  async getQuestById(id: string, _opts: { credentials: any }) {
+  async getQuestById(id: string, _opts: QuestServiceOpts) {
     return this.questsRepo.getQuestById(id);
   }
 }

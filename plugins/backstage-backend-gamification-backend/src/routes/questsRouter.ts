@@ -2,24 +2,15 @@ import { HttpAuthService } from '@backstage/backend-plugin-api';
 import { InputError } from '@backstage/errors';
 import express from 'express';
 import Router from 'express-promise-router';
-import {
-  questCreationSchema,
-  QuestCreationInput,
-} from '../schemas/schemaBarrel';
+import { questCreationSchema } from '../schemas/schemaBarrel';
+import { QuestsService } from '../services/questsService';
 
-type CreateQuestFn = (
-  data: QuestCreationInput,
-  opts: { credentials: any },
-) => Promise<any>;
-
-export function createQuestsRouter({
+export function QuestsRouter({
   httpAuth,
-  createQuest,
-  questService,
+  questsService,
 }: {
   httpAuth: HttpAuthService;
-  createQuest: CreateQuestFn;
-  questService: any;
+  questsService: QuestsService;
 }): express.Router {
   const router = Router();
 
@@ -29,10 +20,12 @@ export function createQuestsRouter({
       throw new InputError(parsed.error.toString());
     }
 
-    const result = await createQuest(parsed.data, {
-      credentials: await httpAuth.credentials(req, {
-        allow: ['user', 'service'],
-      }),
+    const credentials = await httpAuth.credentials(req, {
+      allow: ['user', 'service'],
+    });
+
+    const result = await questsService.createQuest(parsed.data, {
+      credentials,
     });
 
     res.status(201).json(result);
@@ -43,7 +36,7 @@ export function createQuestsRouter({
       allow: ['user', 'service'],
     });
 
-    const quests = await questService.getQuests({ credentials });
+    const quests = await questsService.getQuests({ credentials });
 
     res.status(200).json(quests);
   });
