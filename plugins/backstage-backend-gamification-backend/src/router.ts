@@ -30,6 +30,7 @@ export function createRouter({
     createQuestsRouter({
       httpAuth,
       createQuest: (data, opts) => questsService.createQuest(data, opts),
+      questService: questsService,
     }),
   );
 

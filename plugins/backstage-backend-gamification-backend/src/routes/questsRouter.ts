@@ -15,9 +15,11 @@ type CreateQuestFn = (
 export function createQuestsRouter({
   httpAuth,
   createQuest,
+  questService,
 }: {
   httpAuth: HttpAuthService;
   createQuest: CreateQuestFn;
+  questService: any;
 }): express.Router {
   const router = Router();
 
@@ -34,6 +36,16 @@ export function createQuestsRouter({
     });
 
     res.status(201).json(result);
+  });
+
+  router.get('/', async (req, res) => {
+    const credentials = await httpAuth.credentials(req, {
+      allow: ['user', 'service'],
+    });
+
+    const quests = await questService.getQuests({ credentials });
+
+    res.status(200).json(quests);
   });
 
   return router;

@@ -39,6 +39,10 @@ export class QuestsRepository {
     return rows[0];
   }
 
+  async getQuests(): Promise<QuestRow[]> {
+    return await this.db<QuestRow>('quests').select('*');
+  }
+
   async getQuestById(id: string): Promise<QuestRow | undefined> {
     return this.db<QuestRow>('quests').where({ id }).first();
   }

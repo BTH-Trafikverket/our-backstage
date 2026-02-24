@@ -23,4 +23,12 @@ export class QuestsService {
       xp_reward: data.xp_reward,
     });
   }
+
+  async getQuests(_opts: { credentials: any }) {
+    return this.questsRepo.getQuests();
+  }
+
+  async getQuestById(id: string, _opts: { credentials: any }) {
+    return this.questsRepo.getQuestById(id);
+  }
 }
