@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { InfoCard, Progress } from '@backstage/core-components';
 import {
-  configApiRef,
   discoveryApiRef,
   fetchApiRef,
   identityApiRef,
@@ -17,30 +16,33 @@ type XpStatus = {
   nextLevelXp: number;
   xpIntoLevel: number;
   xpToNextLevel: number;
-  progress: number; // 0..1
+  progress: number; // vanligtvis 0..1, men vi hanterar även 0..100
 };
 
-export const XpLevelCard = (props: { title?: string }) => {
-  const { title = 'Level & XP' } = props;
+type Props = {
+  title?: string;
+  userRef?: string;
 
-  const configApi = useApi(configApiRef);
+  /**
+   * Din backend discovery pluginId (måste matcha backend-registreringen).
+   * Default här är samma som du använde i XpDebugPage.
+   */
+  discoveryId?: string;
+};
+
+export const XpLevelCard = (props: Props) => {
+  const {
+    title = 'Level & XP',
+    userRef,
+    discoveryId = 'backstage-backend-gamification',
+  } = props;
+
   const discoveryApi = useApi(discoveryApiRef);
   const fetchApi = useApi(fetchApiRef);
   const identityApi = useApi(identityApiRef);
 
-  const serviceId = useMemo(() => {
-    // ✅ Kan styras i app-config.yaml:
-    // gamification:
-    //   discoveryServiceId: backstage-backend-gamification
-    return (
-      configApi.getOptionalString('gamification.discoveryServiceId') ??
-      'backstage-backend-gamification'
-    );
-  }, [configApi]);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
-  const [debugUrl, setDebugUrl] = useState<string | undefined>();
   const [data, setData] = useState<XpStatus | null>(null);
 
   useEffect(() => {
@@ -50,35 +52,29 @@ export const XpLevelCard = (props: { title?: string }) => {
       try {
         setLoading(true);
         setError(undefined);
-        setData(null);
 
-        const baseUrl = await discoveryApi.getBaseUrl(serviceId);
-        const url = `${baseUrl}/xp`;
-        setDebugUrl(url);
+        const baseUrl = await discoveryApi.getBaseUrl(discoveryId);
+
+        const url = new URL(`${baseUrl}/xp`);
+        if (userRef) {
+          url.searchParams.set('userRef', userRef);
+        }
 
         const { token } = await identityApi.getCredentials();
 
-        const resp = await fetchApi.fetch(url, {
+        const resp = await fetchApi.fetch(url.toString(), {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
 
         if (!resp.ok) {
-          const text = await resp.text().catch(() => '');
-          throw new Error(
-            `XP request failed.\n` +
-              `serviceId: ${serviceId}\n` +
-              `url: ${url}\n` +
-              `status: ${resp.status} ${resp.statusText}\n` +
-              (text ? `body: ${text}` : ''),
-          );
+          const text = await resp.text();
+          throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
         }
 
         const json = (await resp.json()) as XpStatus;
         if (!cancelled) setData(json);
       } catch (e: any) {
-        if (!cancelled) {
-          setError(e?.message ?? String(e));
-        }
+        if (!cancelled) setError(e?.message ?? String(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -88,62 +84,43 @@ export const XpLevelCard = (props: { title?: string }) => {
     return () => {
       cancelled = true;
     };
-  }, [discoveryApi, fetchApi, identityApi, serviceId]);
+  }, [discoveryApi, fetchApi, identityApi, userRef, discoveryId]);
 
-  const pct = useMemo(() => {
-    const p = data?.progress ?? 0;
-    const clamped = Math.max(0, Math.min(1, Number.isFinite(p) ? p : 0));
-    return Math.round(clamped * 100);
-  }, [data]);
+  // progress kan komma som 0..1 eller 0..100 — vi normaliserar till 0..100
+  const progressPct = !data
+    ? 0
+    : data.progress > 1
+    ? Math.max(0, Math.min(100, data.progress))
+    : Math.max(0, Math.min(1, data.progress)) * 100;
 
   return (
     <InfoCard title={title}>
-      {/* ✅ Visar alltid debug-info så du vet att komponenten renderas */}
-      <Typography variant="caption" color="textSecondary">
-        gamification serviceId: <b>{serviceId}</b>
-        {debugUrl ? (
-          <>
-            {' '}
-            — url: <b>{debugUrl}</b>
-          </>
-        ) : null}
-      </Typography>
-
       {loading ? (
-        <Box mt={2}>
-          <Progress />
-        </Box>
+        <Progress />
       ) : error ? (
-        <Box mt={2}>
-          <Typography variant="body2" color="error">
-            Could not load XP.
-          </Typography>
-          <pre style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{error}</pre>
-        </Box>
+        <pre style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>
       ) : !data ? (
-        <Box mt={2}>
-          <Typography variant="body2">No data</Typography>
-        </Box>
+        <Typography variant="body2">No data</Typography>
       ) : (
-        <Box mt={2}>
+        <Box>
           <Box display="flex" justifyContent="space-between" mb={1}>
             <Typography variant="h6">Level {data.level}</Typography>
-            <Typography variant="body2">{data.totalXp} XP total</Typography>
+            <Typography variant="body2">{data.totalXp} XP</Typography>
           </Box>
 
-          <LinearProgress variant="determinate" value={pct} />
+          <LinearProgress variant="determinate" value={progressPct} />
 
           <Box display="flex" justifyContent="space-between" mt={1}>
             <Typography variant="body2">
-              {data.xpIntoLevel} XP into level
+              {data.currentLevelXp}/{data.nextLevelXp} i nivån
             </Typography>
             <Typography variant="body2">
-              {data.xpToNextLevel} XP to next
+              {data.xpToNextLevel} XP kvar
             </Typography>
           </Box>
 
           <Typography variant="caption" color="textSecondary">
-            Range: {data.currentLevelXp} → {data.nextLevelXp} ({pct}%)
+            {data.userRef}
           </Typography>
         </Box>
       )}

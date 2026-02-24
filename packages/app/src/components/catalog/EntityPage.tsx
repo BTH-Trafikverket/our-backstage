@@ -57,6 +57,7 @@ import {
   EntityKubernetesContent,
   isKubernetesAvailable,
 } from '@backstage/plugin-kubernetes';
+import { XpDebugPage } from '@internal/backstage-plugin-backstage-plugin-gamification';
 
 const techdocsContent = (
   <EntityTechdocsContent>
@@ -295,13 +296,16 @@ const apiPage = (
 const userPage = (
   <EntityLayout>
     <EntityLayout.Route path="/" title="Overview">
-      <Grid container spacing={3}>
+      <Grid container spacing={2}>
         {entityWarningContent}
         <Grid item xs={12} md={6}>
           <EntityUserProfileCard variant="gridItem" />
         </Grid>
         <Grid item xs={12} md={6}>
           <EntityOwnershipCard variant="gridItem" />
+        </Grid>
+        <Grid>
+          <XpDebugPage />
         </Grid>
       </Grid>
     </EntityLayout.Route>
@@ -313,16 +317,16 @@ const groupPage = (
     <EntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3}>
         {entityWarningContent}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={10} md={6}>
           <EntityGroupProfileCard variant="gridItem" />
         </Grid>
-        <Grid item xs={12} md={6}>
+        <Grid item xs={10} md={6}>
           <EntityOwnershipCard variant="gridItem" />
         </Grid>
-        <Grid item xs={12} md={6}>
+        <Grid item xs={10} md={6}>
           <EntityMembersListCard />
         </Grid>
-        <Grid item xs={12} md={6}>
+        <Grid item xs={10} md={6}>
           <EntityLinksCard />
         </Grid>
       </Grid>

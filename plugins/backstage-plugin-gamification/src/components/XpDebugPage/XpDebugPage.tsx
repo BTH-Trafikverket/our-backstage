@@ -1,18 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import {
-  Page,
-  Header,
-  Content,
-  InfoCard,
-  Progress,
-} from '@backstage/core-components';
+import { Page, Content, InfoCard, Progress } from '@backstage/core-components';
 import {
   discoveryApiRef,
   fetchApiRef,
   identityApiRef,
   useApi,
 } from '@backstage/core-plugin-api';
+import { LinearProgress, Typography, Box } from '@material-ui/core';
 
 type XpStatus = {
   userRef: string;
@@ -48,15 +43,12 @@ export const XpDebugPage = () => {
         setLoading(true);
         setError(undefined);
 
-        // Must match BACKEND pluginId
         const baseUrl = await discoveryApi.getBaseUrl(
           'backstage-backend-gamification',
         );
 
         const url = new URL(`${baseUrl}/xp`);
-        if (userRef) {
-          url.searchParams.set('userRef', userRef);
-        }
+        if (userRef) url.searchParams.set('userRef', userRef);
 
         const { token } = await identityApi.getCredentials();
 
@@ -70,17 +62,11 @@ export const XpDebugPage = () => {
         }
 
         const json = (await resp.json()) as XpStatus;
-        if (!cancelled) {
-          setData(json);
-        }
+        if (!cancelled) setData(json);
       } catch (e: any) {
-        if (!cancelled) {
-          setError(e?.message ?? String(e));
-        }
+        if (!cancelled) setError(e?.message ?? String(e));
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -91,23 +77,41 @@ export const XpDebugPage = () => {
   }, [discoveryApi, fetchApi, identityApi, userRef]);
 
   let body: JSX.Element;
+
   if (loading) {
     body = <Progress />;
   } else if (error) {
     body = <pre style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>;
+  } else if (!data) {
+    body = <Typography>No data</Typography>;
   } else {
+    const progressPct = data.progress > 1 ? data.progress : data.progress * 100;
+
     body = (
-      <pre style={{ whiteSpace: 'pre-wrap' }}>
-        {JSON.stringify(data, null, 2)}
-      </pre>
+      <Box>
+        <Box display="flex" justifyContent="space-between" mb={1}>
+          <Typography variant="h5">{data.totalXp} XP</Typography>
+          <Typography variant="body1">Level {data.level}</Typography>
+        </Box>
+
+        <LinearProgress variant="determinate" value={progressPct} />
+
+        <Box mt={1}>
+          <Typography variant="body2">
+            {data.currentLevelXp}/{data.nextLevelXp} XP i nivån
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            {data.xpToNextLevel} XP kvar till nästa level
+          </Typography>
+        </Box>
+      </Box>
     );
   }
 
   return (
     <Page themeId="home">
-      <Header title="Gamification XP" subtitle="Debug view for XP payload" />
       <Content>
-        <InfoCard title="XP status">{body}</InfoCard>
+        <InfoCard title="XP Profile">{body}</InfoCard>
       </Content>
     </Page>
   );
