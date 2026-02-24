@@ -72,6 +72,24 @@ export const QuestsAdminPage = ({
     xp_reward: '',
   });
 
+  // Edit quest dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
+  const [editFormData, setEditFormData] = useState<CreateQuestFormData>({
+    title: '',
+    description: '',
+    interval: '',
+    xp_reward: '',
+  });
+
+  // Delete quest dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [questToDelete, setQuestToDelete] = useState<Quest | null>(null);
+
   const fetchQuests = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -173,6 +191,149 @@ export const QuestsAdminPage = ({
       setDialogOpen(false);
       setCreateError(null);
       setFormData({ title: '', description: '', interval: '', xp_reward: '' });
+    }
+  };
+
+  // Edit quest handlers
+  const handleOpenEditDialog = (quest: Quest) => {
+    setSelectedQuest(quest);
+    setEditFormData({
+      title: quest.title,
+      description: quest.description,
+      interval: quest.interval.toString(),
+      xp_reward: quest.xp_reward.toString(),
+    });
+    setEditError(null);
+    setEditDialogOpen(true);
+  };
+
+  const handleCloseEditDialog = () => {
+    if (!editLoading) {
+      setEditDialogOpen(false);
+      setSelectedQuest(null);
+      setEditError(null);
+      setEditFormData({
+        title: '',
+        description: '',
+        interval: '',
+        xp_reward: '',
+      });
+    }
+  };
+
+  const handleEditInputChange = (
+    field: keyof CreateQuestFormData,
+    value: string,
+  ) => {
+    setEditFormData(prev => ({ ...prev, [field]: value }));
+    setEditError(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedQuest) return;
+
+    // Validering
+    if (!editFormData.title.trim()) {
+      setEditError('Title är obligatorisk');
+      return;
+    }
+    if (!editFormData.description.trim()) {
+      setEditError('Description är obligatorisk');
+      return;
+    }
+    if (!editFormData.interval || parseInt(editFormData.interval, 10) < 1) {
+      setEditError('Interval måste vara minst 1');
+      return;
+    }
+    if (!editFormData.xp_reward || parseInt(editFormData.xp_reward, 10) < 1) {
+      setEditError('XP Reward måste vara minst 1');
+      return;
+    }
+
+    setEditLoading(true);
+    setEditError(null);
+
+    try {
+      const response = await fetchApi.fetch(
+        `http://localhost:7007/api/backstage-backend-gamification/quests/${selectedQuest.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: editFormData.title,
+            description: editFormData.description,
+            interval: parseInt(editFormData.interval, 10),
+            xp_reward: parseInt(editFormData.xp_reward, 10),
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || `Fel: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      // Close dialog and refresh
+      setEditDialogOpen(false);
+      await fetchQuests();
+    } catch (err) {
+      setEditError(
+        err instanceof Error ? err.message : 'Ett okänt fel inträffade',
+      );
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Delete quest handlers
+  const handleOpenDeleteDialog = (quest: Quest) => {
+    setQuestToDelete(quest);
+    setDeleteError(null);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleCloseDeleteDialog = () => {
+    if (!deleteLoading) {
+      setDeleteDialogOpen(false);
+      setQuestToDelete(null);
+      setDeleteError(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!questToDelete) return;
+
+    setDeleteLoading(true);
+    setDeleteError(null);
+
+    try {
+      const response = await fetchApi.fetch(
+        `http://localhost:7007/api/backstage-backend-gamification/quests/${questToDelete.id}`,
+        {
+          method: 'DELETE',
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || `Fel: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      // Close dialog and refresh
+      setDeleteDialogOpen(false);
+      await fetchQuests();
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : 'Ett okänt fel inträffade',
+      );
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -278,6 +439,123 @@ export const QuestsAdminPage = ({
         </DialogActions>
       </Dialog>
 
+      {/* Edit Quest Dialog */}
+      <Dialog
+        open={editDialogOpen}
+        onClose={handleCloseEditDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit Quest: {selectedQuest?.title}</DialogTitle>
+        <DialogContent>
+          {editError && (
+            <Alert severity="error" style={{ marginBottom: 16 }}>
+              {editError}
+            </Alert>
+          )}
+          <TextField
+            fullWidth
+            label="Title"
+            margin="dense"
+            value={editFormData.title}
+            onChange={e => handleEditInputChange('title', e.target.value)}
+            disabled={editLoading}
+          />
+          <TextField
+            fullWidth
+            label="Description"
+            margin="dense"
+            multiline
+            minRows={3}
+            value={editFormData.description}
+            onChange={e => handleEditInputChange('description', e.target.value)}
+            disabled={editLoading}
+          />
+          <TextField
+            fullWidth
+            label="Interval"
+            margin="dense"
+            type="number"
+            inputProps={{ min: 1 }}
+            value={editFormData.interval}
+            onChange={e => handleEditInputChange('interval', e.target.value)}
+            disabled={editLoading}
+            helperText="Hur ofta XP delas ut (1 = varje gång, 2 = varannan gång, etc.)"
+          />
+          <TextField
+            fullWidth
+            label="XP Reward"
+            margin="dense"
+            type="number"
+            inputProps={{ min: 1 }}
+            value={editFormData.xp_reward}
+            onChange={e => handleEditInputChange('xp_reward', e.target.value)}
+            disabled={editLoading}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEditDialog} disabled={editLoading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveEdit}
+            color="primary"
+            variant="contained"
+            disabled={editLoading}
+          >
+            {editLoading ? (
+              <>
+                <CircularProgress size={16} style={{ marginRight: 8 }} />
+                Sparar...
+              </>
+            ) : (
+              'Save Changes'
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Quest Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleCloseDeleteDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Delete Quest?</DialogTitle>
+        <DialogContent>
+          {deleteError && (
+            <Alert severity="error" style={{ marginBottom: 16 }}>
+              {deleteError}
+            </Alert>
+          )}
+          <Typography>
+            Are you sure you want to delete "{questToDelete?.title}"? This
+            action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteDialog} disabled={deleteLoading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            color="secondary"
+            variant="contained"
+            disabled={deleteLoading}
+          >
+            {deleteLoading ? (
+              <>
+                <CircularProgress size={16} style={{ marginRight: 8 }} />
+                Tar bort...
+              </>
+            ) : (
+              'Delete'
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Grid container spacing={3}>
         <Grid item xs={12}>
           <InfoCard title="Quests">
@@ -325,13 +603,21 @@ export const QuestsAdminPage = ({
                               {quest.xp_reward}
                             </TableCell>
                             <TableCell align="right">
-                              <Tooltip title="Edit (TODO)">
-                                <IconButton size="small" color="primary">
+                              <Tooltip title="Edit">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => handleOpenEditDialog(quest)}
+                                >
                                   <EditIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Delete (TODO)">
-                                <IconButton size="small" color="secondary">
+                              <Tooltip title="Delete">
+                                <IconButton
+                                  size="small"
+                                  color="secondary"
+                                  onClick={() => handleOpenDeleteDialog(quest)}
+                                >
                                   <DeleteIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
