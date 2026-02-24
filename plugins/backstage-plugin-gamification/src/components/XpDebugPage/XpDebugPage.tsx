@@ -98,7 +98,7 @@ export const XpDebugPage = () => {
 
         <Box mt={1}>
           <Typography variant="body2">
-            {data.currentLevelXp}/{data.nextLevelXp} XP i nivån
+            {data.xpIntoLevel}/{data.nextLevelXp} XP i nivån
           </Typography>
           <Typography variant="body2" color="textSecondary">
             {data.xpToNextLevel} XP kvar till nästa level
