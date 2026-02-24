@@ -86,19 +86,22 @@ export const XpDebugPage = () => {
     body = <Typography>No data</Typography>;
   } else {
     const progressPct = data.progress > 1 ? data.progress : data.progress * 100;
+    const levelTotal = data.xpIntoLevel + data.xpToNextLevel;
 
     body = (
       <Box>
-        <Box display="flex" justifyContent="space-between" mb={1}>
-          <Typography variant="h5">{data.totalXp} XP</Typography>
-          <Typography variant="body1">Level {data.level}</Typography>
+        <Box mb={1}>
+          <Typography variant="h4">Level {data.level}</Typography>
+          <Typography variant="subtitle1" color="textSecondary">
+            {data.totalXp} XP
+          </Typography>
         </Box>
 
         <LinearProgress variant="determinate" value={progressPct} />
 
         <Box mt={1}>
           <Typography variant="body2">
-            {data.xpIntoLevel}/{data.nextLevelXp} XP i nivån
+            {data.xpIntoLevel}/{levelTotal} XP i nivån
           </Typography>
           <Typography variant="body2" color="textSecondary">
             {data.xpToNextLevel} XP kvar till nästa level
