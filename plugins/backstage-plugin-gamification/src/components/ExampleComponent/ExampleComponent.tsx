@@ -10,7 +10,6 @@ import {
 import { Link, Routes, Route } from 'react-router-dom';
 import { HomePage } from '../HomePage';
 import { QuestsAdminPage } from '../QuestsAdminPage';
-import { QuestsSidebarPanel } from '../QuestsSidebarPanel';
 
 export const ExampleComponent = () => {
   const [isAdmin, setIsAdmin] = useState(true);
@@ -54,16 +53,6 @@ export const ExampleComponent = () => {
                   </List>
                 </InfoCard>
               </Grid>
-              <Routes>
-                <Route
-                  path="quests"
-                  element={
-                    <Grid item xs={12}>
-                      <QuestsSidebarPanel isAdmin={isAdmin} />
-                    </Grid>
-                  }
-                />
-              </Routes>
             </Grid>
           </Grid>
 
