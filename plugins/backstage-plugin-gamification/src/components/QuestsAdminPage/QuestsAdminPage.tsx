@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Typography,
   Grid,
@@ -72,7 +72,7 @@ export const QuestsAdminPage = ({
     xp_reward: '',
   });
 
-  const fetchQuests = async () => {
+  const fetchQuests = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -93,7 +93,7 @@ export const QuestsAdminPage = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchApi]);
 
   useEffect(() => {
     fetchQuests();
@@ -117,11 +117,11 @@ export const QuestsAdminPage = ({
       setCreateError('Description är obligatorisk');
       return;
     }
-    if (!formData.interval || parseInt(formData.interval) < 1) {
+    if (!formData.interval || parseInt(formData.interval, 10) < 1) {
       setCreateError('Interval måste vara minst 1');
       return;
     }
-    if (!formData.xp_reward || parseInt(formData.xp_reward) < 1) {
+    if (!formData.xp_reward || parseInt(formData.xp_reward, 10) < 1) {
       setCreateError('XP Reward måste vara minst 1');
       return;
     }
@@ -140,8 +140,8 @@ export const QuestsAdminPage = ({
           body: JSON.stringify({
             title: formData.title,
             description: formData.description,
-            interval: parseInt(formData.interval),
-            xp_reward: parseInt(formData.xp_reward),
+            interval: parseInt(formData.interval, 10),
+            xp_reward: parseInt(formData.xp_reward, 10),
           }),
         },
       );
