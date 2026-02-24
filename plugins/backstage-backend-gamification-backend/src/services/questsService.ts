@@ -41,4 +41,11 @@ export class QuestsService {
   async deleteQuest(id: string, _opts: QuestServiceOpts) {
     return this.questsRepo.deleteQuest(id);
   }
+
+  async completeQuest(questId: string, userRef: string) {
+    return this.questsRepo.completeQuestProgress({
+      quest_id: questId,
+      user_ref: userRef,
+    });
+  }
 }
