@@ -7,10 +7,6 @@ import type {
 import { XpRepository } from '../repositories/xpRepository';
 import { XpService } from '../services/xpService';
 
-function isValidUserEntityRef(ref: string) {
-  return /^user:[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(ref);
-}
-
 export function XpRouter(options: {
   httpAuth: HttpAuthService;
   userInfo: UserInfoService;
@@ -38,13 +34,6 @@ export function XpRouter(options: {
     } else {
       const info = await userInfo.getUserInfo(credentials);
       userRef = info.userEntityRef;
-    }
-
-    if (!isValidUserEntityRef(userRef)) {
-      res
-        .status(400)
-        .json({ error: 'userRef must look like user:<namespace>/<name>' });
-      return;
     }
 
     const status = await service.getStatus(userRef);
