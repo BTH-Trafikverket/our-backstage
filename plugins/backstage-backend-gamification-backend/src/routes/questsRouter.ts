@@ -3,7 +3,9 @@ import { InputError, NotFoundError } from '@backstage/errors';
 import express from 'express';
 import Router from 'express-promise-router';
 import { questCreationSchema } from '../schemas/quests/questCreationSchema';
+import { questCompletionSchema } from '../schemas/quests/questCompletionSchema';
 import { QuestsService } from '../services/questsService';
+import { questEditSchema } from '../schemas/quests/questEditSchema';
 
 export function QuestsRouter({
   httpAuth,
@@ -37,13 +39,19 @@ export function QuestsRouter({
       throw new InputError('Missing quest id');
     }
 
+    const parsed = questEditSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new InputError(parsed.error.toString());
+    }
+
     const credentials = await httpAuth.credentials(req, {
       allow: ['user', 'service'],
     });
 
-    const updated = await questsService.editQuest(id, req.body, {
+    const updated = await questsService.editQuest(id, parsed.data, {
       credentials,
     });
+
     if (!updated) {
       throw new NotFoundError('Quest not found');
     }
