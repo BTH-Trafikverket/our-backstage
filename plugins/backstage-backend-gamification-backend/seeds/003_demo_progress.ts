@@ -7,47 +7,17 @@ type DemoEvent = {
   caller_subject: string;
 };
 
-export const seed002DemoEvents: Seed = {
-  id: '002_demo_events',
+export const seed003DemoEvents: Seed = {
+  id: '003_demo_events',
   description:
-    'Seed demo progress by replaying events (uses triggers + receipts)',
+    'Seed demo quest progress by replaying events (triggers + receipts)',
   async run({ knex }) {
     const alice = 'user:local/alice';
     const bob = 'user:local/bob';
-
-    const quests = await knex('quests')
-      .select(['id', 'title'])
-      .whereIn('title', ['Merge a PR', 'Review PRs', 'Fix a failing build']);
-
-    const byTitle = new Map(quests.map((q: any) => [q.title, q.id]));
-
-    const triggers = [
-      {
-        event_key: 'github.pull_request.merged',
-        quest_id: byTitle.get('Merge a PR')!,
-        increment_by: 1,
-        enabled: true,
-      },
-      {
-        event_key: 'github.pull_request.reviewed',
-        quest_id: byTitle.get('Review PRs')!,
-        increment_by: 1,
-        enabled: true,
-      },
-      {
-        event_key: 'github.ci.fixed',
-        quest_id: byTitle.get('Fix a failing build')!,
-        increment_by: 1,
-        enabled: true,
-      },
-    ];
-
-    await knex('quest_event_triggers')
-      .insert(triggers)
-      .onConflict(['event_key', 'quest_id'])
-      .ignore();
+    const linus = 'user:default/linusandersson02';
 
     const demoEvents: DemoEvent[] = [
+      // Alice: 2 merges, 3 reviews, 2 fixes
       {
         event_id: 'seed:alice:merge:1',
         event_key: 'github.pull_request.merged',
@@ -93,6 +63,7 @@ export const seed002DemoEvents: Seed = {
         caller_subject: 'seed',
       },
 
+      // Bob: 1 merge, 1 review, 4 fixes
       {
         event_id: 'seed:bob:merge:1',
         event_key: 'github.pull_request.merged',
@@ -131,6 +102,59 @@ export const seed002DemoEvents: Seed = {
         user_ref: bob,
         caller_subject: 'seed',
       },
+
+      // Linus (default namespace): pick some nice demo numbers
+      // e.g. 5 merges, 2 reviews, 1 fix
+      {
+        event_id: 'seed:linus:merge:1',
+        event_key: 'github.pull_request.merged',
+        user_ref: linus,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:linus:merge:2',
+        event_key: 'github.pull_request.merged',
+        user_ref: linus,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:linus:merge:3',
+        event_key: 'github.pull_request.merged',
+        user_ref: linus,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:linus:merge:4',
+        event_key: 'github.pull_request.merged',
+        user_ref: linus,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:linus:merge:5',
+        event_key: 'github.pull_request.merged',
+        user_ref: linus,
+        caller_subject: 'seed',
+      },
+
+      {
+        event_id: 'seed:linus:review:1',
+        event_key: 'github.pull_request.reviewed',
+        user_ref: linus,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:linus:review:2',
+        event_key: 'github.pull_request.reviewed',
+        user_ref: linus,
+        caller_subject: 'seed',
+      },
+
+      {
+        event_id: 'seed:linus:ci:1',
+        event_key: 'github.ci.fixed',
+        user_ref: linus,
+        caller_subject: 'seed',
+      },
     ];
 
     for (const ev of demoEvents) {
@@ -143,7 +167,6 @@ export const seed002DemoEvents: Seed = {
         throw new Error(`No trigger found for event_key '${ev.event_key}'`);
       }
 
-      // Insert receipt; if conflict, RETURNING is empty => skip increment.
       const inserted = await knex('quest_event_receipts')
         .insert({
           event_id: ev.event_id,
@@ -155,9 +178,8 @@ export const seed002DemoEvents: Seed = {
         .ignore()
         .returning(['event_id']);
 
-      if (!inserted || inserted.length === 0) {
-        continue;
-      }
+      // With Postgres, ON CONFLICT DO NOTHING RETURNING returns an empty array if skipped. :contentReference[oaicite:1]{index=1}
+      if (!inserted || inserted.length === 0) continue;
 
       await knex('quest_progress')
         .insert({
@@ -172,7 +194,5 @@ export const seed002DemoEvents: Seed = {
           ]),
         });
     }
-
-    // xp_ledger rows are created by your DB trigger automatically.
   },
 };

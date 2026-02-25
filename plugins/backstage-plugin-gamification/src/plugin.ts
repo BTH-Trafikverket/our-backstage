@@ -26,9 +26,11 @@ export const BackstagePluginGamificationPage =
 export const GamificationXpDebugPage =
   backstagePluginGamificationPlugin.provide(
     createRoutableExtension({
-      name: 'GamificationXpDebugPage',
+      name: 'GamificationEntityXpCard',
       component: () =>
-        import('./components/XpDebugPage/XpDebugPage').then(m => m.XpDebugPage),
+        import('./components/EntityXpCard/EntityXpCard').then(
+          m => m.EntityXpCard,
+        ),
       mountPoint: xpRouteRef,
     }),
   );

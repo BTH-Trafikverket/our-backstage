@@ -1,13 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Page, Content, InfoCard, Progress } from '@backstage/core-components';
+import {
+  InfoCard,
+  Progress,
+  type InfoCardVariants,
+} from '@backstage/core-components';
 import {
   discoveryApiRef,
   fetchApiRef,
   identityApiRef,
   useApi,
 } from '@backstage/core-plugin-api';
-import { LinearProgress, Typography, Box } from '@material-ui/core';
+import { useEntity } from '@backstage/plugin-catalog-react';
+import { stringifyEntityRef } from '@backstage/catalog-model';
+import {
+  LinearProgress,
+  Typography,
+  Box,
+  Tooltip,
+  IconButton,
+} from '@material-ui/core';
+import InfoOutlinedIcon from '@material-ui/icons/InfoOutlined';
 
 type XpStatus = {
   userRef: string;
@@ -20,20 +32,22 @@ type XpStatus = {
   progress: number;
 };
 
-export const XpDebugPage = () => {
+export const EntityXpCard = (props: {
+  title?: string;
+  variant?: InfoCardVariants;
+}) => {
+  const { title = 'Level and XP', variant = 'gridItem' } = props;
+
   const discoveryApi = useApi(discoveryApiRef);
   const fetchApi = useApi(fetchApiRef);
   const identityApi = useApi(identityApiRef);
-  const location = useLocation();
+
+  const { entity } = useEntity();
+  const userRef = useMemo(() => stringifyEntityRef(entity), [entity]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
   const [data, setData] = useState<XpStatus | null>(null);
-
-  const userRef = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get('userRef')?.trim() || undefined;
-  }, [location.search]);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +62,7 @@ export const XpDebugPage = () => {
         );
 
         const url = new URL(`${baseUrl}/xp`);
-        if (userRef) url.searchParams.set('userRef', userRef);
+        url.searchParams.set('userRef', userRef);
 
         const { token } = await identityApi.getCredentials();
 
@@ -81,20 +95,29 @@ export const XpDebugPage = () => {
   if (loading) {
     body = <Progress />;
   } else if (error) {
-    body = <pre style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>;
+    body = <Typography color="error">{error}</Typography>;
   } else if (!data) {
     body = <Typography>No data</Typography>;
   } else {
-    const progressPct = data.progress > 1 ? data.progress : data.progress * 100;
+    const progressPct = Math.max(0, Math.min(100, data.progress * 100));
     const levelTotal = data.xpIntoLevel + data.xpToNextLevel;
 
     body = (
       <Box>
-        <Box mb={1}>
+        <Box mb={1} display="flex" alignItems="center">
           <Typography variant="h4">Level {data.level}</Typography>
-          <Typography variant="subtitle1" color="textSecondary">
-            {data.totalXp} XP
-          </Typography>
+
+          <Tooltip title={`${data.totalXp} XP total`} arrow placement="right">
+            <span>
+              <IconButton
+                size="small"
+                aria-label="Show total XP"
+                style={{ marginLeft: 8 }}
+              >
+                <InfoOutlinedIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
         </Box>
 
         <LinearProgress variant="determinate" value={progressPct} />
@@ -112,10 +135,8 @@ export const XpDebugPage = () => {
   }
 
   return (
-    <Page themeId="home">
-      <Content>
-        <InfoCard title="XP Profile">{body}</InfoCard>
-      </Content>
-    </Page>
+    <InfoCard title={title} variant={variant}>
+      {body}
+    </InfoCard>
   );
 };
