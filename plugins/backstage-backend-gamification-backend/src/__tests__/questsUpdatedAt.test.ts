@@ -20,13 +20,6 @@ describe('quests updated_at trigger', () => {
 
   const databases = TestDatabases.create({ ids: ['POSTGRES_18'] });
 
-  if (!databases.supports('POSTGRES_18')) {
-    it('skipped: set DB_HOST/DB_PORT/DB_USER/DB_PASSWORD to run Postgres trigger tests', () => {
-      // noop
-    });
-    return;
-  }
-
   const migrationsDir = path.resolve(__dirname, '../../migrations');
 
   async function initDb(): Promise<Knex> {

@@ -33,13 +33,6 @@ describe('xp routes', () => {
   // Backstage standard: create this synchronously inside describe.
   const databases = TestDatabases.create({ ids: ['POSTGRES_18'] });
 
-  if (!databases.supports('POSTGRES_18')) {
-    it('skipped: set DB_HOST/DB_PORT/DB_USER/DB_PASSWORD (or BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING) to run Postgres route tests', () => {
-      // noop
-    });
-    return;
-  }
-
   const migrationsDir = path.resolve(__dirname, '../../migrations');
 
   async function initDb(): Promise<Knex> {
@@ -56,7 +49,14 @@ describe('xp routes', () => {
     const app = express();
     app.use(
       '/api/backstage-backend-gamification',
-      createRouter({ httpAuth, userInfo, knex: opts.knex }),
+      createRouter({
+        httpAuth,
+        userInfo,
+        knex: opts.knex,
+        config,
+        auth,
+        discovery,
+      }),
     );
     app.use(mockErrorHandler());
 

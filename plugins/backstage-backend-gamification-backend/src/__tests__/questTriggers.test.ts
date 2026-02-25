@@ -22,14 +22,6 @@ describe('quest_progress trigger -> xp_ledger', () => {
   // Backstage standard: create this synchronously inside describe.
   const databases = TestDatabases.create({ ids: ['POSTGRES_18'] });
 
-  // If we couldn't derive / set the connection string, this will be false locally and we'll skip.
-  if (!databases.supports('POSTGRES_18')) {
-    it('skipped: set DB_HOST/DB_PORT/DB_USER/DB_PASSWORD (or BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING) to run Postgres trigger tests', () => {
-      // noop
-    });
-    return;
-  }
-
   const migrationsDir = path.resolve(__dirname, '../../migrations');
 
   async function initDb(): Promise<Knex> {
