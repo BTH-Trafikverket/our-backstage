@@ -58,6 +58,7 @@ import {
   isKubernetesAvailable,
 } from '@backstage/plugin-kubernetes';
 import { EntityXpCard } from '@internal/backstage-plugin-backstage-plugin-gamification/src/components/EntityXpCard/EntityXpCard';
+
 const techdocsContent = (
   <EntityTechdocsContent>
     <TechDocsAddons>
