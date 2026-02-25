@@ -644,7 +644,6 @@ export const QuestsAdminPage = ({
                             <TableCell>Description</TableCell>
                             <TableCell align="right">Interval</TableCell>
                             <TableCell align="right">XP Reward</TableCell>
-                            <TableCell align="right">Action</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -657,15 +656,6 @@ export const QuestsAdminPage = ({
                               </TableCell>
                               <TableCell align="right">
                                 {quest.xp_reward}
-                              </TableCell>
-                              <TableCell align="right">
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  color="primary"
-                                >
-                                  Complete
-                                </Button>
                               </TableCell>
                             </TableRow>
                           ))}
