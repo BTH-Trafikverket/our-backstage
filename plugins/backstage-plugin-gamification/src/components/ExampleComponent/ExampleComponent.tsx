@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Grid, List, ListItem, ListItemText } from '@material-ui/core';
 import {
   Header,
@@ -8,11 +8,30 @@ import {
   InfoCard,
 } from '@backstage/core-components';
 import { Link, Routes, Route } from 'react-router-dom';
-import { HomePage } from '../HomePage';
 import { QuestsAdminPage } from '../QuestsAdminPage';
+import { useApi, identityApiRef } from '@backstage/core-plugin-api';
 
 export const ExampleComponent = () => {
-  const [isAdmin, setIsAdmin] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
+  const identityApi = useApi(identityApiRef);
+
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      try {
+        const identity = await identityApi.getBackstageIdentity();
+        const isUserAdmin =
+          identity.ownershipEntityRefs?.includes('group:default/admin') ??
+          false;
+        setIsAdmin(isUserAdmin);
+      } catch (error) {
+        // Failed to check admin role, default to non-admin
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdminRole();
+  }, [identityApi]);
 
   return (
     <Page themeId="tool">
@@ -35,20 +54,23 @@ export const ExampleComponent = () => {
                       component={Link}
                       to="/backstage-plugin-gamification"
                     >
-                      <ListItemText primary="Home" />
-                    </ListItem>
-                    <ListItem
-                      button
-                      component={Link}
-                      to="/backstage-plugin-gamification/quests"
-                    >
                       <ListItemText primary="Quests" />
                     </ListItem>
-                    <ListItem button>
-                      <ListItemText primary="Leaderboard" />
+                    <ListItem disabled>
+                      <ListItemText
+                        primary="Leaderboard"
+                        primaryTypographyProps={{
+                          style: { textDecoration: 'line-through' },
+                        }}
+                      />
                     </ListItem>
-                    <ListItem button>
-                      <ListItemText primary="Badges" />
+                    <ListItem disabled>
+                      <ListItemText
+                        primary="Badges"
+                        primaryTypographyProps={{
+                          style: { textDecoration: 'line-through' },
+                        }}
+                      />
                     </ListItem>
                   </List>
                 </InfoCard>
@@ -58,13 +80,13 @@ export const ExampleComponent = () => {
 
           <Grid item xs={12} sm={9}>
             <Routes>
-              <Route path="/" element={<HomePage />} />
               <Route
-                path="quests"
+                path="/"
                 element={
                   <QuestsAdminPage
-                    isAdmin={isAdmin}
-                    onToggleAdmin={() => setIsAdmin(prev => !prev)}
+                    isAdmin={demoMode ? !isAdmin : isAdmin}
+                    onToggleDemo={() => setDemoMode(prev => !prev)}
+                    isDemoMode={demoMode}
                   />
                 }
               />
