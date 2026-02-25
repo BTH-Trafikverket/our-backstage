@@ -20,7 +20,7 @@ module.exports = {
       rules: {},
     },
     {
-      files: ['/*.test.ts', '/*.test.tsx', '**/setupTests.ts'],
+      files: ['**/*.test.ts', '**/*.test.tsx', '**/setupTests.ts'],
       rules: {
         'no-console': 'off',
       },
