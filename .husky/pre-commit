@@ -27,7 +27,7 @@ run_with_spinner () {
 }
 
 # 1) Format repo-wide (YAML/MD/config too)
-run_with_spinner "🎨 Formatting with Prettier (repo-wide)..." npx prettier --write . || exit 1
+run_with_spinner "🎨 Formatting with Prettier (repo-wide)..." npx prettier --write . --cache || exit 1
 
 # 2) Apply Backstage fixers (eslint etc.)
 run_with_spinner "🧹 Running auto-fix (yarn fix)..." yarn fix || exit 1
