@@ -25,7 +25,7 @@ export const ExampleComponent = () => {
           false;
         setIsAdmin(isUserAdmin);
       } catch (error) {
-        console.error('Failed to check admin role:', error);
+        // Failed to check admin role, default to non-admin
         setIsAdmin(false);
       }
     };
