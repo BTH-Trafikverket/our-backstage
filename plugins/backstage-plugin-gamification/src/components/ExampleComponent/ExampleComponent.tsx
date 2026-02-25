@@ -8,7 +8,6 @@ import {
   InfoCard,
 } from '@backstage/core-components';
 import { Link, Routes, Route } from 'react-router-dom';
-import { HomePage } from '../HomePage';
 import { QuestsAdminPage } from '../QuestsAdminPage';
 
 export const ExampleComponent = () => {
@@ -35,20 +34,23 @@ export const ExampleComponent = () => {
                       component={Link}
                       to="/backstage-plugin-gamification"
                     >
-                      <ListItemText primary="Home" />
-                    </ListItem>
-                    <ListItem
-                      button
-                      component={Link}
-                      to="/backstage-plugin-gamification/quests"
-                    >
                       <ListItemText primary="Quests" />
                     </ListItem>
-                    <ListItem button>
-                      <ListItemText primary="Leaderboard" />
+                    <ListItem disabled>
+                      <ListItemText
+                        primary="Leaderboard"
+                        primaryTypographyProps={{
+                          style: { textDecoration: 'line-through' },
+                        }}
+                      />
                     </ListItem>
-                    <ListItem button>
-                      <ListItemText primary="Badges" />
+                    <ListItem disabled>
+                      <ListItemText
+                        primary="Badges"
+                        primaryTypographyProps={{
+                          style: { textDecoration: 'line-through' },
+                        }}
+                      />
                     </ListItem>
                   </List>
                 </InfoCard>
@@ -58,9 +60,8 @@ export const ExampleComponent = () => {
 
           <Grid item xs={12} sm={9}>
             <Routes>
-              <Route path="/" element={<HomePage />} />
               <Route
-                path="quests"
+                path="/"
                 element={
                   <QuestsAdminPage
                     isAdmin={isAdmin}

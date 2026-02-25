@@ -337,8 +337,6 @@ export const QuestsAdminPage = ({
     }
   };
 
-  const availableQuests = quests;
-  const ongoingQuests: Quest[] = [];
   const adminQuests = quests;
 
   return (
@@ -629,10 +627,7 @@ export const QuestsAdminPage = ({
                   </TableContainer>
                 ) : (
                   <>
-                    <Typography variant="subtitle2" style={{ marginTop: 16 }}>
-                      Tillgängliga quests
-                    </Typography>
-                    <TableContainer component={Paper} style={{ marginTop: 8 }}>
+                    <TableContainer component={Paper} style={{ marginTop: 16 }}>
                       <Table size="small">
                         <TableHead>
                           <TableRow>
@@ -644,47 +639,7 @@ export const QuestsAdminPage = ({
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {availableQuests.map(quest => (
-                            <TableRow key={quest.id}>
-                              <TableCell>{quest.title}</TableCell>
-                              <TableCell>{quest.description}</TableCell>
-                              <TableCell align="right">
-                                {quest.interval}
-                              </TableCell>
-                              <TableCell align="right">
-                                {quest.xp_reward}
-                              </TableCell>
-                              <TableCell align="right">
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  color="primary"
-                                >
-                                  Take quest
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-
-                    <Typography variant="subtitle2" style={{ marginTop: 16 }}>
-                      Pågående quests
-                    </Typography>
-                    <TableContainer component={Paper} style={{ marginTop: 8 }}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Title</TableCell>
-                            <TableCell>Description</TableCell>
-                            <TableCell align="right">Interval</TableCell>
-                            <TableCell align="right">XP Reward</TableCell>
-                            <TableCell align="right">Action</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {ongoingQuests.map(quest => (
+                          {quests.map(quest => (
                             <TableRow key={quest.id}>
                               <TableCell>{quest.title}</TableCell>
                               <TableCell>{quest.description}</TableCell>
