@@ -49,12 +49,14 @@ interface CreateQuestFormData {
 
 type QuestsAdminPageProps = {
   isAdmin: boolean;
-  onToggleAdmin: () => void;
+  onToggleDemo?: () => void;
+  isDemoMode?: boolean;
 };
 
 export const QuestsAdminPage = ({
   isAdmin,
-  onToggleAdmin,
+  onToggleDemo,
+  isDemoMode = false,
 }: QuestsAdminPageProps) => {
   const fetchApi = useApi(fetchApiRef);
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -356,9 +358,16 @@ export const QuestsAdminPage = ({
             Create Quest
           </Button>
         )}
-        <Button variant="outlined" color="primary" onClick={onToggleAdmin}>
-          {isAdmin ? 'Visa icke-admin' : 'Visa admin'}
-        </Button>
+        {onToggleDemo && (
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={onToggleDemo}
+            size="small"
+          >
+            {isDemoMode ? 'Demo: Visa motsatt vy' : 'Aktivera demo-läge'}
+          </Button>
+        )}
       </ContentHeader>
 
       {/* Create Quest Dialog */}

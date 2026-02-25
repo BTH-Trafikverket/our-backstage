@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Grid, List, ListItem, ListItemText } from '@material-ui/core';
 import {
   Header,
@@ -9,9 +9,29 @@ import {
 } from '@backstage/core-components';
 import { Link, Routes, Route } from 'react-router-dom';
 import { QuestsAdminPage } from '../QuestsAdminPage';
+import { useApi, identityApiRef } from '@backstage/core-plugin-api';
 
 export const ExampleComponent = () => {
-  const [isAdmin, setIsAdmin] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
+  const identityApi = useApi(identityApiRef);
+
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      try {
+        const identity = await identityApi.getBackstageIdentity();
+        const isUserAdmin =
+          identity.ownershipEntityRefs?.includes('group:default/admin') ??
+          false;
+        setIsAdmin(isUserAdmin);
+      } catch (error) {
+        // Failed to check admin role, default to non-admin
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdminRole();
+  }, [identityApi]);
 
   return (
     <Page themeId="tool">
@@ -64,8 +84,9 @@ export const ExampleComponent = () => {
                 path="/"
                 element={
                   <QuestsAdminPage
-                    isAdmin={isAdmin}
-                    onToggleAdmin={() => setIsAdmin(prev => !prev)}
+                    isAdmin={demoMode ? !isAdmin : isAdmin}
+                    onToggleDemo={() => setDemoMode(prev => !prev)}
+                    isDemoMode={demoMode}
                   />
                 }
               />
