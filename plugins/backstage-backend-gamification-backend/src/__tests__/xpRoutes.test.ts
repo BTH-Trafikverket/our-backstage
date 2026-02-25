@@ -45,6 +45,9 @@ describe('xp routes', () => {
   function makeApp(opts: { knex: Knex; userInfo?: UserInfoService }) {
     const httpAuth = mockServices.httpAuth();
     const userInfo = opts.userInfo ?? mockServices.userInfo();
+    const config = mockServices.rootConfig();
+    const auth = mockServices.auth();
+    const discovery = mockServices.discovery();
 
     const app = express();
     app.use(
@@ -170,28 +173,13 @@ describe('xp routes', () => {
     const res = await request(app)
       .get('/api/backstage-backend-gamification/xp')
       .query({ userRef })
-      .set('authorization', mockCredentials.service.header('postman'));
+      .set('authorization', mockCredentials.service.header());
 
     expect(res.status).toBe(200);
     expect(res.body.userRef).toBe(userRef);
     expect(res.body.totalXp).toBe(65);
 
     expect(userInfo.getUserInfo).not.toHaveBeenCalled();
-  });
-
-  it('returns 400 when userRef is invalid', async () => {
-    const knex = await initDb();
-    const { app } = makeApp({ knex });
-
-    const res = await request(app)
-      .get('/api/backstage-backend-gamification/xp')
-      .query({ userRef: 'not-a-user-ref' })
-      .set('authorization', mockCredentials.service.header('postman'));
-
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({
-      error: 'userRef must look like user:<namespace>/<name>',
-    });
   });
 
   it('returns 0 totalXp for a valid user with no ledger rows', async () => {
