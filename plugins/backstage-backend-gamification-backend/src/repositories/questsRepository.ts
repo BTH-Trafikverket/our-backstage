@@ -12,7 +12,6 @@ export type QuestRow = {
 };
 
 export type CreateQuestRow = {
-  id: string;
   title: string;
   description: string;
   interval: number;
