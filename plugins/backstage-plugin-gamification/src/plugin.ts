@@ -9,7 +9,7 @@ export const backstagePluginGamificationPlugin = createPlugin({
   id: 'backstage-plugin-gamification',
   routes: {
     root: rootRouteRef,
-    xp: xpRouteRef, // <-- viktigt: registrera xp-route här
+    xp: xpRouteRef,
   },
 });
 

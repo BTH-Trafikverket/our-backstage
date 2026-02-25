@@ -16,6 +16,10 @@ backend:
         options:
           token: ${POSTMAN_STATIC_TOKEN}
           subject: postman
+      - type: static
+        options:
+          token: testing123
+          subject: github-actions
 
   csp:
     connect-src: ["'self'", 'http:', 'https:']
@@ -133,3 +137,9 @@ gamification:
   admin:
     groups:
       - group:default/admin
+
+  quests:
+    allowedCallers:
+      - postman
+      - github-actions
+      - azure-devops

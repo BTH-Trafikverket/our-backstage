@@ -1,18 +1,23 @@
-import { HttpAuthService } from '@backstage/backend-plugin-api';
+import {
+  HttpAuthService,
+  RootConfigService,
+} from '@backstage/backend-plugin-api';
 import { InputError, NotFoundError } from '@backstage/errors';
 import express from 'express';
 import Router from 'express-promise-router';
 import { questCreationSchema } from '../schemas/quests/questCreationSchema';
-import { questCompletionSchema } from '../schemas/quests/questCompletionSchema';
 import { QuestsService } from '../services/questsService';
 import { questEditSchema } from '../schemas/quests/questEditSchema';
+import { questEventSchema } from '../schemas/quests/questEventSchema';
 
 export function QuestsRouter({
   httpAuth,
   questsService,
+  config,
 }: {
   httpAuth: HttpAuthService;
   questsService: QuestsService;
+  config: RootConfigService;
 }): express.Router {
   const router = Router();
 
@@ -77,18 +82,35 @@ export function QuestsRouter({
     res.status(204).send();
   });
 
-  router.post('/complete', async (req, res) => {
-    const parsed = questCompletionSchema.safeParse(req.body);
+  router.post('/events', async (req, res) => {
+    const credentials = await httpAuth.credentials(req, { allow: ['service'] });
+
+    const principal = credentials.principal;
+    if (principal.type !== 'service') {
+      throw new InputError('Only service credentials are allowed');
+    }
+
+    const allowed =
+      config.getOptionalStringArray('gamification.quests.allowedCallers') ?? [];
+
+    if (!allowed.includes(principal.subject)) {
+      throw new NotFoundError('Caller not allowed');
+    }
+
+    const parsed = questEventSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new InputError(parsed.error.toString());
     }
 
-    const progress = await questsService.completeQuest(
-      parsed.data.quest_id,
-      parsed.data.user_ref,
-    );
+    const result = await questsService.handleQuestEvent({
+      eventId: parsed.data.eventId,
+      eventKey: parsed.data.eventKey,
+      actor: parsed.data.actor,
+      callerSubject: principal.subject,
+      opts: { credentials },
+    });
 
-    res.status(200).json(progress);
+    res.status(200).json(result);
   });
 
   router.get('/', async (req, res) => {
