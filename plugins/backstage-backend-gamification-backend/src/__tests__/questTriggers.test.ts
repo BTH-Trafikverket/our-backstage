@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { TestDatabases } from '@backstage/backend-test-utils';
 import type { Knex } from 'knex';
 
+jest.setTimeout(60000);
+
 describe('quest_progress trigger -> xp_ledger', () => {
   // Auto-derive the TestDatabases Postgres connection string from your existing DB_* env vars.
   // Must happen BEFORE TestDatabases.create().
