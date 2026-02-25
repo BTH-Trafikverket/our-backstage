@@ -1,21 +1,16 @@
 import Router from 'express-promise-router';
-import type { Knex } from 'knex';
 import type {
   HttpAuthService,
   UserInfoService,
 } from '@backstage/backend-plugin-api';
-import { XpRepository } from '../repositories/xpRepository';
-import { XpService } from '../services/xpService';
+import type { XpService } from '../services/xpService';
 
 export function XpRouter(options: {
   httpAuth: HttpAuthService;
   userInfo: UserInfoService;
-  knex: Knex;
+  xpService: XpService;
 }) {
-  const { httpAuth, userInfo, knex } = options;
-
-  const repo = new XpRepository(knex);
-  const service = new XpService(repo, 100);
+  const { httpAuth, userInfo, xpService } = options;
 
   const router = Router();
 
@@ -27,16 +22,11 @@ export function XpRouter(options: {
     const requested =
       typeof req.query.userRef === 'string' ? req.query.userRef.trim() : '';
 
-    let userRef: string;
+    const userRef = requested
+      ? requested
+      : (await userInfo.getUserInfo(credentials)).userEntityRef;
 
-    if (requested) {
-      userRef = requested;
-    } else {
-      const info = await userInfo.getUserInfo(credentials);
-      userRef = info.userEntityRef;
-    }
-
-    const status = await service.getStatus(userRef);
+    const status = await xpService.getStatus(userRef);
     res.json(status);
   });
 
