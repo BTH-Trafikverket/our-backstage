@@ -17,8 +17,19 @@ export const backstageBackendGamificationPlugin = createBackendPlugin({
         httpRouter: coreServices.httpRouter,
         httpAuth: coreServices.httpAuth,
         userInfo: coreServices.userInfo,
+        auth: coreServices.auth,
+        discovery: coreServices.discovery,
       },
-      async init({ database, logger, config, httpRouter, httpAuth, userInfo }) {
+      async init({
+        database,
+        logger,
+        config,
+        httpRouter,
+        httpAuth,
+        userInfo,
+        auth,
+        discovery,
+      }) {
         const knex = await initGameDb({
           database,
           migrationPackageName:
@@ -37,7 +48,9 @@ export const backstageBackendGamificationPlugin = createBackendPlugin({
           logger.info(`gamification seeds applied (reset=${seedReset})`);
         }
 
-        httpRouter.use(createRouter({ httpAuth, userInfo, knex }));
+        httpRouter.use(
+          createRouter({ httpAuth, userInfo, knex, config, auth, discovery }),
+        );
       },
     });
   },

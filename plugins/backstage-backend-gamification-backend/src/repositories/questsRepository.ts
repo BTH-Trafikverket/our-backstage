@@ -27,6 +27,24 @@ export type QuestProgressRow = {
   updated_at: Date;
 };
 
+export type QuestEventTriggerRow = {
+  id: string;
+  event_key: string;
+  quest_id: string;
+  increment_by: number;
+  enabled: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type QuestEventReceiptRow = {
+  event_id: string;
+  event_key: string;
+  user_ref: string;
+  caller_subject: string;
+  received_at: Date;
+};
+
 export class QuestsRepository {
   private readonly db: Knex;
 
@@ -37,7 +55,6 @@ export class QuestsRepository {
   async createQuest(data: CreateQuestRow): Promise<QuestRow> {
     const rows = await this.db<QuestRow>('quests')
       .insert({
-        id: data.id,
         title: data.title,
         description: data.description,
         interval: data.interval,
@@ -83,22 +100,58 @@ export class QuestsRepository {
     return deletedCount > 0;
   }
 
-  async completeQuestProgress(params: {
+  async incrementQuestProgress(params: {
     user_ref: string;
     quest_id: string;
+    by: number;
   }): Promise<QuestProgressRow> {
+    const by = Math.max(1, Math.floor(params.by));
+
     const rows = await this.db<QuestProgressRow>('quest_progress')
       .insert({
         user_ref: params.user_ref,
         quest_id: params.quest_id,
-        completion_count: 1,
+        completion_count: by,
       })
       .onConflict(['user_ref', 'quest_id'])
       .merge({
-        completion_count: this.db.raw('quest_progress.completion_count + 1'),
+        completion_count: this.db.raw('quest_progress.completion_count + ?', [
+          by,
+        ]),
       })
       .returning('*');
 
     return rows[0];
+  }
+
+  async getTriggerByEvent(
+    eventKey: string,
+  ): Promise<QuestEventTriggerRow | undefined> {
+    return await this.db<QuestEventTriggerRow>('quest_event_triggers')
+      .where({ event_key: eventKey, enabled: true })
+      .orderBy('created_at', 'asc')
+      .first();
+  }
+
+  async tryInsertReceipt(params: {
+    event_id: string;
+    event_key: string;
+    user_ref: string;
+    caller_subject: string;
+  }): Promise<boolean> {
+    try {
+      await this.db<QuestEventReceiptRow>('quest_event_receipts').insert({
+        event_id: params.event_id,
+        event_key: params.event_key,
+        user_ref: params.user_ref,
+        caller_subject: params.caller_subject,
+      });
+      return true;
+    } catch (e: any) {
+      if (e?.code === '23505') {
+        return false;
+      }
+      throw e;
+    }
   }
 }
