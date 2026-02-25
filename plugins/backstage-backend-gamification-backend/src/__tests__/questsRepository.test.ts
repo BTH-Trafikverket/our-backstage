@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { TestDatabases } from '@backstage/backend-test-utils';
 import type { Knex } from 'knex';
 import { QuestsRepository } from '../repositories/questsRepository';
@@ -7,7 +6,6 @@ import { QuestsRepository } from '../repositories/questsRepository';
 jest.setTimeout(60000);
 
 describe('QuestsRepository Integration Tests', () => {
-  // Auto-derive the TestDatabases Postgres connection string from your existing DB_* env vars.
   if (!process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING) {
     const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD } = process.env;
 
@@ -43,9 +41,7 @@ describe('QuestsRepository Integration Tests', () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
-      const questId = randomUUID();
       const questData = {
-        id: questId,
         title: 'Complete Integration Test',
         description: 'Write comprehensive integration tests',
         interval: 5,
@@ -55,7 +51,6 @@ describe('QuestsRepository Integration Tests', () => {
       const createdQuest = await repository.createQuest(questData);
 
       expect(createdQuest).toBeDefined();
-      expect(createdQuest.id).toBe(questId);
       expect(createdQuest.title).toBe(questData.title);
       expect(createdQuest.description).toBe(questData.description);
       expect(createdQuest.interval).toBe(questData.interval);
@@ -63,8 +58,15 @@ describe('QuestsRepository Integration Tests', () => {
       expect(createdQuest.created_at).toBeInstanceOf(Date);
       expect(createdQuest.updated_at).toBeInstanceOf(Date);
 
-      // Verify it's actually in the database
-      const dbQuest = await knex('quests').where({ id: questId }).first();
+      const dbQuest = await knex('quests')
+        .where({
+          title: questData.title,
+          description: questData.description,
+          interval: questData.interval,
+          xp_reward: questData.xp_reward,
+        })
+        .first();
+
       expect(dbQuest).toBeDefined();
       expect(dbQuest.title).toBe(questData.title);
 
@@ -76,7 +78,6 @@ describe('QuestsRepository Integration Tests', () => {
       const repository = new QuestsRepository(knex);
 
       const quest1 = {
-        id: randomUUID(),
         title: 'Daily Quest',
         description: 'Complete daily tasks',
         interval: 1,
@@ -84,7 +85,6 @@ describe('QuestsRepository Integration Tests', () => {
       };
 
       const quest2 = {
-        id: randomUUID(),
         title: 'Weekly Challenge',
         description: 'Complete weekly objectives',
         interval: 7,
@@ -94,10 +94,9 @@ describe('QuestsRepository Integration Tests', () => {
       const created1 = await repository.createQuest(quest1);
       const created2 = await repository.createQuest(quest2);
 
-      expect(created1.id).toBe(quest1.id);
-      expect(created2.id).toBe(quest2.id);
+      expect(created1.title).toBe(quest1.title);
+      expect(created2.title).toBe(quest2.title);
 
-      // Verify both are in the database
       const allQuests = await knex('quests').select('*');
       expect(allQuests).toHaveLength(2);
 
@@ -112,7 +111,6 @@ describe('QuestsRepository Integration Tests', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
 
       const quest = await repository.createQuest({
-        id: randomUUID(),
         title: 'Timestamp Test',
         description: 'Testing timestamp generation',
         interval: 1,
@@ -139,11 +137,10 @@ describe('QuestsRepository Integration Tests', () => {
       const repository = new QuestsRepository(knex);
 
       const invalidQuest = {
-        id: randomUUID(),
         title: 'Invalid Quest',
         description: 'This should fail',
         interval: 1,
-        xp_reward: 0, // Invalid: must be > 0
+        xp_reward: 0,
       };
 
       await expect(repository.createQuest(invalidQuest)).rejects.toThrow();
@@ -156,10 +153,9 @@ describe('QuestsRepository Integration Tests', () => {
       const repository = new QuestsRepository(knex);
 
       const invalidQuest = {
-        id: randomUUID(),
         title: 'Invalid Interval Quest',
         description: 'This should fail',
-        interval: 0, // Invalid: must be >= 1
+        interval: 0,
         xp_reward: 100,
       };
 
@@ -170,13 +166,11 @@ describe('QuestsRepository Integration Tests', () => {
   });
 
   describe('getQuestById', () => {
-    it('should retrieve an existing quest by id', async () => {
+    it('should retrieve an existing quest by selecting it from the DB', async () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
-      const questId = randomUUID();
       const questData = {
-        id: questId,
         title: 'Retrieve Me',
         description: 'This quest should be retrievable',
         interval: 3,
@@ -185,10 +179,20 @@ describe('QuestsRepository Integration Tests', () => {
 
       await repository.createQuest(questData);
 
-      const retrievedQuest = await repository.getQuestById(questId);
+      const row = await knex('quests')
+        .where({
+          title: questData.title,
+          description: questData.description,
+          interval: questData.interval,
+          xp_reward: questData.xp_reward,
+        })
+        .first();
+
+      expect(row).toBeDefined();
+
+      const retrievedQuest = await repository.getQuestById(row.id);
 
       expect(retrievedQuest).toBeDefined();
-      expect(retrievedQuest!.id).toBe(questId);
       expect(retrievedQuest!.title).toBe(questData.title);
       expect(retrievedQuest!.description).toBe(questData.description);
       expect(retrievedQuest!.interval).toBe(questData.interval);
@@ -201,8 +205,9 @@ describe('QuestsRepository Integration Tests', () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
-      const nonExistentId = randomUUID();
-      const retrievedQuest = await repository.getQuestById(nonExistentId);
+      const retrievedQuest = await repository.getQuestById(
+        '00000000-0000-0000-0000-000000000000',
+      );
 
       expect(retrievedQuest).toBeUndefined();
 
@@ -213,12 +218,7 @@ describe('QuestsRepository Integration Tests', () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
-      const quest1Id = randomUUID();
-      const quest2Id = randomUUID();
-      const quest3Id = randomUUID();
-
       await repository.createQuest({
-        id: quest1Id,
         title: 'Quest 1',
         description: 'First quest',
         interval: 1,
@@ -226,7 +226,6 @@ describe('QuestsRepository Integration Tests', () => {
       });
 
       await repository.createQuest({
-        id: quest2Id,
         title: 'Quest 2',
         description: 'Second quest',
         interval: 2,
@@ -234,17 +233,20 @@ describe('QuestsRepository Integration Tests', () => {
       });
 
       await repository.createQuest({
-        id: quest3Id,
         title: 'Quest 3',
         description: 'Third quest',
         interval: 3,
         xp_reward: 30,
       });
 
-      const retrievedQuest = await repository.getQuestById(quest2Id);
+      const quest2Row = await knex('quests')
+        .where({ title: 'Quest 2' })
+        .first();
+      expect(quest2Row).toBeDefined();
+
+      const retrievedQuest = await repository.getQuestById(quest2Row.id);
 
       expect(retrievedQuest).toBeDefined();
-      expect(retrievedQuest!.id).toBe(quest2Id);
       expect(retrievedQuest!.title).toBe('Quest 2');
       expect(retrievedQuest!.xp_reward).toBe(20);
 
@@ -255,16 +257,21 @@ describe('QuestsRepository Integration Tests', () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
-      const questId = randomUUID();
       await repository.createQuest({
-        id: questId,
         title: 'Timestamp Check',
         description: 'Checking timestamps on retrieval',
         interval: 1,
         xp_reward: 25,
       });
 
-      const retrievedQuest = await repository.getQuestById(questId);
+      const row = await knex('quests')
+        .where({ title: 'Timestamp Check' })
+        .orderBy('created_at', 'desc')
+        .first();
+
+      expect(row).toBeDefined();
+
+      const retrievedQuest = await repository.getQuestById(row.id);
 
       expect(retrievedQuest).toBeDefined();
       expect(retrievedQuest!.created_at).toBeInstanceOf(Date);
@@ -282,25 +289,23 @@ describe('QuestsRepository Integration Tests', () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
-      // CREATE
-      const questId = randomUUID();
-      const createdQuest = await repository.createQuest({
-        id: questId,
+      await repository.createQuest({
         title: 'Full CRUD Test',
         description: 'Testing complete CRUD operations',
         interval: 10,
         xp_reward: 1000,
       });
 
-      expect(createdQuest.id).toBe(questId);
+      const row = await knex('quests')
+        .where({ title: 'Full CRUD Test' })
+        .first();
+      expect(row).toBeDefined();
 
-      // READ
-      const readQuest = await repository.getQuestById(questId);
+      const readQuest = await repository.getQuestById(row.id);
       expect(readQuest).toBeDefined();
       expect(readQuest!.title).toBe('Full CRUD Test');
 
-      // Verify data persists across separate queries
-      const directDbRead = await knex('quests').where({ id: questId }).first();
+      const directDbRead = await knex('quests').where({ id: row.id }).first();
       expect(directDbRead).toBeDefined();
       expect(directDbRead.title).toBe('Full CRUD Test');
 
@@ -313,7 +318,6 @@ describe('QuestsRepository Integration Tests', () => {
 
       const questPromises = Array.from({ length: 5 }, (_, i) =>
         repository.createQuest({
-          id: randomUUID(),
           title: `Concurrent Quest ${i + 1}`,
           description: `Quest created concurrently ${i + 1}`,
           interval: i + 1,
@@ -325,7 +329,6 @@ describe('QuestsRepository Integration Tests', () => {
 
       expect(createdQuests).toHaveLength(5);
 
-      // Verify all are in the database
       const allQuests = await knex('quests').select('*');
       expect(allQuests).toHaveLength(5);
 
@@ -336,24 +339,23 @@ describe('QuestsRepository Integration Tests', () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
-      const questId = randomUUID();
-
-      // Create via repository
       await repository.createQuest({
-        id: questId,
         title: 'Original Title',
         description: 'Original description',
         interval: 5,
         xp_reward: 50,
       });
 
-      // Update directly via knex (simulating external modification)
+      const row = await knex('quests')
+        .where({ title: 'Original Title' })
+        .first();
+      expect(row).toBeDefined();
+
       await knex('quests')
-        .where({ id: questId })
+        .where({ id: row.id })
         .update({ title: 'Modified Title' });
 
-      // Read via repository - should reflect the update
-      const quest = await repository.getQuestById(questId);
+      const quest = await repository.getQuestById(row.id);
       expect(quest).toBeDefined();
       expect(quest!.title).toBe('Modified Title');
       expect(quest!.description).toBe('Original description');
@@ -365,26 +367,24 @@ describe('QuestsRepository Integration Tests', () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
-      const questId = randomUUID();
-
-      // Create quest
       await repository.createQuest({
-        id: questId,
         title: 'To Be Deleted',
         description: 'This quest will be deleted',
         interval: 1,
         xp_reward: 10,
       });
 
-      // Verify it exists
-      let quest = await repository.getQuestById(questId);
+      const row = await knex('quests')
+        .where({ title: 'To Be Deleted' })
+        .first();
+      expect(row).toBeDefined();
+
+      let quest = await repository.getQuestById(row.id);
       expect(quest).toBeDefined();
 
-      // Delete it (simulating a delete operation)
-      await knex('quests').where({ id: questId }).del();
+      await knex('quests').where({ id: row.id }).del();
 
-      // Verify it's gone
-      quest = await repository.getQuestById(questId);
+      quest = await repository.getQuestById(row.id);
       expect(quest).toBeUndefined();
 
       await knex.destroy();
