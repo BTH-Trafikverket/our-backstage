@@ -44,6 +44,13 @@ export type QuestEventReceiptRow = {
   received_at: Date;
 };
 
+export type QuestWithProgressRow = QuestRow & {
+  user_ref: string | null;
+  completion_count: number;
+  progress_in_interval: number;
+  next_milestone: number;
+};
+
 export class QuestsRepository {
   private readonly db: Knex;
 
@@ -70,6 +77,51 @@ export class QuestsRepository {
 
   async getQuestById(id: string): Promise<QuestRow | undefined> {
     return this.db<QuestRow>('quests').where({ id }).first();
+  }
+
+  async getQuestsWithProgress(params: {
+    user_ref: string;
+  }): Promise<QuestWithProgressRow[]> {
+    const { user_ref } = params;
+    const db = this.db;
+
+    return await db('quests')
+      .leftJoin('quest_progress', function () {
+        this.on('quest_progress.quest_id', '=', 'quests.id').andOn(
+          'quest_progress.user_ref',
+          '=',
+          db.raw('?', [user_ref]),
+        );
+      })
+      .select(
+        'quests.id',
+        'quests.title',
+        'quests.description',
+        'quests.interval',
+        'quests.xp_reward',
+        'quests.created_at',
+        'quests.updated_at',
+        db.raw('quest_progress.user_ref as user_ref'),
+        db.raw(
+          'COALESCE(quest_progress.completion_count, 0) as completion_count',
+        ),
+        db.raw(`
+        CASE
+          WHEN quests.interval IS NULL OR quests.interval < 1 THEN 0
+          ELSE COALESCE(quest_progress.completion_count, 0) % quests.interval
+        END as progress_in_interval
+      `),
+        db.raw(`
+        CASE
+          WHEN quests.interval IS NULL OR quests.interval < 1 THEN COALESCE(quest_progress.completion_count, 0)
+          WHEN (COALESCE(quest_progress.completion_count, 0) % quests.interval) = 0
+            THEN COALESCE(quest_progress.completion_count, 0) + quests.interval
+          ELSE COALESCE(quest_progress.completion_count, 0)
+            + (quests.interval - (COALESCE(quest_progress.completion_count, 0) % quests.interval))
+        END as next_milestone
+      `),
+      )
+      .orderBy('quests.created_at', 'asc');
   }
 
   async editQuest(
