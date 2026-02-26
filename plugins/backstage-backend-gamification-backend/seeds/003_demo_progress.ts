@@ -15,6 +15,7 @@ export const seed003DemoEvents: Seed = {
     const alice = 'user:local/alice';
     const bob = 'user:local/bob';
     const linus = 'user:default/linusandersson02';
+    const zoe = 'user:default/zoewaters';
 
     const demoEvents: DemoEvent[] = [
       // Alice: 2 merges, 3 reviews, 2 fixes
@@ -153,6 +154,31 @@ export const seed003DemoEvents: Seed = {
         event_id: 'seed:linus:ci:1',
         event_key: 'github.ci.fixed',
         user_ref: linus,
+        caller_subject: 'seed',
+      },
+
+      {
+        event_id: 'seed:zoe:merge:1',
+        event_key: 'github.pull_request.merged',
+        user_ref: zoe,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:zoe:review:1',
+        event_key: 'github.pull_request.reviewed',
+        user_ref: zoe,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:zoe:ci:1',
+        event_key: 'github.ci.fixed',
+        user_ref: zoe,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:zoe:ci:2',
+        event_key: 'github.ci.fixed',
+        user_ref: zoe,
         caller_subject: 'seed',
       },
     ];

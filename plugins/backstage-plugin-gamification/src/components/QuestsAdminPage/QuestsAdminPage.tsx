@@ -40,6 +40,11 @@ type Quest = {
   xp_reward: number;
   created_at?: string;
   updated_at?: string;
+  // Progress fields
+  user_ref: string | null;
+  completion_count: number;
+  progress_in_interval: number;
+  next_milestone: number;
 };
 
 interface CreateQuestFormData {
@@ -100,7 +105,7 @@ export const QuestsAdminPage = ({
 
     try {
       const response = await fetchApi.fetch(
-        'http://localhost:7007/api/backstage-backend-gamification/quests',
+        'http://localhost:7007/api/backstage-backend-gamification/quests/me',
       );
 
       if (!response.ok) {
@@ -153,7 +158,7 @@ export const QuestsAdminPage = ({
 
     try {
       const response = await fetchApi.fetch(
-        'http://localhost:7007/api/backstage-backend-gamification/quests',
+        'http://localhost:7007/api/backstage-backend-gamification/quests/me',
         {
           method: 'POST',
           headers: {
@@ -343,8 +348,8 @@ export const QuestsAdminPage = ({
 
   const adminQuests = quests;
   const getQuestProgress = (quest: Quest) => ({
-    current: 0,
-    target: Math.max(1, quest.interval),
+    current: quest.progress_in_interval,
+    target: quest.interval,
   });
 
   return (
