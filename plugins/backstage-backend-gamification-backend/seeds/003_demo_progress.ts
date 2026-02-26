@@ -14,8 +14,13 @@ export const seed003DemoEvents: Seed = {
   async run({ knex }) {
     const alice = 'user:local/alice';
     const bob = 'user:local/bob';
+
     const linus = 'user:default/linusandersson02';
     const zoe = 'user:default/zoebalowi';
+
+    const mara = 'user:default/maram227';
+    const skz = 'user:default/skz911';
+    const hahh = 'user:default/hahh24';
 
     const demoEvents: DemoEvent[] = [
       // Alice: 2 merges, 3 reviews, 2 fixes
@@ -104,8 +109,7 @@ export const seed003DemoEvents: Seed = {
         caller_subject: 'seed',
       },
 
-      // Linus (default namespace): pick some nice demo numbers
-      // e.g. 5 merges, 2 reviews, 1 fix
+      // Linus: 5 merges, 2 reviews, 1 fix
       {
         event_id: 'seed:linus:merge:1',
         event_key: 'github.pull_request.merged',
@@ -157,6 +161,7 @@ export const seed003DemoEvents: Seed = {
         caller_subject: 'seed',
       },
 
+      // Zoe: 1 merge, 1 review, 2 fixes
       {
         event_id: 'seed:zoe:merge:1',
         event_key: 'github.pull_request.merged',
@@ -179,6 +184,144 @@ export const seed003DemoEvents: Seed = {
         event_id: 'seed:zoe:ci:2',
         event_key: 'github.ci.fixed',
         user_ref: zoe,
+        caller_subject: 'seed',
+      },
+
+      // Mara: 3 merges, 2 reviews, 1 fix
+      {
+        event_id: 'seed:mara:merge:1',
+        event_key: 'github.pull_request.merged',
+        user_ref: mara,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:mara:merge:2',
+        event_key: 'github.pull_request.merged',
+        user_ref: mara,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:mara:merge:3',
+        event_key: 'github.pull_request.merged',
+        user_ref: mara,
+        caller_subject: 'seed',
+      },
+
+      {
+        event_id: 'seed:mara:review:1',
+        event_key: 'github.pull_request.reviewed',
+        user_ref: mara,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:mara:review:2',
+        event_key: 'github.pull_request.reviewed',
+        user_ref: mara,
+        caller_subject: 'seed',
+      },
+
+      {
+        event_id: 'seed:mara:ci:1',
+        event_key: 'github.ci.fixed',
+        user_ref: mara,
+        caller_subject: 'seed',
+      },
+
+      // skz911: 1 merge, 4 reviews, 2 fixes
+      {
+        event_id: 'seed:skz:merge:1',
+        event_key: 'github.pull_request.merged',
+        user_ref: skz,
+        caller_subject: 'seed',
+      },
+
+      {
+        event_id: 'seed:skz:review:1',
+        event_key: 'github.pull_request.reviewed',
+        user_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:review:2',
+        event_key: 'github.pull_request.reviewed',
+        user_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:review:3',
+        event_key: 'github.pull_request.reviewed',
+        user_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:review:4',
+        event_key: 'github.pull_request.reviewed',
+        user_ref: skz,
+        caller_subject: 'seed',
+      },
+
+      {
+        event_id: 'seed:skz:ci:1',
+        event_key: 'github.ci.fixed',
+        user_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:ci:2',
+        event_key: 'github.ci.fixed',
+        user_ref: skz,
+        caller_subject: 'seed',
+      },
+
+      // hahh24: 2 merges, 1 review, 5 fixes
+      {
+        event_id: 'seed:hahh:merge:1',
+        event_key: 'github.pull_request.merged',
+        user_ref: hahh,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:hahh:merge:2',
+        event_key: 'github.pull_request.merged',
+        user_ref: hahh,
+        caller_subject: 'seed',
+      },
+
+      {
+        event_id: 'seed:hahh:review:1',
+        event_key: 'github.pull_request.reviewed',
+        user_ref: hahh,
+        caller_subject: 'seed',
+      },
+
+      {
+        event_id: 'seed:hahh:ci:1',
+        event_key: 'github.ci.fixed',
+        user_ref: hahh,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:hahh:ci:2',
+        event_key: 'github.ci.fixed',
+        user_ref: hahh,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:hahh:ci:3',
+        event_key: 'github.ci.fixed',
+        user_ref: hahh,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:hahh:ci:4',
+        event_key: 'github.ci.fixed',
+        user_ref: hahh,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:hahh:ci:5',
+        event_key: 'github.ci.fixed',
+        user_ref: hahh,
         caller_subject: 'seed',
       },
     ];
@@ -204,7 +347,7 @@ export const seed003DemoEvents: Seed = {
         .ignore()
         .returning(['event_id']);
 
-      // With Postgres, ON CONFLICT DO NOTHING RETURNING returns an empty array if skipped. :contentReference[oaicite:1]{index=1}
+      // Postgres: ON CONFLICT DO NOTHING RETURNING => [] if skipped
       if (!inserted || inserted.length === 0) continue;
 
       await knex('quest_progress')
