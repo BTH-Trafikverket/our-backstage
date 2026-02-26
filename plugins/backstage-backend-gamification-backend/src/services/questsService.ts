@@ -117,6 +117,10 @@ export class QuestsService {
     throw new NotFoundError('Actor could not be mapped to a Backstage user');
   }
 
+  async getQuestsWithProgress(userRef: string, _opts: QuestServiceOpts) {
+    return this.questsRepo.getQuestsWithProgress({ user_ref: userRef });
+  }
+
   async handleQuestEvent(params: {
     eventId: string;
     eventKey: string;
