@@ -18,6 +18,8 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  LinearProgress,
+  Box,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import DeleteIcon from '@material-ui/icons/Delete';
@@ -38,6 +40,11 @@ type Quest = {
   xp_reward: number;
   created_at?: string;
   updated_at?: string;
+  // Progress fields
+  user_ref: string | null;
+  completion_count: number;
+  progress_in_interval: number;
+  next_milestone: number;
 };
 
 interface CreateQuestFormData {
@@ -98,7 +105,7 @@ export const QuestsAdminPage = ({
 
     try {
       const response = await fetchApi.fetch(
-        'http://localhost:7007/api/backstage-backend-gamification/quests',
+        'http://localhost:7007/api/backstage-backend-gamification/quests/me',
       );
 
       if (!response.ok) {
@@ -151,7 +158,7 @@ export const QuestsAdminPage = ({
 
     try {
       const response = await fetchApi.fetch(
-        'http://localhost:7007/api/backstage-backend-gamification/quests',
+        'http://localhost:7007/api/backstage-backend-gamification/quests/me',
         {
           method: 'POST',
           headers: {
@@ -340,6 +347,10 @@ export const QuestsAdminPage = ({
   };
 
   const adminQuests = quests;
+  const getQuestProgress = (quest: Quest) => ({
+    current: quest.progress_in_interval,
+    target: quest.interval,
+  });
 
   return (
     <>
@@ -591,11 +602,19 @@ export const QuestsAdminPage = ({
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell>Title</TableCell>
-                          <TableCell>Description</TableCell>
-                          <TableCell align="right">Interval</TableCell>
-                          <TableCell align="right">XP Reward</TableCell>
-                          <TableCell align="right">Actions</TableCell>
+                          <TableCell style={{ width: '20%' }}>Title</TableCell>
+                          <TableCell style={{ width: '35%' }}>
+                            Description
+                          </TableCell>
+                          <TableCell align="center" style={{ width: '15%' }}>
+                            XP Reward
+                          </TableCell>
+                          <TableCell align="right" style={{ width: '20%' }}>
+                            Progress
+                          </TableCell>
+                          <TableCell align="right" style={{ width: '10%' }}>
+                            Actions
+                          </TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -603,11 +622,30 @@ export const QuestsAdminPage = ({
                           <TableRow key={quest.id}>
                             <TableCell>{quest.title}</TableCell>
                             <TableCell>{quest.description}</TableCell>
-                            <TableCell align="right">
-                              {quest.interval}
+                            <TableCell align="center">
+                              {quest.xp_reward}
                             </TableCell>
                             <TableCell align="right">
-                              {quest.xp_reward}
+                              {(() => {
+                                const progress = getQuestProgress(quest);
+                                const percent =
+                                  (progress.current / progress.target) * 100;
+
+                                return (
+                                  <Box minWidth={120} textAlign="right">
+                                    <LinearProgress
+                                      variant="determinate"
+                                      value={Math.min(
+                                        100,
+                                        Math.max(0, percent),
+                                      )}
+                                    />
+                                    <Typography variant="caption">
+                                      {progress.current}/{progress.target}
+                                    </Typography>
+                                  </Box>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell align="right">
                               <Tooltip title="Edit">
@@ -640,10 +678,18 @@ export const QuestsAdminPage = ({
                       <Table size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell>Title</TableCell>
-                            <TableCell>Description</TableCell>
-                            <TableCell align="right">Interval</TableCell>
-                            <TableCell align="right">XP Reward</TableCell>
+                            <TableCell style={{ width: '20%' }}>
+                              Title
+                            </TableCell>
+                            <TableCell style={{ width: '30%' }}>
+                              Description
+                            </TableCell>
+                            <TableCell align="center" style={{ width: '25%' }}>
+                              XP Reward
+                            </TableCell>
+                            <TableCell align="right" style={{ width: '25%' }}>
+                              Progress
+                            </TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -651,11 +697,30 @@ export const QuestsAdminPage = ({
                             <TableRow key={quest.id}>
                               <TableCell>{quest.title}</TableCell>
                               <TableCell>{quest.description}</TableCell>
-                              <TableCell align="right">
-                                {quest.interval}
+                              <TableCell align="center">
+                                {quest.xp_reward}
                               </TableCell>
                               <TableCell align="right">
-                                {quest.xp_reward}
+                                {(() => {
+                                  const progress = getQuestProgress(quest);
+                                  const percent =
+                                    (progress.current / progress.target) * 100;
+
+                                  return (
+                                    <Box minWidth={120} textAlign="right">
+                                      <LinearProgress
+                                        variant="determinate"
+                                        value={Math.min(
+                                          100,
+                                          Math.max(0, percent),
+                                        )}
+                                      />
+                                      <Typography variant="caption">
+                                        {progress.current}/{progress.target}
+                                      </Typography>
+                                    </Box>
+                                  );
+                                })()}
                               </TableCell>
                             </TableRow>
                           ))}
