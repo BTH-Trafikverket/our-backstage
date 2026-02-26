@@ -15,7 +15,7 @@ export const seed003DemoEvents: Seed = {
     const alice = 'user:local/alice';
     const bob = 'user:local/bob';
     const linus = 'user:default/linusandersson02';
-    const zoe = 'user:default/zoewaters';
+    const zoe = 'user:default/zoebalowi';
 
     const demoEvents: DemoEvent[] = [
       // Alice: 2 merges, 3 reviews, 2 fixes

@@ -40,7 +40,7 @@ type Quest = {
   xp_reward: number;
   created_at?: string;
   updated_at?: string;
-  // Progress fields
+
   user_ref: string | null;
   completion_count: number;
   progress_in_interval: number;
@@ -158,7 +158,7 @@ export const QuestsAdminPage = ({
 
     try {
       const response = await fetchApi.fetch(
-        'http://localhost:7007/api/backstage-backend-gamification/quests/me',
+        'http://localhost:7007/api/backstage-backend-gamification/quests',
         {
           method: 'POST',
           headers: {
