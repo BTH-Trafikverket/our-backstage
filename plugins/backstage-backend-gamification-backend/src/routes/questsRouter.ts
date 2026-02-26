@@ -123,5 +123,22 @@ export function QuestsRouter({
     res.status(200).json(quests);
   });
 
+  router.get('/me', async (req, res) => {
+    const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+
+    const principal = credentials.principal;
+    if (principal.type !== 'user') {
+      throw new InputError('Only user credentials are allowed');
+    }
+
+    const userRef = principal.userEntityRef;
+
+    const quests = await questsService.getQuestsWithProgress(userRef, {
+      credentials,
+    });
+
+    res.status(200).json(quests);
+  });
+
   return router;
 }
