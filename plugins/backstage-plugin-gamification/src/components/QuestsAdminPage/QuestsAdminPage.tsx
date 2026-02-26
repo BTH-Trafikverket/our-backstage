@@ -343,33 +343,6 @@ export const QuestsAdminPage = ({
 
   return (
     <>
-      <ContentHeader title="Quests">
-        <SupportButton>
-          Skapa och hantera quests (admin) eller se tillgangliga quests (user).
-        </SupportButton>
-        {isAdmin && (
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => setDialogOpen(true)}
-            style={{ marginRight: 8 }}
-          >
-            Create Quest
-          </Button>
-        )}
-        {onToggleDemo && (
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={onToggleDemo}
-            size="small"
-          >
-            {isDemoMode ? 'Demo: Visa motsatt vy' : 'Aktivera demo-läge'}
-          </Button>
-        )}
-      </ContentHeader>
-
       {/* Create Quest Dialog */}
       <Dialog
         open={dialogOpen}
@@ -565,7 +538,34 @@ export const QuestsAdminPage = ({
 
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <InfoCard title="Quests">
+          <InfoCard>
+            <ContentHeader title="Quests">
+              <SupportButton>
+                Skapa och hantera quests (admin) eller se tillgangliga quests
+                (user).
+              </SupportButton>
+              {isAdmin && (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<AddIcon />}
+                  onClick={() => setDialogOpen(true)}
+                  style={{ marginRight: 8 }}
+                >
+                  Create Quest
+                </Button>
+              )}
+              {onToggleDemo && (
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  onClick={onToggleDemo}
+                  size="small"
+                >
+                  {isDemoMode ? 'Demo: Visa motsatt vy' : 'Aktivera demo-läge'}
+                </Button>
+              )}
+            </ContentHeader>
             {loading && (
               <div style={{ textAlign: 'center', padding: 20 }}>
                 <CircularProgress />
