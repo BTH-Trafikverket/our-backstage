@@ -14,6 +14,8 @@ import type { UserInfoService } from '@backstage/backend-plugin-api';
 
 import { createRouter } from '../router';
 
+jest.setTimeout(60000);
+
 describe('xp routes', () => {
   // Auto-derive the TestDatabases Postgres connection string from your existing DB_* env vars.
   // Must happen BEFORE TestDatabases.create().

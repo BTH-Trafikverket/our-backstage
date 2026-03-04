@@ -1,4 +1,4 @@
-import { XpService } from './xpService';
+import { XpService } from '../services/xpService';
 import { XpRepository } from '../repositories/xpRepository';
 
 // Mock the repository - we don't want to use a real database in unit tests
