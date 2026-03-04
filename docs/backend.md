@@ -1,9 +1,11 @@
 ## Overview: What this backend plugin is and how it works
+
 This is a **Backstage backend plugin** (the package has `backstage.role: "backend-plugin"` and `pluginId: "backstage-backend-gamification"`). It is mounted under the Backstage API, for example:
 
 - `/api/backstage-backend-gamification`
 
 It exposes endpoints for:
+
 - **Quests** (create/update/delete/list + “my quests”)
 - **XP/Level** (user XP status)
 - **Events** (external systems can trigger quest progress via POST)
@@ -17,6 +19,7 @@ Routes validate/authenticate requests, services contain business logic, reposito
 ---
 
 ## Key files and where things happen
+
 Important parts of the codebase:
 
 - `src/plugin.ts`  
@@ -52,7 +55,9 @@ Important parts of the codebase:
 ---
 
 ## Startup behavior (what happens when the backend boots)
+
 In `src/plugin.ts` the plugin:
+
 1. Gets a **database client** from Backstage core `database`.
 2. Runs **Knex migrations** (`knex.migrate.latest()`), creating tables and triggers.
 3. Optionally runs **seeds** if enabled (e.g. `gamification.seed.enabled`, `gamification.seed.reset`).
@@ -61,10 +66,13 @@ In `src/plugin.ts` the plugin:
 ---
 
 ## Database model: tables and relationships
+
 There are five core tables:
 
 ### `quests`
+
 Quest definition:
+
 - `id (uuid)`
 - `title` (unique)
 - `description`
@@ -73,14 +81,18 @@ Quest definition:
 - timestamps
 
 ### `quest_progress`
+
 One row per (user, quest) tracking progress:
+
 - `user_ref` (e.g. `user:default/alice`)
 - `quest_id` (FK → `quests.id`)
 - `completion_count` (>= 0)
 - **primary key:** (`user_ref`, `quest_id`)
 
 ### `xp_ledger`
+
 Append-only XP accounting:
+
 - `user_ref`
 - `quest_id` (FK)
 - `awarded_on_completion_count`
@@ -90,7 +102,9 @@ Append-only XP accounting:
   Prevents awarding XP twice for the same milestone.
 
 ### `quest_event_triggers`
+
 Maps an external event type to a quest:
+
 - `event_key` (e.g. `github.pull_request.merged`)
 - `quest_id`
 - `increment_by`
@@ -98,18 +112,22 @@ Maps an external event type to a quest:
 - **unique:** (`event_key`, `quest_id`)
 
 ### `quest_event_receipts`
+
 Deduplication receipts for incoming events:
+
 - `event_id` (PRIMARY KEY)
 - `event_key`, `user_ref`, `caller_subject`, `received_at`
 
 ---
 
 ## Core behavior: XP is awarded by a Postgres trigger
+
 A Postgres trigger function is created in the migrations and runs:
 
 **AFTER INSERT/UPDATE of `completion_count` on `quest_progress`**
 
 Logic (high level):
+
 - If completion did not increase → do nothing
 - Fetch `interval` and `xp_reward` from `quests`
 - If `completion_count % interval == 0` → insert a row into `xp_ledger`
@@ -122,6 +140,7 @@ Logic (high level):
 ## Endpoints: what they do
 
 ### Quests
+
 - `POST /quests`  
   Creates a quest (validated via Zod), inserts into `quests`.
 
@@ -138,10 +157,12 @@ Logic (high level):
   Requires user credentials. Uses the logged-in user’s `userRef`, joins with `quest_progress`, and returns quests + completion count + “next milestone” info.
 
 ### External events (triggers from other systems)
+
 - `POST /quests/events` ✅  
   Allows external systems (e.g. GitHub/CI/IdP) to trigger quest progress.
 
 Flow:
+
 1. Requires **service credentials** (not regular user credentials).
 2. Checks an allowlist in config (`gamification.quests.allowedCallers`). If caller is not allowed → responds with NotFound.
 3. Validates request body via Zod (`eventKey`, `eventId`, `actor`).
@@ -155,6 +176,7 @@ Flow:
 8. The DB trigger may then write XP into `xp_ledger` if a milestone was reached.
 
 ### XP/Level
+
 - `GET /xp` (optionally accepts `userRef` as query param)  
   Sums XP from `xp_ledger` and computes level using:
   - `baseXp = 100`
@@ -167,6 +189,7 @@ Returns total XP, level, and progress toward the next level.
 ## Tools, libraries, and Backstage building blocks used
 
 ### Backstage core / plugin framework
+
 - `@backstage/backend-plugin-api`  
   Plugin registration and core services (logger, config, database, auth).
 
@@ -177,6 +200,7 @@ Returns total XP, level, and progress toward the next level.
   Standard error types (e.g. `NotFoundError`) mapped to HTTP responses.
 
 ### HTTP layer
+
 - `express`  
   Routing/server layer.
 
@@ -184,10 +208,12 @@ Returns total XP, level, and progress toward the next level.
   Enables clean `async` route handlers without manual error wrapping.
 
 ### Validation
+
 - `zod`  
   Schemas for validating request bodies (quests, events, etc.).
 
 ### Database
+
 - `knex`  
   Query builder + migrations + optional seeds.
 
@@ -198,6 +224,7 @@ Returns total XP, level, and progress toward the next level.
   Automatically awards XP when progress reaches milestones.
 
 ### Catalog / identity mapping
+
 - `@backstage/catalog-client`  
   Looks up users in the Backstage Catalog (e.g. mapping GitHub login/id → Backstage user).
 
@@ -205,6 +232,7 @@ Returns total XP, level, and progress toward the next level.
   Helpers for entity refs (stringifying/parsing entity references).
 
 ### Auth in dev/test
+
 - `@backstage/backend-test-utils`  
   Mocks auth/httpAuth in dev/test (`mockServices.auth.factory()`, etc.).
 
@@ -212,12 +240,14 @@ Returns total XP, level, and progress toward the next level.
   HTTP testing against the Express app.
 
 ### Build and lint
+
 - `@backstage/cli`  
   Standard Backstage build/test/lint/start toolchain.
 
 - ESLint config via Backstage (`eslint-factory`).
 
 ### Config/schema
+
 - `config.d.ts` is used as the config schema (declared in `package.json`).  
   It documents keys like `gamification.admin.groups`.  
   Note: additional config keys are used in code (e.g. seed and allowlist settings) and should ideally also be documented in `config.d.ts` for completeness.
