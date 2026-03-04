@@ -1,5 +1,6 @@
 import type { Knex } from 'knex';
 import type { QuestEditSchema } from '../schemas/quests/questEditSchema';
+import type { CompletionPolicy } from '../schemas/quests/questCreationSchema';
 
 export type QuestRow = {
   id: string;
@@ -7,6 +8,8 @@ export type QuestRow = {
   description: string;
   interval: number;
   xp_reward: number;
+  completion_policy: CompletionPolicy;
+  cooldown_days: number | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -16,6 +19,10 @@ export type CreateQuestRow = {
   description: string;
   interval: number;
   xp_reward: number;
+  /** Defaults to 'REPEATABLE' if not provided */
+  completion_policy?: CompletionPolicy;
+  /** Defaults to null (no cooldown) if not provided */
+  cooldown_days?: number | null;
 };
 
 export type QuestProgressRow = {
@@ -65,6 +72,8 @@ export class QuestsRepository {
         description: data.description,
         interval: data.interval,
         xp_reward: data.xp_reward,
+        completion_policy: data.completion_policy ?? 'REPEATABLE',
+        cooldown_days: data.cooldown_days ?? null,
       })
       .returning('*');
 
@@ -99,6 +108,8 @@ export class QuestsRepository {
         'quests.description',
         'quests.interval',
         'quests.xp_reward',
+        'quests.completion_policy',
+        'quests.cooldown_days',
         'quests.created_at',
         'quests.updated_at',
         db.raw('quest_progress.user_ref as user_ref'),
@@ -137,6 +148,10 @@ export class QuestsRepository {
       updateData.description = data.description;
     if (data.interval !== undefined) updateData.interval = data.interval;
     if (data.xp_reward !== undefined) updateData.xp_reward = data.xp_reward;
+    if (data.completion_policy !== undefined)
+      updateData.completion_policy = data.completion_policy;
+    if (data.cooldown_days !== undefined)
+      updateData.cooldown_days = data.cooldown_days ?? null;
 
     const rows = await this.db<QuestRow>('quests')
       .where({ id })
@@ -149,6 +164,31 @@ export class QuestsRepository {
   async deleteQuest(id: string): Promise<boolean> {
     const deletedCount = await this.db('quests').where({ id }).del();
     return deletedCount > 0;
+  }
+
+  async getProgressForUserQuest(
+    userRef: string,
+    questId: string,
+  ): Promise<QuestProgressRow | undefined> {
+    return this.db<QuestProgressRow>('quest_progress')
+      .where({ user_ref: userRef, quest_id: questId })
+      .first();
+  }
+
+  /**
+   * Returns the timestamp of the last XP award for a user on a given quest,
+   * or null if XP has never been awarded.
+   * Used by the cooldown enforcement logic in the service layer.
+   */
+  async getLastAwardedAt(
+    userRef: string,
+    questId: string,
+  ): Promise<Date | null> {
+    const row = await this.db('xp_ledger')
+      .where({ user_ref: userRef, quest_id: questId })
+      .max('created_at as last_awarded_at')
+      .first();
+    return row?.last_awarded_at ? new Date(row.last_awarded_at) : null;
   }
 
   async incrementQuestProgress(params: {
