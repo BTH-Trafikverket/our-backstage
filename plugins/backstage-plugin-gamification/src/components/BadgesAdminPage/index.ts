@@ -1,0 +1,1 @@
+export { BadgesAdminPage } from './BadgesAdminPage';
