@@ -118,7 +118,10 @@ export function QuestsRouter({
       allow: ['user', 'service'],
     });
 
-    const quests = await questsService.getQuests({ credentials });
+    const search =
+      typeof req.query.search === 'string' ? req.query.search : undefined;
+
+    const quests = await questsService.getQuests(search, { credentials });
 
     res.status(200).json(quests);
   });
@@ -132,10 +135,16 @@ export function QuestsRouter({
     }
 
     const userRef = principal.userEntityRef;
+    const search =
+      typeof req.query.search === 'string' ? req.query.search : undefined;
 
-    const quests = await questsService.getQuestsWithProgress(userRef, {
-      credentials,
-    });
+    const quests = await questsService.getQuestsWithProgress(
+      userRef,
+      {
+        credentials,
+      },
+      search,
+    );
 
     res.status(200).json(quests);
   });

@@ -80,6 +80,7 @@ export const QuestsAdminPage = ({
   const [quests, setQuests] = useState<Quest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState<string>('');
 
   // Create quest dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -119,9 +120,15 @@ export const QuestsAdminPage = ({
     setError(null);
 
     try {
-      const response = await fetchApi.fetch(
+      const url = new URL(
         'http://localhost:7007/api/backstage-backend-gamification/quests/me',
       );
+
+      if (search.trim()) {
+        url.searchParams.set('search', search.trim());
+      }
+
+      const response = await fetchApi.fetch(url.toString());
 
       if (!response.ok) {
         throw new Error(`Fel: ${response.status} ${response.statusText}`);
@@ -135,7 +142,7 @@ export const QuestsAdminPage = ({
     } finally {
       setLoading(false);
     }
-  }, [fetchApi]);
+  }, [fetchApi, search]);
 
   useEffect(() => {
     fetchQuests();
@@ -702,6 +709,15 @@ export const QuestsAdminPage = ({
                 </Button>
               )}
             </ContentHeader>
+            <TextField
+              placeholder="Sök quest..."
+              variant="outlined"
+              size="small"
+              fullWidth
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ marginBottom: 16 }}
+            />
             {loading && (
               <div style={{ textAlign: 'center', padding: 20 }}>
                 <CircularProgress />
@@ -717,7 +733,10 @@ export const QuestsAdminPage = ({
             )}
             {!loading && !error && quests.length === 0 && (
               <Typography variant="body2">
-                Inga quests hittades. Skapa en ny quest via admin-panelen.
+                Inga quests hittades.{' '}
+                {search
+                  ? 'Försök en annan sökning.'
+                  : 'Skapa en ny quest via admin-panelen.'}
               </Typography>
             )}
             {!loading && !error && quests.length > 0 && (
