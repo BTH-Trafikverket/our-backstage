@@ -95,12 +95,10 @@ export class QuestsRepository {
     const db = this.db;
 
     return await db('quests')
-      .leftJoin('quest_progress', function () {
-        this.on('quest_progress.quest_id', '=', 'quests.id').andOn(
-          'quest_progress.user_ref',
-          '=',
-          db.raw('?', [user_ref]),
-        );
+      .leftJoin('quest_progress', (join: any) => {
+        join
+          .on('quest_progress.quest_id', '=', 'quests.id')
+          .andOn('quest_progress.user_ref', '=', db.raw('?', [user_ref]));
       })
       .select(
         'quests.id',

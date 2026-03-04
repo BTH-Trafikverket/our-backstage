@@ -97,7 +97,7 @@ export class QuestsService {
 
     if (
       quest.completion_policy === 'REPEATABLE' &&
-      quest.cooldown_days != null
+      quest.cooldown_days !== null
     ) {
       const lastAwardedAt = await this.questsRepo.getLastAwardedAt(
         userRef,

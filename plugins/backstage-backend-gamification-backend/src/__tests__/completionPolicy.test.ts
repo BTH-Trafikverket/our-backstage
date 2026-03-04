@@ -29,13 +29,6 @@ describe('Completion Policy – Integration Tests', () => {
 
   const databases = TestDatabases.create({ ids: ['POSTGRES_18'] });
 
-  if (!databases.supports('POSTGRES_18')) {
-    it('skipped: set DB_HOST/DB_PORT/DB_USER/DB_PASSWORD to run Postgres integration tests', () => {
-      // noop
-    });
-    return;
-  }
-
   const migrationsDir = path.resolve(__dirname, '../../migrations');
 
   async function initDb(): Promise<Knex> {
