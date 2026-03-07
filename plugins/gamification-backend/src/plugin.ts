@@ -7,7 +7,7 @@ import { runSeeds } from './seed';
 import { createRouter } from './router';
 
 export const backstageBackendGamificationPlugin = createBackendPlugin({
-  pluginId: 'backstage-backend-gamification',
+  pluginId: 'gamification',
   register(env) {
     env.registerInit({
       deps: {
@@ -33,7 +33,7 @@ export const backstageBackendGamificationPlugin = createBackendPlugin({
         const knex = await initGameDb({
           database,
           migrationPackageName:
-            '@internal/backstage-plugin-backstage-backend-gamification-backend',
+            '@internal/backstage-plugin-gamification-backend',
         });
 
         logger.info('gamification migrations applied');

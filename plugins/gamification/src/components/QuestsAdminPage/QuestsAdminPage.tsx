@@ -35,7 +35,11 @@ import {
   InfoCard,
   SupportButton,
 } from '@backstage/core-components';
-import { useApi, fetchApiRef } from '@backstage/core-plugin-api';
+import {
+  useApi,
+  fetchApiRef,
+  discoveryApiRef,
+} from '@backstage/core-plugin-api';
 import { Alert } from '@material-ui/lab';
 
 type Quest = {
@@ -76,7 +80,28 @@ export const QuestsAdminPage = ({
   onToggleDemo,
   isDemoMode = false,
 }: QuestsAdminPageProps) => {
-  const fetchApi = useApi(fetchApiRef);
+  const discoveryApi = useApi(discoveryApiRef);
+  const pluginId = 'gamification';
+
+  const buildGamificationUrl = useCallback(
+    async (path: string, query?: Record<string, string>) => {
+      const baseUrl = await discoveryApi.getBaseUrl(pluginId);
+      const url = new URL(
+        `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`,
+      );
+
+      if (query) {
+        for (const [k, v] of Object.entries(query)) {
+          if (v !== undefined && v !== null && `${v}`.trim() !== '') {
+            url.searchParams.set(k, `${v}`);
+          }
+        }
+      }
+
+      return url.toString();
+    },
+    [discoveryApi],
+  );
   const [quests, setQuests] = useState<Quest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,15 +145,11 @@ export const QuestsAdminPage = ({
     setError(null);
 
     try {
-      const url = new URL(
-        'http://localhost:7007/api/backstage-backend-gamification/quests/me',
-      );
+      const url = await buildGamificationUrl('/quests/me', {
+        ...(search.trim() ? { search: search.trim() } : {}),
+      });
 
-      if (search.trim()) {
-        url.searchParams.set('search', search.trim());
-      }
-
-      const response = await fetchApi.fetch(url.toString());
+      const response = await fetchApi.fetch(url);
 
       if (!response.ok) {
         throw new Error(`Fel: ${response.status} ${response.statusText}`);
@@ -142,7 +163,7 @@ export const QuestsAdminPage = ({
     } finally {
       setLoading(false);
     }
-  }, [fetchApi, search]);
+  }, [fetchApi, search, buildGamificationUrl]);
 
   useEffect(() => {
     fetchQuests();
@@ -179,28 +200,24 @@ export const QuestsAdminPage = ({
     setCreateError(null);
 
     try {
-      const response = await fetchApi.fetch(
-        'http://localhost:7007/api/backstage-backend-gamification/quests',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            title: formData.title,
-            description: formData.description,
-            xp_reward: parseInt(formData.xp_reward, 10),
-            completion_policy: formData.completion_policy,
-            interval: parseInt(formData.interval, 10),
-            ...(formData.completion_policy === 'REPEATABLE' && {
-              cooldown_days: formData.cooldown_days
-                ? parseInt(formData.cooldown_days, 10)
-                : null,
-            }),
-          }),
-        },
-      );
+      const url = await buildGamificationUrl('/quests');
 
+      const response = await fetchApi.fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description,
+          xp_reward: parseInt(formData.xp_reward, 10),
+          completion_policy: formData.completion_policy,
+          interval: parseInt(formData.interval, 10),
+          ...(formData.completion_policy === 'REPEATABLE' && {
+            cooldown_days: formData.cooldown_days
+              ? parseInt(formData.cooldown_days, 10)
+              : null,
+          }),
+        }),
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
@@ -309,28 +326,24 @@ export const QuestsAdminPage = ({
     setEditError(null);
 
     try {
-      const response = await fetchApi.fetch(
-        `http://localhost:7007/api/backstage-backend-gamification/quests/${selectedQuest.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            title: editFormData.title,
-            description: editFormData.description,
-            xp_reward: parseInt(editFormData.xp_reward, 10),
-            completion_policy: editFormData.completion_policy,
-            interval: parseInt(editFormData.interval, 10),
-            ...(editFormData.completion_policy === 'REPEATABLE' && {
-              cooldown_days: editFormData.cooldown_days
-                ? parseInt(editFormData.cooldown_days, 10)
-                : null,
-            }),
-          }),
-        },
-      );
+      const url = await buildGamificationUrl(`/quests/${selectedQuest.id}`);
 
+      const response = await fetchApi.fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editFormData.title,
+          description: editFormData.description,
+          xp_reward: parseInt(editFormData.xp_reward, 10),
+          completion_policy: editFormData.completion_policy,
+          interval: parseInt(editFormData.interval, 10),
+          ...(editFormData.completion_policy === 'REPEATABLE' && {
+            cooldown_days: editFormData.cooldown_days
+              ? parseInt(editFormData.cooldown_days, 10)
+              : null,
+          }),
+        }),
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
@@ -372,12 +385,9 @@ export const QuestsAdminPage = ({
     setDeleteError(null);
 
     try {
-      const response = await fetchApi.fetch(
-        `http://localhost:7007/api/backstage-backend-gamification/quests/${questToDelete.id}`,
-        {
-          method: 'DELETE',
-        },
-      );
+      const url = await buildGamificationUrl(`/quests/${questToDelete.id}`);
+
+      const response = await fetchApi.fetch(url, { method: 'DELETE' });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

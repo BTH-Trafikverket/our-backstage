@@ -37,7 +37,7 @@ backend:
       password: ${DB_PASSWORD}
       database: ${DB_NAME}
     plugin:
-      backstage-plugin-gamification:
+      gamification:
         connection:
           database: ${DB_NAME}
 

@@ -42,7 +42,7 @@ import { githubAuthApiRef } from '@backstage/core-plugin-api';
 import {
   BackstagePluginGamificationPage,
   GamificationXpDebugPage,
-} from '@internal/backstage-plugin-backstage-plugin-gamification';
+} from '@internal/backstage-plugin-gamification';
 
 const app = createApp({
   apis,
@@ -122,10 +122,7 @@ const routes = (
     <Route path="/catalog-graph" element={<CatalogGraphPage />} />
     <Route path="/notifications" element={<NotificationsPage />} />
 
-    <Route
-      path="/backstage-plugin-gamification"
-      element={<BackstagePluginGamificationPage />}
-    />
+    <Route path="/gamification" element={<BackstagePluginGamificationPage />} />
     <Route path="/gamification/xp" element={<GamificationXpDebugPage />} />
   </FlatRoutes>
 );
