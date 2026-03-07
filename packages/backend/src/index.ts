@@ -68,7 +68,5 @@ backend.add(import('@backstage/plugin-kubernetes-backend'));
 backend.add(import('@backstage/plugin-notifications-backend'));
 backend.add(import('@backstage/plugin-signals-backend'));
 
-backend.add(
-  import('@internal/backstage-plugin-backstage-backend-gamification-backend'),
-);
+backend.add(import('@internal/backstage-plugin-gamification-backend'));
 backend.start();
