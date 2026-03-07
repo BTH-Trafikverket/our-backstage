@@ -80,6 +80,7 @@ export const QuestsAdminPage = ({
   onToggleDemo,
   isDemoMode = false,
 }: QuestsAdminPageProps) => {
+  const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
   const pluginId = 'gamification';
 
