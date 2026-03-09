@@ -8,6 +8,7 @@ import {
 import type { Knex } from 'knex';
 import express from 'express';
 import Router from 'express-promise-router';
+import { createOpenApiRouter } from './schema/openapi.generated';
 
 import { QuestsRouter } from './routes/questsRouter';
 import { QuestsRepository } from './repositories/questsRepository';
@@ -35,6 +36,7 @@ export function createRouter({
 }): express.Router {
   const router = Router();
   router.use(express.json());
+  const apiRouter = createOpenApiRouter();
 
   const questsRepo = new QuestsRepository(knex);
 
@@ -45,7 +47,7 @@ export function createRouter({
   const xpRepo = new XpRepository(knex);
   const xpService = new XpService(xpRepo, 100);
 
-  router.use(
+  apiRouter.use(
     '/quests',
     QuestsRouter({
       httpAuth,
@@ -54,7 +56,7 @@ export function createRouter({
     }),
   );
 
-  router.use(
+  apiRouter.use(
     '/xp',
     XpRouter({
       httpAuth,
@@ -62,6 +64,8 @@ export function createRouter({
       xpService,
     }),
   );
+
+  router.use(apiRouter);
 
   return router;
 }
