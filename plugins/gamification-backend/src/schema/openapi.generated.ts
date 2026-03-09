@@ -1,8 +1,3 @@
-import {
-  createValidatedOpenApiRouter,
-  type ApiRouter,
-} from '@backstage/backend-openapi-utils';
-
 export const spec = {
   openapi: '3.0.3',
   info: {
@@ -366,11 +361,3 @@ export const spec = {
     },
   },
 } as const;
-
-export function createOpenApiRouter(): ApiRouter<typeof spec> {
-  const createRouter = createValidatedOpenApiRouter as unknown as (
-    input: unknown,
-  ) => ApiRouter<typeof spec>;
-
-  return createRouter(spec);
-}
