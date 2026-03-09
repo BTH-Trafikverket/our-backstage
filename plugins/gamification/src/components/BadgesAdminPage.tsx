@@ -66,7 +66,7 @@ type BadgesAdminPageProps = {
 };
 
 const mockQuests: QuestLite[] = [
-  { id: '1', title: 'Documentation', completion_policy: 'ONE_TIME' },
+  { id: '1', title: 'Documentation', completion_policy: 'REPEATABLE' },
   { id: '2', title: 'Write New CI Tests', completion_policy: 'REPEATABLE' },
   { id: '3', title: 'Code Contribution', completion_policy: 'REPEATABLE' },
   { id: '4', title: 'Knowledge Sharing', completion_policy: 'ONE_TIME' },
@@ -93,7 +93,7 @@ const mockBadges: Badge[] = [
   },
 ];
 
-const emptyForm = (): BadgeFormData => ({
+const createEmptyForm = (): BadgeFormData => ({
   title: '',
   description: '',
   criterias: [{ quest_id: '', target_count: '1' }],
@@ -111,12 +111,14 @@ export const BadgesAdminPage = ({
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [createForm, setCreateForm] = useState<BadgeFormData>(emptyForm());
+  const [createForm, setCreateForm] = useState<BadgeFormData>(
+    createEmptyForm(),
+  );
 
   const [editOpen, setEditOpen] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
-  const [editForm, setEditForm] = useState<BadgeFormData>(emptyForm());
+  const [editForm, setEditForm] = useState<BadgeFormData>(createEmptyForm());
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [badgeToDelete, setBadgeToDelete] = useState<Badge | null>(null);
@@ -139,12 +141,9 @@ export const BadgesAdminPage = ({
     return quests.find(q => q.id === questId);
   };
 
-  const isOneTimeQuest = (questId: string) => {
-    return getQuestById(questId)?.completion_policy === 'ONE_TIME';
-  };
-
   const getQuestTitle = (questId: string) => {
-    return getQuestById(questId)?.title ?? questId;
+    const quest = getQuestById(questId);
+    return quest ? quest.title : questId;
   };
 
   const addCriteriaRow = (setter: Dispatch<SetStateAction<BadgeFormData>>) => {
@@ -159,7 +158,9 @@ export const BadgesAdminPage = ({
     idx: number,
   ) => {
     setter(prev => {
-      if (prev.criterias.length <= 1) return prev;
+      if (prev.criterias.length <= 1) {
+        return prev;
+      }
 
       return {
         ...prev,
@@ -177,22 +178,28 @@ export const BadgesAdminPage = ({
     setter(prev => ({
       ...prev,
       criterias: prev.criterias.map((c, i) => {
-        if (i !== idx) return c;
+        if (i !== idx) {
+          return c;
+        }
 
         if (field === 'quest_id') {
           const selectedQuest = quests.find(q => q.id === value);
+          const nextCount =
+            selectedQuest?.completion_policy === 'ONE_TIME'
+              ? '1'
+              : c.target_count || '1';
 
           return {
             ...c,
             quest_id: value,
-            target_count:
-              selectedQuest?.completion_policy === 'ONE_TIME'
-                ? '1'
-                : c.target_count || '1',
+            target_count: nextCount,
           };
         }
 
-        return { ...c, [field]: value };
+        return {
+          ...c,
+          target_count: value,
+        };
       }),
     }));
   };
@@ -211,21 +218,25 @@ export const BadgesAdminPage = ({
     }
 
     for (let i = 0; i < form.criterias.length; i++) {
-      const c = form.criterias[i];
+      const criteria = form.criterias[i];
 
-      if (!c.quest_id) return `Kriterium ${i + 1}: Välj en quest`;
+      if (!criteria.quest_id) {
+        return `Kriterium ${i + 1}: Välj en quest`;
+      }
 
-      const quest = getQuestById(c.quest_id);
-      const n = parseInt(c.target_count, 10);
+      const quest = getQuestById(criteria.quest_id);
+      const parsedCount = parseInt(criteria.target_count, 10);
 
       if (quest?.completion_policy === 'ONE_TIME') {
-        if (n !== 1) {
+        if (parsedCount !== 1) {
           return `Kriterium ${i + 1}: One-time quest måste ha count 1`;
         }
-      } else {
-        if (!c.target_count || Number.isNaN(n) || n < 1) {
-          return `Kriterium ${i + 1}: Count måste vara minst 1`;
-        }
+      } else if (
+        !criteria.target_count ||
+        Number.isNaN(parsedCount) ||
+        parsedCount < 1
+      ) {
+        return `Kriterium ${i + 1}: Count måste vara minst 1`;
       }
     }
 
@@ -234,7 +245,7 @@ export const BadgesAdminPage = ({
 
   const openCreate = () => {
     setCreateError(null);
-    setCreateForm(emptyForm());
+    setCreateForm(createEmptyForm());
     setCreateOpen(true);
   };
 
@@ -245,6 +256,7 @@ export const BadgesAdminPage = ({
 
   const submitCreate = () => {
     const validation = validateBadgeForm(createForm);
+
     if (validation) {
       setCreateError(validation);
       return;
@@ -262,7 +274,7 @@ export const BadgesAdminPage = ({
 
     setBadges(prev => [newBadge, ...prev]);
     setCreateOpen(false);
-    setCreateForm(emptyForm());
+    setCreateForm(createEmptyForm());
   };
 
   const openEdit = (badge: Badge) => {
@@ -286,9 +298,12 @@ export const BadgesAdminPage = ({
   };
 
   const submitEdit = () => {
-    if (!selectedBadge) return;
+    if (!selectedBadge) {
+      return;
+    }
 
     const validation = validateBadgeForm(editForm);
+
     if (validation) {
       setEditError(validation);
       return;
@@ -323,7 +338,9 @@ export const BadgesAdminPage = ({
   };
 
   const confirmDelete = () => {
-    if (!badgeToDelete) return;
+    if (!badgeToDelete) {
+      return;
+    }
 
     setBadges(prev => prev.filter(badge => badge.id !== badgeToDelete.id));
     setDeleteOpen(false);
@@ -341,18 +358,20 @@ export const BadgesAdminPage = ({
 
     return (
       <Box>
-        {criterias.map((c, idx) => {
-          const quest = getQuestById(c.quest_id);
-          const isOneTime = quest?.completion_policy === 'ONE_TIME';
+        {criterias.map((criteria, idx) => {
+          const quest = getQuestById(criteria.quest_id);
+          const policyText =
+            quest?.completion_policy === 'ONE_TIME'
+              ? 'One-time'
+              : `Repeatable, ${criteria.target_count}x`;
 
           return (
             <Typography
-              key={`${c.quest_id}-${idx}`}
+              key={`${criteria.quest_id}-${idx}`}
               variant="caption"
               display="block"
             >
-              • {getQuestTitle(c.quest_id)} —{' '}
-              {isOneTime ? 'One-time' : `Repeatable, ${c.target_count}x`}
+              • {getQuestTitle(criteria.quest_id)} — {policyText}
             </Typography>
           );
         })}
@@ -363,11 +382,28 @@ export const BadgesAdminPage = ({
   const renderCriteriaRows = (
     form: BadgeFormData,
     setter: Dispatch<SetStateAction<BadgeFormData>>,
-    mode: 'create' | 'edit',
   ) => {
-    return form.criterias.map((c, idx) => {
-      const selectedQuest = quests.find(q => q.id === c.quest_id);
+    return form.criterias.map((criteria, idx) => {
+      const selectedQuest = quests.find(q => q.id === criteria.quest_id);
       const isOneTime = selectedQuest?.completion_policy === 'ONE_TIME';
+
+      let helperText = 'Choose a quest';
+      if (criteria.quest_id) {
+        if (isOneTime) {
+          helperText = 'This quest is One-time';
+        } else {
+          helperText = 'This quest is Repeatable';
+        }
+      }
+
+      let completionPolicyValue = '';
+      if (criteria.quest_id) {
+        if (isOneTime) {
+          completionPolicyValue = 'One-time';
+        } else {
+          completionPolicyValue = 'Repeatable';
+        }
+      }
 
       return (
         <Box
@@ -381,50 +417,47 @@ export const BadgesAdminPage = ({
             select
             label="Quest"
             margin="dense"
-            value={c.quest_id}
+            value={criteria.quest_id}
             onChange={e =>
               updateCriteriaField(setter, idx, 'quest_id', e.target.value)
             }
-            helperText={
-              !c.quest_id
-                ? 'Choose a quest'
-                : isOneTime
-                ? 'This quest is One-time'
-                : 'This quest is Repeatable'
-            }
+            helperText={helperText}
             style={{ flex: 1 }}
           >
             <MenuItem value="">
-              <em>Select quest</em>
+              <em>Välj quest</em>
             </MenuItem>
+            {quests.map(q => {
+              const policyLabel =
+                q.completion_policy === 'ONE_TIME' ? 'One-time' : 'Repeatable';
 
-            {quests.map(q => (
-              <MenuItem key={q.id} value={q.id}>
-                {q.title} —{' '}
-                {q.completion_policy === 'ONE_TIME' ? 'One-time' : 'Repeatable'}
-              </MenuItem>
-            ))}
+              return (
+                <MenuItem key={q.id} value={q.id}>
+                  {q.title} — {policyLabel}
+                </MenuItem>
+              );
+            })}
           </TextField>
 
           <TextField
             label="Completion Policy"
             margin="dense"
-            value={!c.quest_id ? '' : isOneTime ? 'One-time' : 'Repeatable'}
+            value={completionPolicyValue}
             disabled
             style={{ width: 140 }}
           />
 
-          {!isOneTime && c.quest_id && (
+          {!isOneTime && criteria.quest_id && (
             <TextField
               label="Count"
               margin="dense"
               type="number"
               inputProps={{ min: 1 }}
-              value={c.target_count}
+              value={criteria.target_count}
               onChange={e =>
                 updateCriteriaField(setter, idx, 'target_count', e.target.value)
               }
-              style={{ width: 120 }}
+              style={{ width: 100 }}
             />
           )}
 
@@ -486,7 +519,7 @@ export const BadgesAdminPage = ({
             </Typography>
           </Box>
 
-          {renderCriteriaRows(createForm, setCreateForm, 'create')}
+          {renderCriteriaRows(createForm, setCreateForm)}
 
           <Button
             startIcon={<AddIcon />}
@@ -548,7 +581,7 @@ export const BadgesAdminPage = ({
             </Typography>
           </Box>
 
-          {renderCriteriaRows(editForm, setEditForm, 'edit')}
+          {renderCriteriaRows(editForm, setEditForm)}
 
           <Button
             startIcon={<AddIcon />}
