@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: our-backstage-root-catalog
+  description: Compatibility location that forwards old backend catalog references to the repo root catalog file.
+spec:
+  type: file
+  targets:
+    - ../../catalog-info.yaml
+    - ../../catalog/apis/gamification-api.yaml
+    - ../../catalog/gamification-backend.yaml

@@ -1,0 +1,363 @@
+export const spec = {
+  openapi: '3.0.3',
+  info: {
+    title: 'Gamification API',
+    version: '1.0.0',
+    description:
+      'OpenAPI contract for the internal Backstage gamification plugin.',
+  },
+  servers: [{ url: '/api/gamification' }],
+  tags: [{ name: 'XP' }, { name: 'Quests' }],
+  paths: {
+    '/xp': {
+      get: {
+        operationId: 'getXpStatus',
+        tags: ['XP'],
+        summary: 'Get XP status for a user',
+        parameters: [
+          {
+            in: 'query',
+            name: 'userRef',
+            required: false,
+            schema: { type: 'string' },
+            description:
+              'Optional Backstage entity ref. If omitted, the authenticated user is used.',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'XP status',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/XpStatus' },
+              },
+            },
+          },
+          '400': { $ref: '#/components/responses/BadRequest' },
+          '401': { $ref: '#/components/responses/Unauthorized' },
+        },
+      },
+    },
+    '/quests': {
+      get: {
+        operationId: 'listQuests',
+        tags: ['Quests'],
+        summary: 'List quests',
+        parameters: [
+          {
+            in: 'query',
+            name: 'search',
+            required: false,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Quest list',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'array',
+                  items: { $ref: '#/components/schemas/Quest' },
+                },
+              },
+            },
+          },
+          '401': { $ref: '#/components/responses/Unauthorized' },
+        },
+      },
+      post: {
+        operationId: 'createQuest',
+        tags: ['Quests'],
+        summary: 'Create a quest',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CreateQuestRequest' },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Created quest',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Quest' },
+              },
+            },
+          },
+          '400': { $ref: '#/components/responses/BadRequest' },
+          '401': { $ref: '#/components/responses/Unauthorized' },
+        },
+      },
+    },
+    '/quests/me': {
+      get: {
+        operationId: 'listMyQuests',
+        tags: ['Quests'],
+        summary: "List quests with the current user's progress",
+        parameters: [
+          {
+            in: 'query',
+            name: 'search',
+            required: false,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Quest list including progress',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'array',
+                  items: { $ref: '#/components/schemas/QuestWithProgress' },
+                },
+              },
+            },
+          },
+          '400': { $ref: '#/components/responses/BadRequest' },
+          '401': { $ref: '#/components/responses/Unauthorized' },
+        },
+      },
+    },
+    '/quests/{id}': {
+      patch: {
+        operationId: 'updateQuest',
+        tags: ['Quests'],
+        summary: 'Update a quest',
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/UpdateQuestRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Updated quest',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Quest' },
+              },
+            },
+          },
+          '400': { $ref: '#/components/responses/BadRequest' },
+          '401': { $ref: '#/components/responses/Unauthorized' },
+          '404': { $ref: '#/components/responses/NotFound' },
+        },
+      },
+      delete: {
+        operationId: 'deleteQuest',
+        tags: ['Quests'],
+        summary: 'Delete a quest',
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '204': { description: 'Quest deleted' },
+          '400': { $ref: '#/components/responses/BadRequest' },
+          '401': { $ref: '#/components/responses/Unauthorized' },
+          '404': { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+    '/quests/events': {
+      post: {
+        operationId: 'handleQuestEvent',
+        tags: ['Quests'],
+        summary: 'Trigger quest progress from an external event',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/QuestEventRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Event handled',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/QuestEventResult' },
+              },
+            },
+          },
+          '400': { $ref: '#/components/responses/BadRequest' },
+          '401': { $ref: '#/components/responses/Unauthorized' },
+          '404': { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+  },
+  components: {
+    responses: {
+      BadRequest: { description: 'Invalid request' },
+      Unauthorized: { description: 'Missing or invalid credentials' },
+      NotFound: { description: 'Resource not found' },
+    },
+    schemas: {
+      CompletionPolicy: {
+        type: 'string',
+        enum: ['ONE_TIME', 'REPEATABLE'],
+      },
+      Timestamp: {
+        type: 'string',
+        format: 'date-time',
+      },
+      Quest: {
+        type: 'object',
+        required: [
+          'id',
+          'title',
+          'description',
+          'interval',
+          'xp_reward',
+          'completion_policy',
+          'cooldown_days',
+          'created_at',
+          'updated_at',
+        ],
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          description: { type: 'string' },
+          interval: { type: 'integer' },
+          xp_reward: { type: 'integer' },
+          completion_policy: {
+            $ref: '#/components/schemas/CompletionPolicy',
+          },
+          cooldown_days: { type: 'integer', nullable: true },
+          created_at: { $ref: '#/components/schemas/Timestamp' },
+          updated_at: { $ref: '#/components/schemas/Timestamp' },
+        },
+      },
+      QuestWithProgress: {
+        allOf: [
+          { $ref: '#/components/schemas/Quest' },
+          {
+            type: 'object',
+            required: [
+              'user_ref',
+              'completion_count',
+              'progress_in_interval',
+              'next_milestone',
+            ],
+            properties: {
+              user_ref: { type: 'string', nullable: true },
+              completion_count: { type: 'integer' },
+              progress_in_interval: { type: 'integer' },
+              next_milestone: { type: 'integer' },
+            },
+          },
+        ],
+      },
+      CreateQuestRequest: {
+        type: 'object',
+        required: ['title', 'description', 'interval', 'xp_reward'],
+        properties: {
+          title: { type: 'string', minLength: 1 },
+          description: { type: 'string' },
+          interval: { type: 'integer', minimum: 1 },
+          xp_reward: { type: 'integer', minimum: 1 },
+          entityRef: { type: 'string' },
+          completion_policy: {
+            $ref: '#/components/schemas/CompletionPolicy',
+          },
+          cooldown_days: { type: 'integer', minimum: 1, nullable: true },
+        },
+      },
+      UpdateQuestRequest: {
+        type: 'object',
+        minProperties: 1,
+        additionalProperties: false,
+        properties: {
+          title: { type: 'string', minLength: 1 },
+          description: { type: 'string', minLength: 1 },
+          interval: { type: 'integer', minimum: 1 },
+          xp_reward: { type: 'integer', minimum: 0 },
+          completion_policy: {
+            $ref: '#/components/schemas/CompletionPolicy',
+          },
+          cooldown_days: { type: 'integer', minimum: 1, nullable: true },
+        },
+      },
+      QuestEventActor: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          entityRef: { type: 'string', minLength: 1 },
+          provider: { type: 'string', minLength: 1 },
+          id: { type: 'string', minLength: 1 },
+          login: { type: 'string', minLength: 1 },
+          email: { type: 'string', format: 'email' },
+        },
+        anyOf: [
+          { required: ['entityRef'] },
+          { required: ['provider', 'id'] },
+          { required: ['provider', 'login'] },
+          { required: ['provider', 'email'] },
+        ],
+      },
+      QuestEventRequest: {
+        type: 'object',
+        required: ['eventKey', 'eventId', 'actor'],
+        additionalProperties: false,
+        properties: {
+          eventKey: { type: 'string', minLength: 1 },
+          eventId: { type: 'string', minLength: 1 },
+          actor: { $ref: '#/components/schemas/QuestEventActor' },
+        },
+      },
+      QuestEventResult: {
+        type: 'object',
+        required: ['duplicate', 'userRef', 'questId'],
+        properties: {
+          duplicate: { type: 'boolean' },
+          userRef: { type: 'string' },
+          questId: { type: 'string' },
+          completionCount: { type: 'integer' },
+        },
+      },
+      XpStatus: {
+        type: 'object',
+        required: [
+          'userRef',
+          'totalXp',
+          'level',
+          'currentLevelXp',
+          'nextLevelXp',
+          'xpIntoLevel',
+          'xpToNextLevel',
+          'progress',
+        ],
+        properties: {
+          userRef: { type: 'string' },
+          totalXp: { type: 'integer' },
+          level: { type: 'integer' },
+          currentLevelXp: { type: 'integer' },
+          nextLevelXp: { type: 'integer' },
+          xpIntoLevel: { type: 'integer' },
+          xpToNextLevel: { type: 'integer' },
+          progress: { type: 'number', minimum: 0, maximum: 1 },
+        },
+      },
+    },
+  },
+} as const;

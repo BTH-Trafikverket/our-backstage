@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: gamification-backend
+  description: Backend service for the gamification plugin API
+spec:
+  type: service
+  owner: user:default/LinusAndersson02
+  lifecycle: experimental
+  providesApis:
+    - api:default/gamification-api

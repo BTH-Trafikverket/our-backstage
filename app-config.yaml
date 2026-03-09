@@ -91,6 +91,10 @@ catalog:
     pullRequestBranchName: backstage-integration
   locations:
     - type: file
+      target: ./catalog-info.yaml
+      rules:
+        - allow: [Component]
+    - type: file
       target: ./catalog/users/alice.yaml
       rules:
         - allow: [User]
