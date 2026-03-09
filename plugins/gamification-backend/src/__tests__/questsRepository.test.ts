@@ -37,7 +37,7 @@ describe('QuestsRepository Integration Tests', () => {
       const questData = {
         title: 'Complete Integration Test',
         description: 'Write comprehensive integration tests',
-        interval: 5,
+        target_count: 5,
         xp_reward: 100,
       };
 
@@ -46,7 +46,7 @@ describe('QuestsRepository Integration Tests', () => {
       expect(createdQuest).toBeDefined();
       expect(createdQuest.title).toBe(questData.title);
       expect(createdQuest.description).toBe(questData.description);
-      expect(createdQuest.interval).toBe(questData.interval);
+      expect(createdQuest.target_count).toBe(questData.target_count);
       expect(createdQuest.xp_reward).toBe(questData.xp_reward);
       expect(createdQuest.created_at).toBeInstanceOf(Date);
       expect(createdQuest.updated_at).toBeInstanceOf(Date);
@@ -55,7 +55,7 @@ describe('QuestsRepository Integration Tests', () => {
         .where({
           title: questData.title,
           description: questData.description,
-          interval: questData.interval,
+          target_count: questData.target_count,
           xp_reward: questData.xp_reward,
         })
         .first();
@@ -73,14 +73,14 @@ describe('QuestsRepository Integration Tests', () => {
       const quest1 = {
         title: 'Daily Quest',
         description: 'Complete daily tasks',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
       };
 
       const quest2 = {
         title: 'Weekly Challenge',
         description: 'Complete weekly objectives',
-        interval: 7,
+        target_count: 7,
         xp_reward: 500,
       };
 
@@ -106,7 +106,7 @@ describe('QuestsRepository Integration Tests', () => {
       const quest = await repository.createQuest({
         title: 'Timestamp Test',
         description: 'Testing timestamp generation',
-        interval: 1,
+        target_count: 1,
         xp_reward: 50,
       });
 
@@ -132,7 +132,7 @@ describe('QuestsRepository Integration Tests', () => {
       const invalidQuest = {
         title: 'Invalid Quest',
         description: 'This should fail',
-        interval: 1,
+        target_count: 1,
         xp_reward: 0,
       };
 
@@ -141,14 +141,14 @@ describe('QuestsRepository Integration Tests', () => {
       await knex.destroy();
     });
 
-    it('should enforce database constraints (positive interval)', async () => {
+    it('should enforce database constraints (positive target_count)', async () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
       const invalidQuest = {
-        title: 'Invalid Interval Quest',
+        title: 'Invalid Target Count Quest',
         description: 'This should fail',
-        interval: 0,
+        target_count: 0,
         xp_reward: 100,
       };
 
@@ -166,7 +166,7 @@ describe('QuestsRepository Integration Tests', () => {
       const questData = {
         title: 'Retrieve Me',
         description: 'This quest should be retrievable',
-        interval: 3,
+        target_count: 3,
         xp_reward: 75,
       };
 
@@ -176,7 +176,7 @@ describe('QuestsRepository Integration Tests', () => {
         .where({
           title: questData.title,
           description: questData.description,
-          interval: questData.interval,
+          target_count: questData.target_count,
           xp_reward: questData.xp_reward,
         })
         .first();
@@ -188,7 +188,7 @@ describe('QuestsRepository Integration Tests', () => {
       expect(retrievedQuest).toBeDefined();
       expect(retrievedQuest!.title).toBe(questData.title);
       expect(retrievedQuest!.description).toBe(questData.description);
-      expect(retrievedQuest!.interval).toBe(questData.interval);
+      expect(retrievedQuest!.target_count).toBe(questData.target_count);
       expect(retrievedQuest!.xp_reward).toBe(questData.xp_reward);
 
       await knex.destroy();
@@ -214,21 +214,21 @@ describe('QuestsRepository Integration Tests', () => {
       await repository.createQuest({
         title: 'Quest 1',
         description: 'First quest',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
       });
 
       await repository.createQuest({
         title: 'Quest 2',
         description: 'Second quest',
-        interval: 2,
+        target_count: 2,
         xp_reward: 20,
       });
 
       await repository.createQuest({
         title: 'Quest 3',
         description: 'Third quest',
-        interval: 3,
+        target_count: 3,
         xp_reward: 30,
       });
 

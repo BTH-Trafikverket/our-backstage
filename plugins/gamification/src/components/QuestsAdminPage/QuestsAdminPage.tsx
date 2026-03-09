@@ -46,7 +46,7 @@ type Quest = {
   id: string;
   title: string;
   description: string;
-  interval: number;
+  target_count: number;
   xp_reward: number;
   completion_policy: 'ONE_TIME' | 'REPEATABLE';
   cooldown_days: number | null;
@@ -55,14 +55,14 @@ type Quest = {
 
   user_ref: string | null;
   completion_count: number;
-  progress_in_interval: number;
+  progress_toward_target: number;
   next_milestone: number;
 };
 
 interface CreateQuestFormData {
   title: string;
   description: string;
-  interval: string;
+  target_count: string;
   xp_reward: string;
   /** 'ONE_TIME' | 'REPEATABLE' – kept as string for form input compatibility */
   completion_policy: string;
@@ -115,7 +115,7 @@ export const QuestsAdminPage = ({
   const [formData, setFormData] = useState<CreateQuestFormData>({
     title: '',
     description: '',
-    interval: '',
+    target_count: '',
     xp_reward: '',
     completion_policy: 'REPEATABLE',
     cooldown_days: '',
@@ -129,7 +129,7 @@ export const QuestsAdminPage = ({
   const [editFormData, setEditFormData] = useState<CreateQuestFormData>({
     title: '',
     description: '',
-    interval: '',
+    target_count: '',
     xp_reward: '',
     completion_policy: 'REPEATABLE',
     cooldown_days: '',
@@ -188,8 +188,8 @@ export const QuestsAdminPage = ({
       setCreateError('Description är obligatorisk');
       return;
     }
-    if (!formData.interval || parseInt(formData.interval, 10) < 1) {
-      setCreateError('Interval måste vara minst 1');
+    if (!formData.target_count || parseInt(formData.target_count, 10) < 1) {
+      setCreateError('Target count must be at least 1');
       return;
     }
     if (!formData.xp_reward || parseInt(formData.xp_reward, 10) < 1) {
@@ -211,7 +211,7 @@ export const QuestsAdminPage = ({
           description: formData.description,
           xp_reward: parseInt(formData.xp_reward, 10),
           completion_policy: formData.completion_policy,
-          interval: parseInt(formData.interval, 10),
+          target_count: parseInt(formData.target_count, 10),
           ...(formData.completion_policy === 'REPEATABLE' && {
             cooldown_days: formData.cooldown_days
               ? parseInt(formData.cooldown_days, 10)
@@ -230,7 +230,7 @@ export const QuestsAdminPage = ({
       setFormData({
         title: '',
         description: '',
-        interval: '',
+        target_count: '',
         xp_reward: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
@@ -255,7 +255,7 @@ export const QuestsAdminPage = ({
       setFormData({
         title: '',
         description: '',
-        interval: '',
+        target_count: '',
         xp_reward: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
@@ -269,7 +269,7 @@ export const QuestsAdminPage = ({
     setEditFormData({
       title: quest.title,
       description: quest.description,
-      interval: quest.interval.toString(),
+      target_count: quest.target_count.toString(),
       xp_reward: quest.xp_reward.toString(),
       completion_policy: quest.completion_policy ?? 'REPEATABLE',
       cooldown_days: quest.cooldown_days?.toString() ?? '',
@@ -286,7 +286,7 @@ export const QuestsAdminPage = ({
       setEditFormData({
         title: '',
         description: '',
-        interval: '',
+        target_count: '',
         xp_reward: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
@@ -314,8 +314,11 @@ export const QuestsAdminPage = ({
       setEditError('Description är obligatorisk');
       return;
     }
-    if (!editFormData.interval || parseInt(editFormData.interval, 10) < 1) {
-      setEditError('Interval måste vara minst 1');
+    if (
+      !editFormData.target_count ||
+      parseInt(editFormData.target_count, 10) < 1
+    ) {
+      setEditError('Target count must be at least 1');
       return;
     }
     if (!editFormData.xp_reward || parseInt(editFormData.xp_reward, 10) < 1) {
@@ -337,7 +340,7 @@ export const QuestsAdminPage = ({
           description: editFormData.description,
           xp_reward: parseInt(editFormData.xp_reward, 10),
           completion_policy: editFormData.completion_policy,
-          interval: parseInt(editFormData.interval, 10),
+          target_count: parseInt(editFormData.target_count, 10),
           ...(editFormData.completion_policy === 'REPEATABLE' && {
             cooldown_days: editFormData.cooldown_days
               ? parseInt(editFormData.cooldown_days, 10)
@@ -411,7 +414,10 @@ export const QuestsAdminPage = ({
 
   const adminQuests = quests;
   const getQuestProgress = (quest: Quest) => {
-    return { current: quest.progress_in_interval, target: quest.interval };
+    return {
+      current: quest.progress_toward_target,
+      target: quest.target_count,
+    };
   };
 
   return (
@@ -477,12 +483,12 @@ export const QuestsAdminPage = ({
           </FormControl>
           <TextField
             fullWidth
-            label="Interval"
+            label="Target Count"
             margin="dense"
             type="number"
             inputProps={{ min: 1 }}
-            value={formData.interval}
-            onChange={e => handleInputChange('interval', e.target.value)}
+            value={formData.target_count}
+            onChange={e => handleInputChange('target_count', e.target.value)}
             disabled={createLoading}
             helperText="How many completions before XP is awarded (1 = every time)."
           />
@@ -593,12 +599,14 @@ export const QuestsAdminPage = ({
           </FormControl>
           <TextField
             fullWidth
-            label="Interval"
+            label="Target Count"
             margin="dense"
             type="number"
             inputProps={{ min: 1 }}
-            value={editFormData.interval}
-            onChange={e => handleEditInputChange('interval', e.target.value)}
+            value={editFormData.target_count}
+            onChange={e =>
+              handleEditInputChange('target_count', e.target.value)
+            }
             disabled={editLoading}
           />
           {editFormData.completion_policy === 'REPEATABLE' && (
@@ -778,7 +786,7 @@ export const QuestsAdminPage = ({
                           const progress = getQuestProgress(quest);
                           const isCompleted =
                             quest.completion_policy === 'ONE_TIME' &&
-                            quest.completion_count >= quest.interval;
+                            quest.completion_count >= quest.target_count;
                           const percent =
                             (progress.current / progress.target) * 100;
                           return (
@@ -873,7 +881,7 @@ export const QuestsAdminPage = ({
                             const progress = getQuestProgress(quest);
                             const isCompleted =
                               quest.completion_policy === 'ONE_TIME' &&
-                              quest.completion_count >= quest.interval;
+                              quest.completion_count >= quest.target_count;
                             const percent =
                               (progress.current / progress.target) * 100;
                             return (
