@@ -48,12 +48,14 @@ type Quest = {
   description: string;
   interval: number;
   xp_reward: number;
+  subject_type?: 'user' | 'team';
+  subject_ref?: string | null;
   completion_policy: 'ONE_TIME' | 'REPEATABLE';
   cooldown_days: number | null;
   created_at?: string;
   updated_at?: string;
 
-  user_ref: string | null;
+  user_ref?: string | null;
   completion_count: number;
   progress_in_interval: number;
   next_milestone: number;
@@ -64,6 +66,9 @@ interface CreateQuestFormData {
   description: string;
   interval: string;
   xp_reward: string;
+  /** 'user' | 'team' – kept as string for form input compatibility */
+  subject_type: string;
+  subject_ref: string;
   /** 'ONE_TIME' | 'REPEATABLE' – kept as string for form input compatibility */
   completion_policy: string;
   cooldown_days: string;
@@ -117,6 +122,8 @@ export const QuestsAdminPage = ({
     description: '',
     interval: '',
     xp_reward: '',
+    subject_type: 'user',
+    subject_ref: '',
     completion_policy: 'REPEATABLE',
     cooldown_days: '',
   });
@@ -131,6 +138,8 @@ export const QuestsAdminPage = ({
     description: '',
     interval: '',
     xp_reward: '',
+    subject_type: 'user',
+    subject_ref: '',
     completion_policy: 'REPEATABLE',
     cooldown_days: '',
   });
@@ -196,6 +205,10 @@ export const QuestsAdminPage = ({
       setCreateError('XP Reward måste vara minst 1');
       return;
     }
+    if (formData.subject_type === 'team' && !formData.subject_ref.trim()) {
+      setCreateError('Team entity ref är obligatorisk för team quests');
+      return;
+    }
 
     setCreateLoading(true);
     setCreateError(null);
@@ -210,6 +223,10 @@ export const QuestsAdminPage = ({
           title: formData.title,
           description: formData.description,
           xp_reward: parseInt(formData.xp_reward, 10),
+          subject_type: formData.subject_type,
+          ...(formData.subject_type === 'team' && {
+            subject_ref: formData.subject_ref.trim(),
+          }),
           completion_policy: formData.completion_policy,
           interval: parseInt(formData.interval, 10),
           ...(formData.completion_policy === 'REPEATABLE' && {
@@ -232,6 +249,8 @@ export const QuestsAdminPage = ({
         description: '',
         interval: '',
         xp_reward: '',
+        subject_type: 'user',
+        subject_ref: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
       });
@@ -257,6 +276,8 @@ export const QuestsAdminPage = ({
         description: '',
         interval: '',
         xp_reward: '',
+        subject_type: 'user',
+        subject_ref: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
       });
@@ -271,6 +292,8 @@ export const QuestsAdminPage = ({
       description: quest.description,
       interval: quest.interval.toString(),
       xp_reward: quest.xp_reward.toString(),
+      subject_type: quest.subject_type ?? 'user',
+      subject_ref: quest.subject_ref ?? '',
       completion_policy: quest.completion_policy ?? 'REPEATABLE',
       cooldown_days: quest.cooldown_days?.toString() ?? '',
     });
@@ -288,6 +311,8 @@ export const QuestsAdminPage = ({
         description: '',
         interval: '',
         xp_reward: '',
+        subject_type: 'user',
+        subject_ref: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
       });
@@ -322,6 +347,13 @@ export const QuestsAdminPage = ({
       setEditError('XP Reward måste vara minst 1');
       return;
     }
+    if (
+      editFormData.subject_type === 'team' &&
+      !editFormData.subject_ref.trim()
+    ) {
+      setEditError('Team entity ref är obligatorisk för team quests');
+      return;
+    }
 
     setEditLoading(true);
     setEditError(null);
@@ -336,6 +368,11 @@ export const QuestsAdminPage = ({
           title: editFormData.title,
           description: editFormData.description,
           xp_reward: parseInt(editFormData.xp_reward, 10),
+          subject_type: editFormData.subject_type,
+          subject_ref:
+            editFormData.subject_type === 'team'
+              ? editFormData.subject_ref.trim()
+              : null,
           completion_policy: editFormData.completion_policy,
           interval: parseInt(editFormData.interval, 10),
           ...(editFormData.completion_policy === 'REPEATABLE' && {
@@ -413,6 +450,36 @@ export const QuestsAdminPage = ({
   const getQuestProgress = (quest: Quest) => {
     return { current: quest.progress_in_interval, target: quest.interval };
   };
+  const getQuestSubjectType = (quest: Quest) => quest.subject_type ?? 'user';
+  const getQuestSubjectRef = (quest: Quest) => quest.subject_ref ?? null;
+  const getSubjectDisplayName = (subjectRef: string | null) => {
+    if (!subjectRef) {
+      return null;
+    }
+
+    const [, namePart = subjectRef] = subjectRef.split('/');
+    return namePart;
+  };
+  const renderSubject = (quest: Quest) => {
+    const subjectType = getQuestSubjectType(quest);
+    const subjectRef = getQuestSubjectRef(quest);
+    const subjectName = getSubjectDisplayName(subjectRef);
+
+    return (
+      <Box display="flex" flexDirection="column" alignItems="flex-start">
+        <Chip
+          label={subjectType === 'team' ? 'Team quest' : 'User quest'}
+          size="small"
+          color={subjectType === 'team' ? 'primary' : 'default'}
+        />
+        {subjectType === 'team' && subjectName && (
+          <Typography variant="caption" color="textSecondary">
+            {subjectName}
+          </Typography>
+        )}
+      </Box>
+    );
+  };
 
   return (
     <>
@@ -448,6 +515,44 @@ export const QuestsAdminPage = ({
             onChange={e => handleInputChange('description', e.target.value)}
             disabled={createLoading}
           />
+          <FormControl
+            component="fieldset"
+            style={{ marginTop: 12, width: '100%' }}
+          >
+            <FormLabel component="legend">Quest Scope</FormLabel>
+            <RadioGroup
+              row
+              value={formData.subject_type}
+              onChange={e =>
+                handleInputChange(
+                  'subject_type',
+                  e.target.value as 'user' | 'team',
+                )
+              }
+            >
+              <FormControlLabel
+                value="user"
+                control={<Radio color="primary" disabled={createLoading} />}
+                label="User"
+              />
+              <FormControlLabel
+                value="team"
+                control={<Radio color="primary" disabled={createLoading} />}
+                label="Team"
+              />
+            </RadioGroup>
+          </FormControl>
+          {formData.subject_type === 'team' && (
+            <TextField
+              fullWidth
+              label="Team entity ref"
+              margin="dense"
+              value={formData.subject_ref}
+              onChange={e => handleInputChange('subject_ref', e.target.value)}
+              disabled={createLoading}
+              helperText="Use a Backstage group entity ref, for example group:default/platform."
+            />
+          )}
           <FormControl
             component="fieldset"
             style={{ marginTop: 12, width: '100%' }}
@@ -564,6 +669,46 @@ export const QuestsAdminPage = ({
             onChange={e => handleEditInputChange('description', e.target.value)}
             disabled={editLoading}
           />
+          <FormControl
+            component="fieldset"
+            style={{ marginTop: 12, width: '100%' }}
+          >
+            <FormLabel component="legend">Quest Scope</FormLabel>
+            <RadioGroup
+              row
+              value={editFormData.subject_type}
+              onChange={e =>
+                handleEditInputChange(
+                  'subject_type',
+                  e.target.value as 'user' | 'team',
+                )
+              }
+            >
+              <FormControlLabel
+                value="user"
+                control={<Radio color="primary" disabled={editLoading} />}
+                label="User"
+              />
+              <FormControlLabel
+                value="team"
+                control={<Radio color="primary" disabled={editLoading} />}
+                label="Team"
+              />
+            </RadioGroup>
+          </FormControl>
+          {editFormData.subject_type === 'team' && (
+            <TextField
+              fullWidth
+              label="Team entity ref"
+              margin="dense"
+              value={editFormData.subject_ref}
+              onChange={e =>
+                handleEditInputChange('subject_ref', e.target.value)
+              }
+              disabled={editLoading}
+              helperText="Use a Backstage group entity ref, for example group:default/platform."
+            />
+          )}
           <FormControl
             component="fieldset"
             style={{ marginTop: 12, width: '100%' }}
@@ -757,18 +902,21 @@ export const QuestsAdminPage = ({
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell style={{ width: '20%' }}>Title</TableCell>
-                          <TableCell style={{ width: '10%' }}>Type</TableCell>
-                          <TableCell style={{ width: '25%' }}>
+                          <TableCell style={{ width: '18%' }}>Title</TableCell>
+                          <TableCell style={{ width: '14%' }}>
+                            Subject
+                          </TableCell>
+                          <TableCell style={{ width: '12%' }}>Type</TableCell>
+                          <TableCell style={{ width: '21%' }}>
                             Description
                           </TableCell>
-                          <TableCell align="center" style={{ width: '15%' }}>
+                          <TableCell align="center" style={{ width: '12%' }}>
                             XP Reward
                           </TableCell>
-                          <TableCell align="right" style={{ width: '20%' }}>
+                          <TableCell align="right" style={{ width: '15%' }}>
                             Progress
                           </TableCell>
-                          <TableCell align="right" style={{ width: '10%' }}>
+                          <TableCell align="right" style={{ width: '8%' }}>
                             Actions
                           </TableCell>
                         </TableRow>
@@ -784,6 +932,7 @@ export const QuestsAdminPage = ({
                           return (
                             <TableRow key={quest.id}>
                               <TableCell>{quest.title}</TableCell>
+                              <TableCell>{renderSubject(quest)}</TableCell>
                               <TableCell>
                                 {quest.completion_policy === 'ONE_TIME' ? (
                                   <Chip
@@ -853,17 +1002,20 @@ export const QuestsAdminPage = ({
                       <Table size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell style={{ width: '20%' }}>
+                            <TableCell style={{ width: '18%' }}>
                               Title
                             </TableCell>
-                            <TableCell style={{ width: '10%' }}>Type</TableCell>
-                            <TableCell style={{ width: '25%' }}>
+                            <TableCell style={{ width: '14%' }}>
+                              Subject
+                            </TableCell>
+                            <TableCell style={{ width: '12%' }}>Type</TableCell>
+                            <TableCell style={{ width: '21%' }}>
                               Description
                             </TableCell>
-                            <TableCell align="center" style={{ width: '20%' }}>
+                            <TableCell align="center" style={{ width: '15%' }}>
                               XP Reward
                             </TableCell>
-                            <TableCell align="right" style={{ width: '25%' }}>
+                            <TableCell align="right" style={{ width: '20%' }}>
                               Progress
                             </TableCell>
                           </TableRow>
@@ -879,6 +1031,7 @@ export const QuestsAdminPage = ({
                             return (
                               <TableRow key={quest.id}>
                                 <TableCell>{quest.title}</TableCell>
+                                <TableCell>{renderSubject(quest)}</TableCell>
                                 <TableCell>
                                   {quest.completion_policy === 'ONE_TIME' ? (
                                     <Chip

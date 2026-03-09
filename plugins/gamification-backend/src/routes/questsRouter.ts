@@ -155,12 +155,14 @@ export function QuestsRouter({
       throw new InputError('Only user credentials are allowed');
     }
 
-    const userRef = principal.userEntityRef;
+    const info = await userInfo.getUserInfo(credentials);
+    const userRef = info.userEntityRef;
     const search =
       typeof req.query.search === 'string' ? req.query.search : undefined;
 
     const quests = await questsService.getQuestsWithProgress(
       userRef,
+      info.ownershipEntityRefs,
       {
         credentials,
       },

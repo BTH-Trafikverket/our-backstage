@@ -1,4 +1,7 @@
-import { QuestCreationInput } from '../schemas/quests/questCreationSchema';
+import {
+  QuestCreationInput,
+  QuestSubjectType,
+} from '../schemas/quests/questCreationSchema';
 import { QuestEditSchema } from '../schemas/quests/questEditSchema';
 import { QuestsRepository } from '../repositories/questsRepository';
 import type { QuestRow } from '../repositories/questsRepository';
@@ -27,16 +30,49 @@ export class QuestsService {
     this.auth = opts.auth;
   }
 
+  private normalizeQuestTarget(
+    subjectType: QuestSubjectType,
+    subjectRef: string | null | undefined,
+  ) {
+    if (subjectType === 'user') {
+      return {
+        subject_type: 'user' as const,
+        subject_ref: null,
+      };
+    }
+
+    if (!subjectRef) {
+      throw new InputError('subject_ref is required for team quests');
+    }
+
+    if (!subjectRef.startsWith('group:')) {
+      throw new InputError(
+        'subject_ref for team quests must be a group entity ref',
+      );
+    }
+
+    return {
+      subject_type: 'team' as const,
+      subject_ref: subjectRef,
+    };
+  }
+
   async createQuest(data: QuestCreationInput, _opts: QuestServiceOpts) {
     const policy = data.completion_policy ?? 'REPEATABLE';
-    const interval = data.interval;
+    const interval = policy === 'ONE_TIME' ? 1 : data.interval;
     const cooldown = policy === 'ONE_TIME' ? null : data.cooldown_days ?? null;
+    const target = this.normalizeQuestTarget(
+      data.subject_type ?? 'user',
+      data.subject_ref,
+    );
 
     return this.questsRepo.createQuest({
       title: data.title,
       description: data.description,
       interval,
       xp_reward: data.xp_reward,
+      subject_type: target.subject_type,
+      subject_ref: target.subject_ref,
       completion_policy: policy,
       cooldown_days: cooldown,
     });
@@ -51,20 +87,48 @@ export class QuestsService {
   }
 
   async editQuest(id: string, data: QuestEditSchema, _opts: QuestServiceOpts) {
-    return this.questsRepo.editQuest(id, data);
+    const current = await this.questsRepo.getQuestById(id);
+    if (!current) {
+      return undefined;
+    }
+
+    const subjectType = data.subject_type ?? current.subject_type;
+    const subjectRef =
+      data.subject_ref !== undefined ? data.subject_ref : current.subject_ref;
+    const target = this.normalizeQuestTarget(subjectType, subjectRef);
+
+    const completionPolicy =
+      data.completion_policy ?? current.completion_policy;
+    const interval =
+      completionPolicy === 'ONE_TIME' ? 1 : data.interval ?? current.interval;
+    const cooldown =
+      completionPolicy === 'ONE_TIME'
+        ? null
+        : data.cooldown_days !== undefined
+        ? data.cooldown_days
+        : current.cooldown_days;
+
+    return this.questsRepo.editQuest(id, {
+      ...data,
+      subject_type: target.subject_type,
+      subject_ref: target.subject_ref,
+      completion_policy: completionPolicy,
+      interval,
+      cooldown_days: cooldown,
+    });
   }
 
   async deleteQuest(id: string, _opts: QuestServiceOpts) {
     return this.questsRepo.deleteQuest(id);
   }
 
-  async completeQuest(questId: string, userRef: string) {
+  async completeQuest(questId: string, subjectRef: string) {
     const quest = await this.questsRepo.getQuestById(questId);
     if (!quest) throw new NotFoundError(`Quest '${questId}' not found`);
-    await this.enforceCompletionPolicy(quest, userRef);
+    await this.enforceCompletionPolicy(quest, subjectRef);
     return this.questsRepo.incrementQuestProgress({
       quest_id: questId,
-      user_ref: userRef,
+      subject_ref: subjectRef,
       by: 1,
     });
   }
@@ -80,11 +144,11 @@ export class QuestsService {
    */
   private async enforceCompletionPolicy(
     quest: QuestRow,
-    userRef: string,
+    subjectRef: string,
   ): Promise<void> {
     if (quest.completion_policy === 'ONE_TIME') {
-      const progress = await this.questsRepo.getProgressForUserQuest(
-        userRef,
+      const progress = await this.questsRepo.getProgressForSubjectQuest(
+        subjectRef,
         quest.id,
       );
       if (progress && progress.completion_count >= quest.interval) {
@@ -100,7 +164,7 @@ export class QuestsService {
       quest.cooldown_days !== null
     ) {
       const lastAwardedAt = await this.questsRepo.getLastAwardedAt(
-        userRef,
+        subjectRef,
         quest.id,
       );
       if (lastAwardedAt) {
@@ -178,11 +242,17 @@ export class QuestsService {
 
   async getQuestsWithProgress(
     userRef: string,
+    ownershipEntityRefs: string[],
     _opts: QuestServiceOpts,
     searchTitle?: string,
   ) {
+    const teamRefs = ownershipEntityRefs.filter(
+      ref => ref !== userRef && ref.startsWith('group:'),
+    );
+
     return this.questsRepo.getQuestsWithProgress({
-      user_ref: userRef,
+      userRef,
+      teamRefs,
       searchTitle,
     });
   }
@@ -206,10 +276,18 @@ export class QuestsService {
       throw new NotFoundError(`No trigger found for eventKey '${eventKey}'`);
     }
 
+    const quest = await this.questsRepo.getQuestById(trigger.quest_id);
+    if (!quest) {
+      throw new NotFoundError(`Quest '${trigger.quest_id}' not found`);
+    }
+
+    const subjectRef =
+      quest.subject_type === 'team' ? quest.subject_ref ?? userRef : userRef;
+
     const inserted = await this.questsRepo.tryInsertReceipt({
       event_id: eventId,
       event_key: eventKey,
-      user_ref: userRef,
+      subject_ref: subjectRef,
       caller_subject: callerSubject,
     });
 
@@ -217,19 +295,15 @@ export class QuestsService {
       return {
         duplicate: true,
         userRef,
+        subjectRef,
         questId: trigger.quest_id,
       };
     }
 
-    const quest = await this.questsRepo.getQuestById(trigger.quest_id);
-    if (!quest) {
-      throw new NotFoundError(`Quest '${trigger.quest_id}' not found`);
-    }
-
-    await this.enforceCompletionPolicy(quest, userRef);
+    await this.enforceCompletionPolicy(quest, subjectRef);
 
     const progress = await this.questsRepo.incrementQuestProgress({
-      user_ref: userRef,
+      subject_ref: subjectRef,
       quest_id: trigger.quest_id,
       by: trigger.increment_by,
     });
@@ -237,6 +311,7 @@ export class QuestsService {
     return {
       duplicate: false,
       userRef,
+      subjectRef,
       questId: trigger.quest_id,
       completionCount: progress.completion_count,
     };

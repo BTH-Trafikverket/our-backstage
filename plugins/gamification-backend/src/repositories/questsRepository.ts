@@ -1,6 +1,9 @@
 import type { Knex } from 'knex';
 import type { QuestEditSchema } from '../schemas/quests/questEditSchema';
-import type { CompletionPolicy } from '../schemas/quests/questCreationSchema';
+import type {
+  CompletionPolicy,
+  QuestSubjectType,
+} from '../schemas/quests/questCreationSchema';
 
 export type QuestRow = {
   id: string;
@@ -8,6 +11,8 @@ export type QuestRow = {
   description: string;
   interval: number;
   xp_reward: number;
+  subject_type: QuestSubjectType;
+  subject_ref: string | null;
   completion_policy: CompletionPolicy;
   cooldown_days: number | null;
   created_at: Date;
@@ -19,6 +24,8 @@ export type CreateQuestRow = {
   description: string;
   interval: number;
   xp_reward: number;
+  subject_type?: QuestSubjectType;
+  subject_ref?: string | null;
   /** Defaults to 'REPEATABLE' if not provided */
   completion_policy?: CompletionPolicy;
   /** Defaults to null (no cooldown) if not provided */
@@ -26,7 +33,7 @@ export type CreateQuestRow = {
 };
 
 export type QuestProgressRow = {
-  user_ref: string;
+  subject_ref: string;
   quest_id: string;
   completion_count: number;
   created_at: Date;
@@ -46,13 +53,12 @@ export type QuestEventTriggerRow = {
 export type QuestEventReceiptRow = {
   event_id: string;
   event_key: string;
-  user_ref: string;
+  subject_ref: string;
   caller_subject: string;
   received_at: Date;
 };
 
 export type QuestWithProgressRow = QuestRow & {
-  user_ref: string | null;
   completion_count: number;
   progress_in_interval: number;
   next_milestone: number;
@@ -72,6 +78,8 @@ export class QuestsRepository {
         description: data.description,
         interval: data.interval,
         xp_reward: data.xp_reward,
+        subject_type: data.subject_type ?? 'user',
+        subject_ref: data.subject_ref ?? null,
         completion_policy: data.completion_policy ?? 'REPEATABLE',
         cooldown_days: data.cooldown_days ?? null,
       })
@@ -95,23 +103,43 @@ export class QuestsRepository {
   }
 
   async getQuestsWithProgress(params: {
-    user_ref: string;
+    userRef: string;
+    teamRefs: string[];
     searchTitle?: string;
   }): Promise<QuestWithProgressRow[]> {
-    const { user_ref, searchTitle } = params;
+    const { userRef, teamRefs, searchTitle } = params;
     const db = this.db;
+    const progressSubjectRefExpr = db.raw(
+      `CASE
+         WHEN quests.subject_type = 'team' THEN quests.subject_ref
+         ELSE ?
+       END`,
+      [userRef],
+    );
 
     let query = db('quests').leftJoin('quest_progress', function () {
       this.on('quest_progress.quest_id', '=', 'quests.id').andOn(
-        'quest_progress.user_ref',
+        'quest_progress.subject_ref',
         '=',
-        db.raw('?', [user_ref]),
+        progressSubjectRefExpr,
       );
     });
 
     if (searchTitle) {
       query = query.where('quests.title', 'ilike', `%${searchTitle}%`);
     }
+
+    query = query.where(builder => {
+      builder.where('quests.subject_type', 'user');
+
+      if (teamRefs.length > 0) {
+        builder.orWhere(teamBuilder => {
+          teamBuilder
+            .where('quests.subject_type', 'team')
+            .whereIn('quests.subject_ref', teamRefs);
+        });
+      }
+    });
 
     return await query
       .select(
@@ -120,11 +148,12 @@ export class QuestsRepository {
         'quests.description',
         'quests.interval',
         'quests.xp_reward',
+        'quests.subject_type',
+        'quests.subject_ref',
         'quests.completion_policy',
         'quests.cooldown_days',
         'quests.created_at',
         'quests.updated_at',
-        db.raw('quest_progress.user_ref as user_ref'),
         db.raw(
           'COALESCE(quest_progress.completion_count, 0) as completion_count',
         ),
@@ -160,6 +189,10 @@ export class QuestsRepository {
       updateData.description = data.description;
     if (data.interval !== undefined) updateData.interval = data.interval;
     if (data.xp_reward !== undefined) updateData.xp_reward = data.xp_reward;
+    if (data.subject_type !== undefined)
+      updateData.subject_type = data.subject_type;
+    if (data.subject_ref !== undefined)
+      updateData.subject_ref = data.subject_ref;
     if (data.completion_policy !== undefined)
       updateData.completion_policy = data.completion_policy;
     if (data.cooldown_days !== undefined)
@@ -178,12 +211,12 @@ export class QuestsRepository {
     return deletedCount > 0;
   }
 
-  async getProgressForUserQuest(
-    userRef: string,
+  async getProgressForSubjectQuest(
+    subjectRef: string,
     questId: string,
   ): Promise<QuestProgressRow | undefined> {
     return this.db<QuestProgressRow>('quest_progress')
-      .where({ user_ref: userRef, quest_id: questId })
+      .where({ subject_ref: subjectRef, quest_id: questId })
       .first();
   }
 
@@ -193,18 +226,18 @@ export class QuestsRepository {
    * Used by the cooldown enforcement logic in the service layer.
    */
   async getLastAwardedAt(
-    userRef: string,
+    subjectRef: string,
     questId: string,
   ): Promise<Date | null> {
     const row = await this.db('xp_ledger')
-      .where({ user_ref: userRef, quest_id: questId })
+      .where({ subject_ref: subjectRef, quest_id: questId })
       .max('created_at as last_awarded_at')
       .first();
     return row?.last_awarded_at ? new Date(row.last_awarded_at) : null;
   }
 
   async incrementQuestProgress(params: {
-    user_ref: string;
+    subject_ref: string;
     quest_id: string;
     by: number;
   }): Promise<QuestProgressRow> {
@@ -212,11 +245,11 @@ export class QuestsRepository {
 
     const rows = await this.db<QuestProgressRow>('quest_progress')
       .insert({
-        user_ref: params.user_ref,
+        subject_ref: params.subject_ref,
         quest_id: params.quest_id,
         completion_count: by,
       })
-      .onConflict(['user_ref', 'quest_id'])
+      .onConflict(['subject_ref', 'quest_id'])
       .merge({
         completion_count: this.db.raw('quest_progress.completion_count + ?', [
           by,
@@ -239,14 +272,14 @@ export class QuestsRepository {
   async tryInsertReceipt(params: {
     event_id: string;
     event_key: string;
-    user_ref: string;
+    subject_ref: string;
     caller_subject: string;
   }): Promise<boolean> {
     try {
       await this.db<QuestEventReceiptRow>('quest_event_receipts').insert({
         event_id: params.event_id,
         event_key: params.event_key,
-        user_ref: params.user_ref,
+        subject_ref: params.subject_ref,
         caller_subject: params.caller_subject,
       });
       return true;

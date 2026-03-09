@@ -12,7 +12,7 @@ describe('QuestsService', () => {
     mockRepo = {
       createQuest: jest.fn(),
       getQuestById: jest.fn(),
-      getProgressForUserQuest: jest.fn(),
+      getProgressForSubjectQuest: jest.fn(),
       getLastAwardedAt: jest.fn(),
       incrementQuestProgress: jest.fn(),
     } as any;
@@ -34,6 +34,7 @@ describe('QuestsService', () => {
         description: 'Deploy a new feature to production',
         interval: 1,
         xp_reward: 100,
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
       };
 
@@ -68,6 +69,7 @@ describe('QuestsService', () => {
         description: 'Review 5 pull requests',
         interval: 5,
         xp_reward: 50,
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
       };
 
@@ -93,6 +95,7 @@ describe('QuestsService', () => {
         description: '',
         interval: 1,
         xp_reward: 10,
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
       };
 
@@ -117,6 +120,7 @@ describe('QuestsService', () => {
         description: 'Test',
         interval: 1,
         xp_reward: 10,
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
       };
 
@@ -143,6 +147,7 @@ describe('QuestsService', () => {
         description: 'Merge your very first PR',
         interval: 5, // should be overridden to 1
         xp_reward: 200,
+        subject_type: 'user',
         completion_policy: 'ONE_TIME',
         cooldown_days: 7, // should be overridden to null
       };
@@ -173,6 +178,7 @@ describe('QuestsService', () => {
         description: 'Review PRs every week',
         interval: 5,
         xp_reward: 50,
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
         cooldown_days: 7,
       };
@@ -196,6 +202,46 @@ describe('QuestsService', () => {
       expect(callArgs.interval).toBe(5);
       expect(callArgs.cooldown_days).toBe(7);
     });
+
+    it('should create team quests with a group subject ref', async () => {
+      const questInput: QuestCreationInput = {
+        title: 'Platform Team Review',
+        description: 'Review PRs as a team',
+        interval: 3,
+        xp_reward: 75,
+        subject_type: 'team',
+        subject_ref: 'group:default/platform',
+        completion_policy: 'REPEATABLE',
+      };
+
+      mockRepo.createQuest.mockResolvedValue({
+        ...questInput,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      await service.createQuest(questInput, { credentials: {} as any });
+
+      const callArgs = mockRepo.createQuest.mock.calls[0][0];
+      expect(callArgs.subject_type).toBe('team');
+      expect(callArgs.subject_ref).toBe('group:default/platform');
+    });
+
+    it('should reject team quests without a group subject ref', async () => {
+      const questInput: QuestCreationInput = {
+        title: 'Broken Team Quest',
+        description: 'This should fail',
+        interval: 1,
+        xp_reward: 10,
+        subject_type: 'team',
+        subject_ref: null,
+        completion_policy: 'REPEATABLE',
+      };
+
+      await expect(
+        service.createQuest(questInput, { credentials: {} as any }),
+      ).rejects.toThrow(/subject_ref is required/i);
+    });
   });
 
   describe('ONE_TIME policy enforcement', () => {
@@ -205,6 +251,8 @@ describe('QuestsService', () => {
       description: '',
       interval: 1,
       xp_reward: 100,
+      subject_type: 'user' as const,
+      subject_ref: null,
       completion_policy: 'ONE_TIME' as const,
       cooldown_days: null,
       created_at: new Date(),
@@ -213,8 +261,8 @@ describe('QuestsService', () => {
 
     it('should block completion when ONE_TIME quest already completed', async () => {
       mockRepo.getQuestById.mockResolvedValue(oneTimeQuest);
-      mockRepo.getProgressForUserQuest.mockResolvedValue({
-        user_ref: 'user:default/alice',
+      mockRepo.getProgressForSubjectQuest.mockResolvedValue({
+        subject_ref: 'user:default/alice',
         quest_id: 'quest-ot',
         completion_count: 1,
         created_at: new Date(),
@@ -230,9 +278,9 @@ describe('QuestsService', () => {
 
     it('should allow first completion of a ONE_TIME quest', async () => {
       mockRepo.getQuestById.mockResolvedValue(oneTimeQuest);
-      mockRepo.getProgressForUserQuest.mockResolvedValue(undefined);
+      mockRepo.getProgressForSubjectQuest.mockResolvedValue(undefined);
       mockRepo.incrementQuestProgress.mockResolvedValue({
-        user_ref: 'user:default/alice',
+        subject_ref: 'user:default/alice',
         quest_id: 'quest-ot',
         completion_count: 1,
         created_at: new Date(),
@@ -250,8 +298,8 @@ describe('QuestsService', () => {
     it('should block a second user who already completed a ONE_TIME quest', async () => {
       mockRepo.getQuestById.mockResolvedValue(oneTimeQuest);
       // alice already completed it
-      mockRepo.getProgressForUserQuest.mockResolvedValue({
-        user_ref: 'user:default/alice',
+      mockRepo.getProgressForSubjectQuest.mockResolvedValue({
+        subject_ref: 'user:default/alice',
         quest_id: 'quest-ot',
         completion_count: 1,
         created_at: new Date(),
@@ -263,9 +311,9 @@ describe('QuestsService', () => {
       ).rejects.toThrow();
 
       // bob has not completed it – should be allowed
-      mockRepo.getProgressForUserQuest.mockResolvedValue(undefined);
+      mockRepo.getProgressForSubjectQuest.mockResolvedValue(undefined);
       mockRepo.incrementQuestProgress.mockResolvedValue({
-        user_ref: 'user:default/bob',
+        subject_ref: 'user:default/bob',
         quest_id: 'quest-ot',
         completion_count: 1,
         created_at: new Date(),
@@ -287,6 +335,8 @@ describe('QuestsService', () => {
       description: '',
       interval: 1,
       xp_reward: 50,
+      subject_type: 'user' as const,
+      subject_ref: null,
       completion_policy: 'REPEATABLE' as const,
       cooldown_days: 7,
       created_at: new Date(),
@@ -312,7 +362,7 @@ describe('QuestsService', () => {
       const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
       mockRepo.getLastAwardedAt.mockResolvedValue(tenDaysAgo);
       mockRepo.incrementQuestProgress.mockResolvedValue({
-        user_ref: 'user:default/bob',
+        subject_ref: 'user:default/bob',
         quest_id: 'quest-cd',
         completion_count: 2,
         created_at: new Date(),
@@ -331,7 +381,7 @@ describe('QuestsService', () => {
       mockRepo.getQuestById.mockResolvedValue(cooldownQuest);
       mockRepo.getLastAwardedAt.mockResolvedValue(null);
       mockRepo.incrementQuestProgress.mockResolvedValue({
-        user_ref: 'user:default/carol',
+        subject_ref: 'user:default/carol',
         quest_id: 'quest-cd',
         completion_count: 1,
         created_at: new Date(),
@@ -350,7 +400,7 @@ describe('QuestsService', () => {
       mockRepo.getQuestById.mockResolvedValue(questNoCooldown);
       // getLastAwardedAt should not even be called
       mockRepo.incrementQuestProgress.mockResolvedValue({
-        user_ref: 'user:default/dave',
+        subject_ref: 'user:default/dave',
         quest_id: 'quest-cd',
         completion_count: 5,
         created_at: new Date(),
@@ -363,6 +413,29 @@ describe('QuestsService', () => {
       );
       expect(result.completion_count).toBe(5);
       expect(mockRepo.getLastAwardedAt).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getQuestsWithProgress', () => {
+    it('passes the current user and owned teams to the repository', async () => {
+      mockRepo.getQuestsWithProgress = jest.fn(async () => []) as any;
+
+      await service.getQuestsWithProgress(
+        'user:default/alice',
+        [
+          'user:default/alice',
+          'group:default/platform',
+          'group:default/engineering',
+        ],
+        { credentials: {} as any },
+        'platform',
+      );
+
+      expect(mockRepo.getQuestsWithProgress).toHaveBeenCalledWith({
+        userRef: 'user:default/alice',
+        teamRefs: ['group:default/platform', 'group:default/engineering'],
+        searchTitle: 'platform',
+      });
     });
   });
 });

@@ -68,7 +68,7 @@ describe('XpRepository Integration Tests', () => {
   ): Promise<void> {
     await knex('xp_ledger').insert({
       id: randomUUID(),
-      user_ref: data.userRef,
+      subject_ref: data.userRef,
       quest_id: data.questId,
       xp_amount: data.xpAmount,
       awarded_on_completion_count: data.awardedOnCompletionCount || 1,
@@ -112,7 +112,7 @@ describe('XpRepository Integration Tests', () => {
 
       // Verify the entry is actually in the database
       const dbEntry = await knex('xp_ledger')
-        .where({ user_ref: userRef })
+        .where({ subject_ref: userRef })
         .first();
       expect(dbEntry).toBeDefined();
       expect(dbEntry.xp_amount).toBe(100);
@@ -367,7 +367,7 @@ describe('XpRepository Integration Tests', () => {
       await expect(
         knex('xp_ledger').insert({
           id: randomUUID(),
-          user_ref: userRef,
+          subject_ref: userRef,
           quest_id: nonExistentQuestId,
           xp_amount: 100,
           awarded_on_completion_count: 1,
@@ -378,7 +378,7 @@ describe('XpRepository Integration Tests', () => {
       await knex.destroy();
     });
 
-    it('should verify unique constraint on user_ref, quest_id, and awarded_on_completion_count', async () => {
+    it('should verify unique constraint on subject_ref, quest_id, and awarded_on_completion_count', async () => {
       const knex = await initDb();
 
       const userRef = 'user:default/duplicate-test';

@@ -16,6 +16,7 @@ describe('quests routes auth', () => {
     description: 'Deploy a new feature to production',
     interval: 1,
     xp_reward: 100,
+    subject_type: 'user' as const,
     completion_policy: 'REPEATABLE' as const,
   };
 
@@ -164,6 +165,7 @@ describe('quests routes auth', () => {
     expect(res.status).toBe(200);
     expect(questsService.getQuestsWithProgress).toHaveBeenCalledWith(
       userRef,
+      [userRef, 'group:default/engineering'],
       {
         credentials: expect.objectContaining({
           principal: expect.objectContaining({

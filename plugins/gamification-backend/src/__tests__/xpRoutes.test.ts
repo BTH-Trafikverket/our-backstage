@@ -88,7 +88,7 @@ describe('xp routes', () => {
     await knex('xp_ledger').insert([
       {
         id: randomUUID(),
-        user_ref: userRef,
+        subject_ref: userRef,
         quest_id: questId,
         awarded_on_completion_count: 1,
         xp_amount: a,
@@ -96,7 +96,7 @@ describe('xp routes', () => {
       },
       {
         id: randomUUID(),
-        user_ref: userRef,
+        subject_ref: userRef,
         quest_id: questId,
         awarded_on_completion_count: 2,
         xp_amount: b,
@@ -104,7 +104,7 @@ describe('xp routes', () => {
       },
       {
         id: randomUUID(),
-        user_ref: userRef,
+        subject_ref: userRef,
         quest_id: questId,
         awarded_on_completion_count: 3,
         xp_amount: c,

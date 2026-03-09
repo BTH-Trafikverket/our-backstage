@@ -3,9 +3,9 @@ import type { Knex } from 'knex';
 export class XpRepository {
   constructor(private readonly db: Knex) {}
 
-  async getTotalXp(userRef: string): Promise<number> {
+  async getTotalXp(subjectRef: string): Promise<number> {
     const row = await this.db('xp_ledger')
-      .where({ user_ref: userRef })
+      .where({ subject_ref: subjectRef })
       .sum<{ sum: string | null }>({ sum: 'xp_amount' })
       .first();
 
