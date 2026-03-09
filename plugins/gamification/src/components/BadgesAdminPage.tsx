@@ -35,6 +35,7 @@ import { Alert } from '@material-ui/lab';
 type QuestLite = {
   id: string;
   title: string;
+  completion_policy: 'ONE_TIME' | 'REPEATABLE';
 };
 
 type BadgeCriteria = {
@@ -67,10 +68,10 @@ const API_BASE = 'http://localhost:7007/api/backstage-backend-gamification';
 
 // CHANGE 1: Lägg till mock quests här
 const mockQuests: QuestLite[] = [
-  { id: '1', title: 'Documentation' },
-  { id: '2', title: 'Write New CI Tests' },
-  { id: '3', title: 'Code Contribution' },
-  { id: '4', title: 'Knowledge Sharing' },
+  { id: '1', title: 'Documentation', completion_policy: 'REPEATABLE' },
+  { id: '2', title: 'Write New CI Tests', completion_policy: 'ONE_TIME' },
+  { id: '3', title: 'Code Contribution', completion_policy: 'REPEATABLE' },
+  { id: '4', title: 'Knowledge Sharing', completion_policy: 'ONE_TIME' },
 ];
 
 // CHANGE 2: Lägg till mock badges här

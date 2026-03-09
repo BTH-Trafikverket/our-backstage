@@ -1,5 +1,3 @@
-// /home/majv24/our-backstage/plugins/backstage-plugin-gamification/src/components/ExampleComponent/ExampleComponent.tsx
-
 import { useState, useEffect } from 'react';
 import { Grid, List, ListItem, ListItemText } from '@material-ui/core';
 import {
