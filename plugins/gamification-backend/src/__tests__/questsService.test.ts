@@ -414,13 +414,22 @@ describe('QuestsService', () => {
           'group:default/engineering',
         ],
         { credentials: {} as any },
-        'platform',
+        {
+          searchTitle: 'platform',
+        },
       );
 
       expect(mockRepo.getQuestsWithProgress).toHaveBeenCalledWith({
-        userRef: 'user:default/alice',
-        teamRefs: ['group:default/platform', 'group:default/engineering'],
+        user_ref: 'user:default/alice',
+        ownership_refs: [
+          'user:default/alice',
+          'group:default/platform',
+          'group:default/engineering',
+        ],
         searchTitle: 'platform',
+        audience: undefined,
+        status: undefined,
+        team_ref: undefined,
       });
     });
   });

@@ -174,7 +174,12 @@ describe('quests routes auth', () => {
           }),
         }),
       },
-      undefined,
+      {
+        searchTitle: undefined,
+        audience: 'all',
+        status: 'active',
+        teamRef: undefined,
+      },
     );
   });
 });

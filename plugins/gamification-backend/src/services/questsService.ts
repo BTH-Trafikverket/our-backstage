@@ -5,6 +5,10 @@ import {
 import { QuestEditSchema } from '../schemas/quests/questEditSchema';
 import { QuestsRepository } from '../repositories/questsRepository';
 import type { QuestRow } from '../repositories/questsRepository';
+import type {
+  QuestAudienceFilter,
+  QuestStatusFilter,
+} from '../repositories/questsRepository';
 import { CatalogClient } from '@backstage/catalog-client';
 import { AuthService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
@@ -225,18 +229,22 @@ export class QuestsService {
 
   async getQuestsWithProgress(
     userRef: string,
-    ownershipEntityRefs: string[],
+    ownershipRefs: string[],
     _opts: QuestServiceOpts,
-    searchTitle?: string,
+    filters?: {
+      searchTitle?: string;
+      audience?: QuestAudienceFilter;
+      status?: QuestStatusFilter;
+      teamRef?: string;
+    },
   ) {
-    const teamRefs = ownershipEntityRefs.filter(
-      ref => ref !== userRef && ref.startsWith('group:'),
-    );
-
     return this.questsRepo.getQuestsWithProgress({
-      userRef,
-      teamRefs,
-      searchTitle,
+      user_ref: userRef,
+      ownership_refs: ownershipRefs,
+      searchTitle: filters?.searchTitle,
+      audience: filters?.audience,
+      status: filters?.status,
+      team_ref: filters?.teamRef,
     });
   }
 

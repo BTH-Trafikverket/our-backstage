@@ -58,10 +58,14 @@ export type QuestEventReceiptRow = {
 };
 
 export type QuestWithProgressRow = QuestRow & {
+  subject_ref: string;
   completion_count: number;
   progress_toward_target: number;
   next_milestone: number;
 };
+
+export type QuestAudienceFilter = 'all' | 'individual' | 'team';
+export type QuestStatusFilter = 'active' | 'completed' | 'all';
 
 export class QuestsRepository {
   private readonly db: Knex;
@@ -101,70 +105,55 @@ export class QuestsRepository {
   }
 
   async getQuestsWithProgress(params: {
-    userRef: string;
-    teamRefs: string[];
+    user_ref: string;
+    ownership_refs: string[];
     searchTitle?: string;
+    audience?: QuestAudienceFilter;
+    status?: QuestStatusFilter;
+    team_ref?: string;
   }): Promise<QuestWithProgressRow[]> {
-    const { userRef, teamRefs, searchTitle } = params;
+    const {
+      user_ref,
+      ownership_refs,
+      searchTitle,
+      audience = 'all',
+      status = 'active',
+      team_ref,
+    } = params;
     const db = this.db;
-    const progressSubjectRefExpr = db.raw(
-      `CASE
-         WHEN quests.subject_type = 'team' THEN quests.subject_ref
-         ELSE ?
-       END`,
-      [userRef],
+    const teamRefs = ownership_refs.filter(
+      ref => ref !== user_ref && ref.startsWith('group:'),
     );
+    const selectedTeamRefs = team_ref
+      ? teamRefs.filter(
+          ref =>
+            ref.toLocaleLowerCase('en-US') ===
+            team_ref.toLocaleLowerCase('en-US'),
+        )
+      : teamRefs;
 
-    let query = db('quests').leftJoin(
-      'quest_progress',
-      function joinQuestProgress() {
-        this.on('quest_progress.quest_id', '=', 'quests.id').andOn(
-          'quest_progress.subject_ref',
-          '=',
-          progressSubjectRefExpr,
-        );
-      },
-    );
-
-    if (searchTitle) {
-      query = query.where('quests.title', 'ilike', `%${searchTitle}%`);
-    }
-
-    query = query.where(builder => {
-      builder.where('quests.subject_type', 'user');
-
-      if (teamRefs.length > 0) {
-        builder.orWhere(teamBuilder => {
-          teamBuilder
-            .where('quests.subject_type', 'team')
-            .whereIn('quests.subject_ref', teamRefs);
-        });
-      }
-    });
-
-    return await query
-      .select(
-        'quests.id',
-        'quests.title',
-        'quests.description',
-        'quests.target_count',
-        'quests.xp_reward',
-        'quests.subject_type',
-        'quests.subject_ref',
-        'quests.completion_policy',
-        'quests.cooldown_days',
-        'quests.created_at',
-        'quests.updated_at',
-        db.raw(
-          'COALESCE(quest_progress.completion_count, 0) as completion_count',
-        ),
-        db.raw(`
+    const selectQuestColumns = (subjectRefSelection: Knex.Raw | string) => [
+      'quests.id',
+      'quests.title',
+      'quests.description',
+      'quests.target_count',
+      'quests.xp_reward',
+      'quests.subject_type',
+      subjectRefSelection,
+      'quests.completion_policy',
+      'quests.cooldown_days',
+      'quests.created_at',
+      'quests.updated_at',
+      db.raw(
+        'COALESCE(quest_progress.completion_count, 0) as completion_count',
+      ),
+      db.raw(`
         CASE
           WHEN quests.target_count IS NULL OR quests.target_count < 1 THEN 0
           ELSE COALESCE(quest_progress.completion_count, 0) % quests.target_count
         END as progress_toward_target
       `),
-        db.raw(`
+      db.raw(`
         CASE
           WHEN quests.target_count IS NULL OR quests.target_count < 1 THEN COALESCE(quest_progress.completion_count, 0)
           WHEN (COALESCE(quest_progress.completion_count, 0) % quests.target_count) = 0
@@ -173,8 +162,101 @@ export class QuestsRepository {
             + (quests.target_count - (COALESCE(quest_progress.completion_count, 0) % quests.target_count))
         END as next_milestone
       `),
-      )
-      .orderBy('quests.created_at', 'asc');
+    ];
+
+    const queries: Knex.QueryBuilder[] = [];
+
+    if (audience !== 'team') {
+      const userQuery = db('quests')
+        .leftJoin('quest_progress', function joinUserProgress() {
+          this.on('quest_progress.quest_id', '=', 'quests.id').andOn(
+            'quest_progress.subject_ref',
+            '=',
+            db.raw('?', [user_ref]),
+          );
+        })
+        .where('quests.subject_type', 'user')
+        .modify(queryBuilder => {
+          if (searchTitle) {
+            queryBuilder.where('quests.title', 'ilike', `%${searchTitle}%`);
+          }
+        })
+        .select(...selectQuestColumns(db.raw('? as subject_ref', [user_ref])));
+
+      queries.push(userQuery);
+    }
+
+    if (audience !== 'individual' && selectedTeamRefs.length > 0) {
+      const teamQuery = db('quests')
+        .joinRaw('CROSS JOIN unnest(?::text[]) as team_subjects(subject_ref)', [
+          selectedTeamRefs,
+        ])
+        .leftJoin('quest_progress', function joinTeamProgress() {
+          this.on('quest_progress.quest_id', '=', 'quests.id').andOn(
+            'quest_progress.subject_ref',
+            '=',
+            'team_subjects.subject_ref',
+          );
+        })
+        .where('quests.subject_type', 'team')
+        .modify(queryBuilder => {
+          if (searchTitle) {
+            queryBuilder.where('quests.title', 'ilike', `%${searchTitle}%`);
+          }
+        })
+        .select(
+          ...selectQuestColumns(
+            db.raw('team_subjects.subject_ref as subject_ref'),
+          ),
+        );
+
+      queries.push(teamQuery);
+    }
+
+    if (queries.length === 0) {
+      return [];
+    }
+
+    const [firstQuery, ...restQueries] = queries;
+    const questRowsQuery =
+      restQueries.length > 0
+        ? firstQuery.unionAll(restQueries, true)
+        : firstQuery;
+
+    let query = db
+      .from(questRowsQuery.as('quest_rows'))
+      .select(
+        'quest_rows.id',
+        'quest_rows.title',
+        'quest_rows.description',
+        'quest_rows.target_count',
+        'quest_rows.xp_reward',
+        'quest_rows.subject_type',
+        'quest_rows.subject_ref',
+        'quest_rows.completion_policy',
+        'quest_rows.cooldown_days',
+        'quest_rows.created_at',
+        'quest_rows.updated_at',
+        'quest_rows.completion_count',
+        'quest_rows.progress_toward_target',
+        'quest_rows.next_milestone',
+      );
+
+    const completedCondition = `
+      quest_rows.completion_policy = 'ONE_TIME'
+      AND COALESCE(quest_rows.completion_count, 0) >= quest_rows.target_count
+    `;
+
+    if (status === 'completed') {
+      query = query.whereRaw(completedCondition);
+    } else if (status === 'active') {
+      query = query.whereRaw(`NOT (${completedCondition})`);
+    }
+
+    return await query.orderBy([
+      { column: 'quest_rows.created_at', order: 'asc' },
+      { column: 'quest_rows.subject_ref', order: 'asc' },
+    ]);
   }
 
   async editQuest(

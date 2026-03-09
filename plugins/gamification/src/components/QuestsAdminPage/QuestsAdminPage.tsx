@@ -23,8 +23,11 @@ import {
   FormControl,
   FormControlLabel,
   FormLabel,
+  InputLabel,
+  MenuItem,
   Radio,
   RadioGroup,
+  Select,
   Chip,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
@@ -39,6 +42,7 @@ import {
   useApi,
   fetchApiRef,
   discoveryApiRef,
+  identityApiRef,
 } from '@backstage/core-plugin-api';
 import { Alert } from '@material-ui/lab';
 
@@ -85,6 +89,7 @@ export const QuestsAdminPage = ({
 }: QuestsAdminPageProps) => {
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
+  const identityApi = useApi(identityApiRef);
   const pluginId = 'gamification';
 
   const buildGamificationUrl = useCallback(
@@ -110,6 +115,14 @@ export const QuestsAdminPage = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState<string>('');
+  const [audienceFilter, setAudienceFilter] = useState<
+    'all' | 'individual' | 'team'
+  >('all');
+  const [statusFilter, setStatusFilter] = useState<
+    'active' | 'completed' | 'all'
+  >('active');
+  const [teamFilter, setTeamFilter] = useState<string>('');
+  const [teamOptions, setTeamOptions] = useState<string[]>([]);
 
   // Create quest dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -153,6 +166,11 @@ export const QuestsAdminPage = ({
     try {
       const url = await buildGamificationUrl('/quests/me', {
         ...(search.trim() ? { search: search.trim() } : {}),
+        audience: audienceFilter,
+        status: statusFilter,
+        ...(audienceFilter === 'team' && teamFilter
+          ? { team: teamFilter }
+          : {}),
       });
 
       const response = await fetchApi.fetch(url);
@@ -169,11 +187,50 @@ export const QuestsAdminPage = ({
     } finally {
       setLoading(false);
     }
-  }, [fetchApi, search, buildGamificationUrl]);
+  }, [
+    fetchApi,
+    search,
+    audienceFilter,
+    statusFilter,
+    teamFilter,
+    buildGamificationUrl,
+  ]);
 
   useEffect(() => {
     fetchQuests();
   }, [fetchQuests]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadTeams = async () => {
+      try {
+        const identity = await identityApi.getBackstageIdentity();
+        const refs = identity.ownershipEntityRefs ?? [];
+        const teams = refs.filter(ref =>
+          ref.toLocaleLowerCase('en-US').startsWith('group:'),
+        );
+        if (!mounted) {
+          return;
+        }
+        setTeamOptions(teams);
+        if (teams.length > 0 && !teamFilter) {
+          setTeamFilter(teams[0]);
+        }
+      } catch {
+        if (!mounted) {
+          return;
+        }
+        setTeamOptions([]);
+      }
+    };
+
+    loadTeams();
+
+    return () => {
+      mounted = false;
+    };
+  }, [identityApi, teamFilter]);
 
   const handleInputChange = (
     field: keyof CreateQuestFormData,
@@ -812,6 +869,74 @@ export const QuestsAdminPage = ({
               onChange={e => setSearch(e.target.value)}
               style={{ marginBottom: 16 }}
             />
+            <Box display="flex" style={{ marginBottom: 16 }}>
+              <FormControl
+                variant="outlined"
+                size="small"
+                style={{ minWidth: 180 }}
+              >
+                <InputLabel id="audience-filter-label">Visa</InputLabel>
+                <Select
+                  labelId="audience-filter-label"
+                  value={audienceFilter}
+                  onChange={e =>
+                    setAudienceFilter(
+                      e.target.value as 'all' | 'individual' | 'team',
+                    )
+                  }
+                  label="Visa"
+                >
+                  <MenuItem value="all">Alla</MenuItem>
+                  <MenuItem value="individual">Individuella</MenuItem>
+                  <MenuItem value="team">Team</MenuItem>
+                </Select>
+              </FormControl>
+
+              {audienceFilter === 'team' && (
+                <FormControl
+                  variant="outlined"
+                  size="small"
+                  style={{ minWidth: 260 }}
+                  disabled={teamOptions.length === 0}
+                >
+                  <InputLabel id="team-filter-label">Team</InputLabel>
+                  <Select
+                    labelId="team-filter-label"
+                    value={teamFilter}
+                    onChange={e => setTeamFilter(e.target.value as string)}
+                    label="Team"
+                  >
+                    {teamOptions.map(team => (
+                      <MenuItem key={team} value={team}>
+                        {team}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
+              <FormControl
+                variant="outlined"
+                size="small"
+                style={{ minWidth: 180 }}
+              >
+                <InputLabel id="status-filter-label">Status</InputLabel>
+                <Select
+                  labelId="status-filter-label"
+                  value={statusFilter}
+                  onChange={e =>
+                    setStatusFilter(
+                      e.target.value as 'active' | 'completed' | 'all',
+                    )
+                  }
+                  label="Status"
+                >
+                  <MenuItem value="active">Pågående</MenuItem>
+                  <MenuItem value="completed">Avklarade</MenuItem>
+                  <MenuItem value="all">Alla</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
             {loading && (
               <div style={{ textAlign: 'center', padding: 20 }}>
                 <CircularProgress />
