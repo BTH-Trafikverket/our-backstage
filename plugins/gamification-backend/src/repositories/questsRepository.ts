@@ -115,13 +115,16 @@ export class QuestsRepository {
       [userRef],
     );
 
-    let query = db('quests').leftJoin('quest_progress', function () {
-      this.on('quest_progress.quest_id', '=', 'quests.id').andOn(
-        'quest_progress.subject_ref',
-        '=',
-        progressSubjectRefExpr,
-      );
-    });
+    let query = db('quests').leftJoin(
+      'quest_progress',
+      function joinQuestProgress() {
+        this.on('quest_progress.quest_id', '=', 'quests.id').andOn(
+          'quest_progress.subject_ref',
+          '=',
+          progressSubjectRefExpr,
+        );
+      },
+    );
 
     if (searchTitle) {
       query = query.where('quests.title', 'ilike', `%${searchTitle}%`);

@@ -83,12 +83,12 @@ export class QuestsService {
     const completionPolicy =
       data.completion_policy ?? current.completion_policy;
     const target_count = data.target_count ?? current.target_count;
-    const cooldown =
-      completionPolicy === 'ONE_TIME'
-        ? null
-        : data.cooldown_days !== undefined
-        ? data.cooldown_days
-        : current.cooldown_days;
+    let cooldown = current.cooldown_days;
+    if (completionPolicy === 'ONE_TIME') {
+      cooldown = null;
+    } else if (data.cooldown_days !== undefined) {
+      cooldown = data.cooldown_days;
+    }
 
     return this.questsRepo.editQuest(id, {
       ...data,
