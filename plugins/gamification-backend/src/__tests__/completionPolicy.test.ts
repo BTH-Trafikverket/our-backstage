@@ -122,7 +122,7 @@ describe('Completion Policy – Integration Tests', () => {
       ).rejects.toThrow(/can only be completed once/);
 
       // Verify completion_count did not increment
-      const progress = await repo.getProgressForUserQuest(
+      const progress = await repo.getProgressForSubjectQuest(
         'user:default/bob',
         quest.id,
       );
@@ -226,7 +226,7 @@ describe('Completion Policy – Integration Tests', () => {
       await knex('xp_ledger').insert([
         {
           id: randomUUID(),
-          user_ref: userRef,
+          subject_ref: userRef,
           quest_id: questId,
           awarded_on_completion_count: 1,
           xp_amount: 10,
@@ -235,7 +235,7 @@ describe('Completion Policy – Integration Tests', () => {
         },
         {
           id: randomUUID(),
-          user_ref: userRef,
+          subject_ref: userRef,
           quest_id: questId,
           awarded_on_completion_count: 2,
           xp_amount: 10,
@@ -269,7 +269,7 @@ describe('Completion Policy – Integration Tests', () => {
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
       await knex('xp_ledger').insert({
         id: randomUUID(),
-        user_ref: 'user:default/dave',
+        subject_ref: 'user:default/dave',
         quest_id: quest.id,
         awarded_on_completion_count: 1,
         xp_amount: 30,
@@ -302,7 +302,7 @@ describe('Completion Policy – Integration Tests', () => {
       const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
       await knex('xp_ledger').insert({
         id: randomUUID(),
-        user_ref: 'user:default/eve',
+        subject_ref: 'user:default/eve',
         quest_id: quest.id,
         awarded_on_completion_count: 1,
         xp_amount: 100,
@@ -312,7 +312,7 @@ describe('Completion Policy – Integration Tests', () => {
 
       // Also seed the existing progress row
       await knex('quest_progress').insert({
-        user_ref: 'user:default/eve',
+        subject_ref: 'user:default/eve',
         quest_id: quest.id,
         completion_count: 1,
       });

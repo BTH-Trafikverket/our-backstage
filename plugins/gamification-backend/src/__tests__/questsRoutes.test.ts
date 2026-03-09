@@ -14,8 +14,9 @@ describe('quests routes auth', () => {
   const createQuestPayload = {
     title: 'Ship a Feature',
     description: 'Deploy a new feature to production',
-    interval: 1,
+    target_count: 1,
     xp_reward: 100,
+    subject_type: 'user' as const,
     completion_policy: 'REPEATABLE' as const,
   };
 
@@ -164,6 +165,7 @@ describe('quests routes auth', () => {
     expect(res.status).toBe(200);
     expect(questsService.getQuestsWithProgress).toHaveBeenCalledWith(
       userRef,
+      [userRef, 'group:default/engineering'],
       {
         credentials: expect.objectContaining({
           principal: expect.objectContaining({
@@ -172,7 +174,12 @@ describe('quests routes auth', () => {
           }),
         }),
       },
-      undefined,
+      {
+        searchTitle: undefined,
+        audience: 'all',
+        status: 'active',
+        teamRef: undefined,
+      },
     );
   });
 });

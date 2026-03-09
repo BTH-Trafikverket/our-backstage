@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { COMPLETION_POLICIES } from './questCreationSchema';
+import {
+  COMPLETION_POLICIES,
+  QUEST_SUBJECT_TYPES,
+} from './questCreationSchema';
 
 export const questEditSchema = z
   .object({
@@ -7,6 +10,7 @@ export const questEditSchema = z
     description: z.string().min(1).optional(),
     target_count: z.number().int().positive().optional(),
     xp_reward: z.number().int().nonnegative().optional(),
+    subject_type: z.enum(QUEST_SUBJECT_TYPES).optional(),
     completion_policy: z.enum(COMPLETION_POLICIES).optional(),
     cooldown_days: z.number().int().positive().nullable().optional(),
   })
@@ -17,6 +21,7 @@ export const questEditSchema = z
       data.description !== undefined ||
       data.target_count !== undefined ||
       data.xp_reward !== undefined ||
+      data.subject_type !== undefined ||
       data.completion_policy !== undefined ||
       data.cooldown_days !== undefined,
     { message: 'No fields provided to update' },

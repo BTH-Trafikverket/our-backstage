@@ -1,13 +1,10 @@
 import { createDevApp } from '@backstage/dev-utils';
-import {
-  backstagePluginGamificationPlugin,
-  BackstagePluginGamificationPage,
-} from '../src/plugin';
+import { gamificationPlugin, GamificationPage } from '../src/plugin';
 
 createDevApp()
-  .registerPlugin(backstagePluginGamificationPlugin)
+  .registerPlugin(gamificationPlugin)
   .addPage({
-    element: <BackstagePluginGamificationPage />,
+    element: <GamificationPage />,
     title: 'Root Page',
     path: '/gamification',
   })

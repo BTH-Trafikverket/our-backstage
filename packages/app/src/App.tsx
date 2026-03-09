@@ -40,9 +40,9 @@ import { SignalsDisplay } from '@backstage/plugin-signals';
 import { githubAuthApiRef } from '@backstage/core-plugin-api';
 
 import {
-  BackstagePluginGamificationPage,
+  GamificationPage,
   GamificationXpDebugPage,
-} from '@internal/backstage-plugin-gamification';
+} from '@internal/gamification';
 
 const app = createApp({
   apis,
@@ -122,7 +122,7 @@ const routes = (
     <Route path="/catalog-graph" element={<CatalogGraphPage />} />
     <Route path="/notifications" element={<NotificationsPage />} />
 
-    <Route path="/gamification" element={<BackstagePluginGamificationPage />} />
+    <Route path="/gamification" element={<GamificationPage />} />
     <Route path="/gamification/xp" element={<GamificationXpDebugPage />} />
   </FlatRoutes>
 );

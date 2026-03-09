@@ -156,15 +156,37 @@ export function QuestsRouter({
     }
 
     const userRef = principal.userEntityRef;
+    const info = await userInfo.getUserInfo(credentials);
     const search =
       typeof req.query.search === 'string' ? req.query.search : undefined;
+    const audienceQuery =
+      typeof req.query.audience === 'string' ? req.query.audience : undefined;
+    const statusQuery =
+      typeof req.query.status === 'string' ? req.query.status : undefined;
+    const team =
+      typeof req.query.team === 'string' ? req.query.team : undefined;
+
+    const audience =
+      audienceQuery === 'individual' || audienceQuery === 'team'
+        ? audienceQuery
+        : 'all';
+    const status =
+      statusQuery === 'completed' || statusQuery === 'all'
+        ? statusQuery
+        : 'active';
 
     const quests = await questsService.getQuestsWithProgress(
       userRef,
+      info.ownershipEntityRefs,
       {
         credentials,
       },
-      search,
+      {
+        searchTitle: search,
+        audience,
+        status,
+        teamRef: team,
+      },
     );
 
     res.status(200).json(quests);
