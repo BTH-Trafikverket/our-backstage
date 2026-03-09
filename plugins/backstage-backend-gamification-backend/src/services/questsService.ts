@@ -1,9 +1,10 @@
 import { QuestCreationInput } from '../schemas/quests/questCreationSchema';
 import { QuestEditSchema } from '../schemas/quests/questEditSchema';
 import { QuestsRepository } from '../repositories/questsRepository';
+import type { QuestRow } from '../repositories/questsRepository';
 import { CatalogClient } from '@backstage/catalog-client';
 import { AuthService } from '@backstage/backend-plugin-api';
-import { InputError, NotFoundError } from '@backstage/errors';
+import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import type { QuestEventActor } from '../schemas/quests/questEventSchema';
 
@@ -27,11 +28,17 @@ export class QuestsService {
   }
 
   async createQuest(data: QuestCreationInput, _opts: QuestServiceOpts) {
+    const policy = data.completion_policy ?? 'REPEATABLE';
+    const interval = data.interval;
+    const cooldown = policy === 'ONE_TIME' ? null : data.cooldown_days ?? null;
+
     return this.questsRepo.createQuest({
       title: data.title,
       description: data.description,
-      interval: data.interval,
+      interval,
       xp_reward: data.xp_reward,
+      completion_policy: policy,
+      cooldown_days: cooldown,
     });
   }
 
@@ -52,11 +59,63 @@ export class QuestsService {
   }
 
   async completeQuest(questId: string, userRef: string) {
+    const quest = await this.questsRepo.getQuestById(questId);
+    if (!quest) throw new NotFoundError(`Quest '${questId}' not found`);
+    await this.enforceCompletionPolicy(quest, userRef);
     return this.questsRepo.incrementQuestProgress({
       quest_id: questId,
       user_ref: userRef,
       by: 1,
     });
+  }
+
+  /**
+   * Throws ConflictError when the quest's completion policy blocks the user
+   * from making further progress.
+   *
+   *  - ONE_TIME:  blocks once completion_count has reached the interval
+   *               (i.e. XP was already awarded).
+   *  - REPEATABLE with cooldown_days: blocks while the user is still within
+   *               the cooldown window after the last XP award.
+   */
+  private async enforceCompletionPolicy(
+    quest: QuestRow,
+    userRef: string,
+  ): Promise<void> {
+    if (quest.completion_policy === 'ONE_TIME') {
+      const progress = await this.questsRepo.getProgressForUserQuest(
+        userRef,
+        quest.id,
+      );
+      if (progress && progress.completion_count >= quest.interval) {
+        throw new ConflictError(
+          `Quest "${quest.title}" can only be completed once and has already been completed by this user.`,
+        );
+      }
+      return;
+    }
+
+    if (
+      quest.completion_policy === 'REPEATABLE' &&
+      quest.cooldown_days !== null
+    ) {
+      const lastAwardedAt = await this.questsRepo.getLastAwardedAt(
+        userRef,
+        quest.id,
+      );
+      if (lastAwardedAt) {
+        const cooldownMs = quest.cooldown_days * 24 * 60 * 60 * 1000;
+        const elapsed = Date.now() - lastAwardedAt.getTime();
+        if (elapsed < cooldownMs) {
+          const availableAt = new Date(
+            lastAwardedAt.getTime() + cooldownMs,
+          ).toISOString();
+          throw new ConflictError(
+            `Quest "${quest.title}" is on cooldown. Available again at ${availableAt}.`,
+          );
+        }
+      }
+    }
   }
 
   async resolveActorToUserRef(params: {
@@ -154,6 +213,13 @@ export class QuestsService {
         questId: trigger.quest_id,
       };
     }
+
+    const quest = await this.questsRepo.getQuestById(trigger.quest_id);
+    if (!quest) {
+      throw new NotFoundError(`Quest '${trigger.quest_id}' not found`);
+    }
+
+    await this.enforceCompletionPolicy(quest, userRef);
 
     const progress = await this.questsRepo.incrementQuestProgress({
       user_ref: userRef,

@@ -20,6 +20,12 @@ import {
   TextField,
   LinearProgress,
   Box,
+  FormControl,
+  FormControlLabel,
+  FormLabel,
+  Radio,
+  RadioGroup,
+  Chip,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import DeleteIcon from '@material-ui/icons/Delete';
@@ -38,6 +44,8 @@ type Quest = {
   description: string;
   interval: number;
   xp_reward: number;
+  completion_policy: 'ONE_TIME' | 'REPEATABLE';
+  cooldown_days: number | null;
   created_at?: string;
   updated_at?: string;
 
@@ -52,6 +60,9 @@ interface CreateQuestFormData {
   description: string;
   interval: string;
   xp_reward: string;
+  /** 'ONE_TIME' | 'REPEATABLE' – kept as string for form input compatibility */
+  completion_policy: string;
+  cooldown_days: string;
 }
 
 type QuestsAdminPageProps = {
@@ -79,6 +90,8 @@ export const QuestsAdminPage = ({
     description: '',
     interval: '',
     xp_reward: '',
+    completion_policy: 'REPEATABLE',
+    cooldown_days: '',
   });
 
   // Edit quest dialog state
@@ -91,6 +104,8 @@ export const QuestsAdminPage = ({
     description: '',
     interval: '',
     xp_reward: '',
+    completion_policy: 'REPEATABLE',
+    cooldown_days: '',
   });
 
   // Delete quest dialog state
@@ -167,8 +182,14 @@ export const QuestsAdminPage = ({
           body: JSON.stringify({
             title: formData.title,
             description: formData.description,
-            interval: parseInt(formData.interval, 10),
             xp_reward: parseInt(formData.xp_reward, 10),
+            completion_policy: formData.completion_policy,
+            interval: parseInt(formData.interval, 10),
+            ...(formData.completion_policy === 'REPEATABLE' && {
+              cooldown_days: formData.cooldown_days
+                ? parseInt(formData.cooldown_days, 10)
+                : null,
+            }),
           }),
         },
       );
@@ -181,7 +202,14 @@ export const QuestsAdminPage = ({
       }
 
       // Reset form and close dialog
-      setFormData({ title: '', description: '', interval: '', xp_reward: '' });
+      setFormData({
+        title: '',
+        description: '',
+        interval: '',
+        xp_reward: '',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: '',
+      });
       setDialogOpen(false);
 
       // Refresh quest list
@@ -199,7 +227,14 @@ export const QuestsAdminPage = ({
     if (!createLoading) {
       setDialogOpen(false);
       setCreateError(null);
-      setFormData({ title: '', description: '', interval: '', xp_reward: '' });
+      setFormData({
+        title: '',
+        description: '',
+        interval: '',
+        xp_reward: '',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: '',
+      });
     }
   };
 
@@ -211,6 +246,8 @@ export const QuestsAdminPage = ({
       description: quest.description,
       interval: quest.interval.toString(),
       xp_reward: quest.xp_reward.toString(),
+      completion_policy: quest.completion_policy ?? 'REPEATABLE',
+      cooldown_days: quest.cooldown_days?.toString() ?? '',
     });
     setEditError(null);
     setEditDialogOpen(true);
@@ -226,6 +263,8 @@ export const QuestsAdminPage = ({
         description: '',
         interval: '',
         xp_reward: '',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: '',
       });
     }
   };
@@ -273,8 +312,14 @@ export const QuestsAdminPage = ({
           body: JSON.stringify({
             title: editFormData.title,
             description: editFormData.description,
-            interval: parseInt(editFormData.interval, 10),
             xp_reward: parseInt(editFormData.xp_reward, 10),
+            completion_policy: editFormData.completion_policy,
+            interval: parseInt(editFormData.interval, 10),
+            ...(editFormData.completion_policy === 'REPEATABLE' && {
+              cooldown_days: editFormData.cooldown_days
+                ? parseInt(editFormData.cooldown_days, 10)
+                : null,
+            }),
           }),
         },
       );
@@ -347,10 +392,9 @@ export const QuestsAdminPage = ({
   };
 
   const adminQuests = quests;
-  const getQuestProgress = (quest: Quest) => ({
-    current: quest.progress_in_interval,
-    target: quest.interval,
-  });
+  const getQuestProgress = (quest: Quest) => {
+    return { current: quest.progress_in_interval, target: quest.interval };
+  };
 
   return (
     <>
@@ -386,6 +430,33 @@ export const QuestsAdminPage = ({
             onChange={e => handleInputChange('description', e.target.value)}
             disabled={createLoading}
           />
+          <FormControl
+            component="fieldset"
+            style={{ marginTop: 12, width: '100%' }}
+          >
+            <FormLabel component="legend">Completion Policy</FormLabel>
+            <RadioGroup
+              row
+              value={formData.completion_policy}
+              onChange={e =>
+                handleInputChange(
+                  'completion_policy',
+                  e.target.value as 'ONE_TIME' | 'REPEATABLE',
+                )
+              }
+            >
+              <FormControlLabel
+                value="REPEATABLE"
+                control={<Radio color="primary" disabled={createLoading} />}
+                label="Repeatable"
+              />
+              <FormControlLabel
+                value="ONE_TIME"
+                control={<Radio color="primary" disabled={createLoading} />}
+                label="One-time"
+              />
+            </RadioGroup>
+          </FormControl>
           <TextField
             fullWidth
             label="Interval"
@@ -395,8 +466,21 @@ export const QuestsAdminPage = ({
             value={formData.interval}
             onChange={e => handleInputChange('interval', e.target.value)}
             disabled={createLoading}
-            helperText="Hur ofta XP delas ut (1 = varje gång, 2 = varannan gång, etc.)"
+            helperText="How many completions before XP is awarded (1 = every time)."
           />
+          {formData.completion_policy === 'REPEATABLE' && (
+            <TextField
+              fullWidth
+              label="Cooldown (days)"
+              margin="dense"
+              type="number"
+              inputProps={{ min: 1 }}
+              value={formData.cooldown_days}
+              onChange={e => handleInputChange('cooldown_days', e.target.value)}
+              disabled={createLoading}
+              helperText="Optional: days users must wait after earning XP before re-completing."
+            />
+          )}
           <TextField
             fullWidth
             label="XP Reward"
@@ -462,6 +546,33 @@ export const QuestsAdminPage = ({
             onChange={e => handleEditInputChange('description', e.target.value)}
             disabled={editLoading}
           />
+          <FormControl
+            component="fieldset"
+            style={{ marginTop: 12, width: '100%' }}
+          >
+            <FormLabel component="legend">Completion Policy</FormLabel>
+            <RadioGroup
+              row
+              value={editFormData.completion_policy}
+              onChange={e =>
+                handleEditInputChange(
+                  'completion_policy',
+                  e.target.value as 'ONE_TIME' | 'REPEATABLE',
+                )
+              }
+            >
+              <FormControlLabel
+                value="REPEATABLE"
+                control={<Radio color="primary" disabled={editLoading} />}
+                label="Repeatable"
+              />
+              <FormControlLabel
+                value="ONE_TIME"
+                control={<Radio color="primary" disabled={editLoading} />}
+                label="One-time"
+              />
+            </RadioGroup>
+          </FormControl>
           <TextField
             fullWidth
             label="Interval"
@@ -471,8 +582,22 @@ export const QuestsAdminPage = ({
             value={editFormData.interval}
             onChange={e => handleEditInputChange('interval', e.target.value)}
             disabled={editLoading}
-            helperText="Hur ofta XP delas ut (1 = varje gång, 2 = varannan gång, etc.)"
           />
+          {editFormData.completion_policy === 'REPEATABLE' && (
+            <TextField
+              fullWidth
+              label="Cooldown (days)"
+              margin="dense"
+              type="number"
+              inputProps={{ min: 1 }}
+              value={editFormData.cooldown_days}
+              onChange={e =>
+                handleEditInputChange('cooldown_days', e.target.value)
+              }
+              disabled={editLoading}
+              helperText="Optional: days users must wait after earning XP before re-completing."
+            />
+          )}
           <TextField
             fullWidth
             label="XP Reward"
@@ -603,7 +728,8 @@ export const QuestsAdminPage = ({
                       <TableHead>
                         <TableRow>
                           <TableCell style={{ width: '20%' }}>Title</TableCell>
-                          <TableCell style={{ width: '35%' }}>
+                          <TableCell style={{ width: '10%' }}>Type</TableCell>
+                          <TableCell style={{ width: '25%' }}>
                             Description
                           </TableCell>
                           <TableCell align="center" style={{ width: '15%' }}>
@@ -618,57 +744,76 @@ export const QuestsAdminPage = ({
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {adminQuests.map(quest => (
-                          <TableRow key={quest.id}>
-                            <TableCell>{quest.title}</TableCell>
-                            <TableCell>{quest.description}</TableCell>
-                            <TableCell align="center">
-                              {quest.xp_reward}
-                            </TableCell>
-                            <TableCell align="right">
-                              {(() => {
-                                const progress = getQuestProgress(quest);
-                                const percent =
-                                  (progress.current / progress.target) * 100;
-
-                                return (
-                                  <Box minWidth={120} textAlign="right">
-                                    <LinearProgress
-                                      variant="determinate"
-                                      value={Math.min(
-                                        100,
-                                        Math.max(0, percent),
-                                      )}
-                                    />
-                                    <Typography variant="caption">
-                                      {progress.current}/{progress.target}
-                                    </Typography>
-                                  </Box>
-                                );
-                              })()}
-                            </TableCell>
-                            <TableCell align="right">
-                              <Tooltip title="Edit">
-                                <IconButton
-                                  size="small"
-                                  color="primary"
-                                  onClick={() => handleOpenEditDialog(quest)}
-                                >
-                                  <EditIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Delete">
-                                <IconButton
-                                  size="small"
-                                  color="secondary"
-                                  onClick={() => handleOpenDeleteDialog(quest)}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {adminQuests.map(quest => {
+                          const progress = getQuestProgress(quest);
+                          const isCompleted =
+                            quest.completion_policy === 'ONE_TIME' &&
+                            quest.completion_count >= quest.interval;
+                          const percent =
+                            (progress.current / progress.target) * 100;
+                          return (
+                            <TableRow key={quest.id}>
+                              <TableCell>{quest.title}</TableCell>
+                              <TableCell>
+                                {quest.completion_policy === 'ONE_TIME' ? (
+                                  <Chip
+                                    label="One-time"
+                                    size="small"
+                                    color="secondary"
+                                  />
+                                ) : (
+                                  <Chip
+                                    label={
+                                      quest.cooldown_days
+                                        ? `Every ${quest.cooldown_days}d`
+                                        : 'Repeatable'
+                                    }
+                                    size="small"
+                                  />
+                                )}
+                              </TableCell>
+                              <TableCell>{quest.description}</TableCell>
+                              <TableCell align="center">
+                                {quest.xp_reward}
+                              </TableCell>
+                              <TableCell align="right">
+                                <Box minWidth={120} textAlign="right">
+                                  <LinearProgress
+                                    variant="determinate"
+                                    value={Math.min(100, Math.max(0, percent))}
+                                  />
+                                  <Typography variant="caption">
+                                    {isCompleted
+                                      ? '\u2713 Completed'
+                                      : `${progress.current}/${progress.target}`}
+                                  </Typography>
+                                </Box>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Tooltip title="Edit">
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => handleOpenEditDialog(quest)}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Delete">
+                                  <IconButton
+                                    size="small"
+                                    color="secondary"
+                                    onClick={() =>
+                                      handleOpenDeleteDialog(quest)
+                                    }
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -681,10 +826,11 @@ export const QuestsAdminPage = ({
                             <TableCell style={{ width: '20%' }}>
                               Title
                             </TableCell>
-                            <TableCell style={{ width: '30%' }}>
+                            <TableCell style={{ width: '10%' }}>Type</TableCell>
+                            <TableCell style={{ width: '25%' }}>
                               Description
                             </TableCell>
-                            <TableCell align="center" style={{ width: '25%' }}>
+                            <TableCell align="center" style={{ width: '20%' }}>
                               XP Reward
                             </TableCell>
                             <TableCell align="right" style={{ width: '25%' }}>
@@ -693,37 +839,57 @@ export const QuestsAdminPage = ({
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {quests.map(quest => (
-                            <TableRow key={quest.id}>
-                              <TableCell>{quest.title}</TableCell>
-                              <TableCell>{quest.description}</TableCell>
-                              <TableCell align="center">
-                                {quest.xp_reward}
-                              </TableCell>
-                              <TableCell align="right">
-                                {(() => {
-                                  const progress = getQuestProgress(quest);
-                                  const percent =
-                                    (progress.current / progress.target) * 100;
-
-                                  return (
-                                    <Box minWidth={120} textAlign="right">
-                                      <LinearProgress
-                                        variant="determinate"
-                                        value={Math.min(
-                                          100,
-                                          Math.max(0, percent),
-                                        )}
-                                      />
-                                      <Typography variant="caption">
-                                        {progress.current}/{progress.target}
-                                      </Typography>
-                                    </Box>
-                                  );
-                                })()}
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {quests.map(quest => {
+                            const progress = getQuestProgress(quest);
+                            const isCompleted =
+                              quest.completion_policy === 'ONE_TIME' &&
+                              quest.completion_count >= quest.interval;
+                            const percent =
+                              (progress.current / progress.target) * 100;
+                            return (
+                              <TableRow key={quest.id}>
+                                <TableCell>{quest.title}</TableCell>
+                                <TableCell>
+                                  {quest.completion_policy === 'ONE_TIME' ? (
+                                    <Chip
+                                      label="One-time"
+                                      size="small"
+                                      color="secondary"
+                                    />
+                                  ) : (
+                                    <Chip
+                                      label={
+                                        quest.cooldown_days
+                                          ? `Every ${quest.cooldown_days}d`
+                                          : 'Repeatable'
+                                      }
+                                      size="small"
+                                    />
+                                  )}
+                                </TableCell>
+                                <TableCell>{quest.description}</TableCell>
+                                <TableCell align="center">
+                                  {quest.xp_reward}
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Box minWidth={120} textAlign="right">
+                                    <LinearProgress
+                                      variant="determinate"
+                                      value={Math.min(
+                                        100,
+                                        Math.max(0, percent),
+                                      )}
+                                    />
+                                    <Typography variant="caption">
+                                      {isCompleted
+                                        ? '\u2713 Completed'
+                                        : `${progress.current}/${progress.target}`}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </TableContainer>
