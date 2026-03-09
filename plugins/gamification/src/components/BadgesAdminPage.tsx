@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
 import {
   Typography,
   Grid,
@@ -12,7 +12,6 @@ import {
   TableRow,
   Paper,
   Button,
-  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -29,7 +28,6 @@ import {
   InfoCard,
   SupportButton,
 } from '@backstage/core-components';
-import { useApi, fetchApiRef } from '@backstage/core-plugin-api';
 import { Alert } from '@material-ui/lab';
 
 type QuestLite = {
@@ -48,8 +46,17 @@ type Badge = {
   title: string;
   description: string;
   criterias: BadgeCriteria[];
-  created_at?: string;
-  updated_at?: string;
+};
+
+type BadgeFormCriteria = {
+  quest_id: string;
+  target_count: string;
+};
+
+type BadgeFormData = {
+  title: string;
+  description: string;
+  criterias: BadgeFormCriteria[];
 };
 
 type BadgesAdminPageProps = {
@@ -58,23 +65,13 @@ type BadgesAdminPageProps = {
   isDemoMode?: boolean;
 };
 
-type BadgeFormData = {
-  title: string;
-  description: string;
-  criterias: { quest_id: string; target_count: string }[];
-};
-
-const API_BASE = 'http://localhost:7007/api/backstage-backend-gamification';
-
-// CHANGE 1: Lägg till mock quests här
 const mockQuests: QuestLite[] = [
-  { id: '1', title: 'Documentation', completion_policy: 'REPEATABLE' },
-  { id: '2', title: 'Write New CI Tests', completion_policy: 'ONE_TIME' },
+  { id: '1', title: 'Documentation', completion_policy: 'ONE_TIME' },
+  { id: '2', title: 'Write New CI Tests', completion_policy: 'REPEATABLE' },
   { id: '3', title: 'Code Contribution', completion_policy: 'REPEATABLE' },
   { id: '4', title: 'Knowledge Sharing', completion_policy: 'ONE_TIME' },
 ];
 
-// CHANGE 2: Lägg till mock badges här
 const mockBadges: Badge[] = [
   {
     id: '1',
@@ -96,95 +93,72 @@ const mockBadges: Badge[] = [
   },
 ];
 
+const emptyForm = (): BadgeFormData => ({
+  title: '',
+  description: '',
+  criterias: [{ quest_id: '', target_count: '1' }],
+});
+
 export const BadgesAdminPage = ({
   isAdmin,
   onToggleDemo,
   isDemoMode = false,
 }: BadgesAdminPageProps) => {
-  const fetchApi = useApi(fetchApiRef);
-
   const [badges, setBadges] = useState<Badge[]>([]);
   const [quests, setQuests] = useState<QuestLite[]>([]);
-
-  const questsById = useMemo(
-    () => new Map(quests.map(q => [q.id, q.title])),
-    [quests],
-  );
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [createForm, setCreateForm] = useState<BadgeFormData>({
-    title: '',
-    description: '',
-    criterias: [{ quest_id: '', target_count: '1' }],
-  });
+  const [createForm, setCreateForm] = useState<BadgeFormData>(emptyForm());
 
-  // Edit dialog
   const [editOpen, setEditOpen] = useState(false);
-  const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
-  const [editForm, setEditForm] = useState<BadgeFormData>({
-    title: '',
-    description: '',
-    criterias: [{ quest_id: '', target_count: '1' }],
-  });
+  const [editForm, setEditForm] = useState<BadgeFormData>(emptyForm());
 
-  // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [badgeToDelete, setBadgeToDelete] = useState<Badge | null>(null);
 
-  const fetchQuestsLite = useCallback(async () => {
-    // CHANGE 3: Temporärt mockad quest-lista istället för backend
-    // När backend är klar, byt tillbaka till riktig fetch.
-    return mockQuests;
-  }, []);
-
-  const fetchBadges = useCallback(async () => {
+  useEffect(() => {
     setLoading(true);
     setError(null);
 
     try {
-      // CHANGE 4: Använd mock data istället för API-anrop
-      const questsLite = await fetchQuestsLite();
-      setQuests(questsLite);
-
-      // TEMP MOCK
+      setQuests(mockQuests);
       setBadges(mockBadges);
     } catch (e: any) {
       setError(e?.message ?? 'Ett okänt fel inträffade');
-      setBadges([]);
     } finally {
       setLoading(false);
     }
-  }, [fetchQuestsLite]);
+  }, []);
 
-  useEffect(() => {
-    fetchBadges();
-  }, [fetchBadges]);
+  const getQuestById = (questId: string) => {
+    return quests.find(q => q.id === questId);
+  };
 
-  // ---------- Criteria helpers ----------
-  const addCriteriaRow = (
-    setter: React.Dispatch<React.SetStateAction<BadgeFormData>>,
-  ) => {
-    setter((prev: BadgeFormData) => ({
+  const isOneTimeQuest = (questId: string) => {
+    return getQuestById(questId)?.completion_policy === 'ONE_TIME';
+  };
+
+  const getQuestTitle = (questId: string) => {
+    return getQuestById(questId)?.title ?? questId;
+  };
+
+  const addCriteriaRow = (setter: Dispatch<SetStateAction<BadgeFormData>>) => {
+    setter(prev => ({
       ...prev,
       criterias: [...prev.criterias, { quest_id: '', target_count: '1' }],
     }));
   };
 
   const removeCriteriaRow = (
-    setter: React.Dispatch<React.SetStateAction<BadgeFormData>>,
+    setter: Dispatch<SetStateAction<BadgeFormData>>,
     idx: number,
   ) => {
-    setter((prev: BadgeFormData) => {
+    setter(prev => {
       if (prev.criterias.length <= 1) return prev;
 
       return {
@@ -195,134 +169,123 @@ export const BadgesAdminPage = ({
   };
 
   const updateCriteriaField = (
-    setter: React.Dispatch<React.SetStateAction<BadgeFormData>>,
+    setter: Dispatch<SetStateAction<BadgeFormData>>,
     idx: number,
     field: 'quest_id' | 'target_count',
     value: string,
   ) => {
-    setter((prev: BadgeFormData) => ({
+    setter(prev => ({
       ...prev,
-      criterias: prev.criterias.map((c, i) =>
-        i === idx ? { ...c, [field]: value } : c,
-      ),
+      criterias: prev.criterias.map((c, i) => {
+        if (i !== idx) return c;
+
+        if (field === 'quest_id') {
+          const selectedQuest = quests.find(q => q.id === value);
+
+          return {
+            ...c,
+            quest_id: value,
+            target_count:
+              selectedQuest?.completion_policy === 'ONE_TIME'
+                ? '1'
+                : c.target_count || '1',
+          };
+        }
+
+        return { ...c, [field]: value };
+      }),
     }));
   };
 
-  // ---------- Validation ----------
   const validateBadgeForm = (form: BadgeFormData): string | null => {
     if (!form.title.trim()) return 'Title är obligatorisk';
     if (!form.description.trim()) return 'Description är obligatorisk';
-
     if (!form.criterias.length) return 'Minst ett kriterium krävs';
+
+    const selectedIds = form.criterias
+      .map(c => c.quest_id)
+      .filter(id => id.trim() !== '');
+
+    if (new Set(selectedIds).size !== selectedIds.length) {
+      return 'Du har valt samma quest flera gånger i kriterierna';
+    }
 
     for (let i = 0; i < form.criterias.length; i++) {
       const c = form.criterias[i];
 
       if (!c.quest_id) return `Kriterium ${i + 1}: Välj en quest`;
 
+      const quest = getQuestById(c.quest_id);
       const n = parseInt(c.target_count, 10);
-      if (!c.target_count || Number.isNaN(n) || n < 1) {
-        return `Kriterium ${i + 1}: Target count måste vara minst 1`;
-      }
-    }
 
-    const ids = form.criterias.map(c => c.quest_id);
-    const uniq = new Set(ids);
-    if (uniq.size !== ids.length) {
-      return 'Du har valt samma quest flera gånger i kriterierna';
+      if (quest?.completion_policy === 'ONE_TIME') {
+        if (n !== 1) {
+          return `Kriterium ${i + 1}: One-time quest måste ha count 1`;
+        }
+      } else {
+        if (!c.target_count || Number.isNaN(n) || n < 1) {
+          return `Kriterium ${i + 1}: Count måste vara minst 1`;
+        }
+      }
     }
 
     return null;
   };
 
-  // ---------- Create ----------
   const openCreate = () => {
     setCreateError(null);
-    setCreateForm({
-      title: '',
-      description: '',
-      // CHANGE 5: bättre default-värde
-      criterias: [{ quest_id: '', target_count: '1' }],
-    });
+    setCreateForm(emptyForm());
     setCreateOpen(true);
   };
 
   const closeCreate = () => {
-    if (!createLoading) {
-      setCreateOpen(false);
-      setCreateError(null);
-    }
+    setCreateOpen(false);
+    setCreateError(null);
   };
 
-  const submitCreate = async () => {
+  const submitCreate = () => {
     const validation = validateBadgeForm(createForm);
     if (validation) {
       setCreateError(validation);
       return;
     }
 
-    setCreateLoading(true);
-    setCreateError(null);
+    const newBadge: Badge = {
+      id: String(Date.now()),
+      title: createForm.title.trim(),
+      description: createForm.description.trim(),
+      criterias: createForm.criterias.map(c => ({
+        quest_id: c.quest_id,
+        target_count: parseInt(c.target_count, 10),
+      })),
+    };
 
-    try {
-      const newBadge: Badge = {
-        id: String(Date.now()),
-        title: createForm.title.trim(),
-        description: createForm.description.trim(),
-        criterias: createForm.criterias.map(c => ({
-          quest_id: c.quest_id,
-          target_count: parseInt(c.target_count, 10),
-        })),
-      };
-
-      // CHANGE 6: Temporär lokal create istället för POST /badges
-      setBadges(prev => [newBadge, ...prev]);
-
-      setCreateOpen(false);
-      setCreateForm({
-        title: '',
-        description: '',
-        criterias: [{ quest_id: '', target_count: '1' }],
-      });
-    } catch (e: any) {
-      setCreateError(e?.message ?? 'Ett okänt fel inträffade');
-    } finally {
-      setCreateLoading(false);
-    }
+    setBadges(prev => [newBadge, ...prev]);
+    setCreateOpen(false);
+    setCreateForm(emptyForm());
   };
 
-  // ---------- Edit ----------
   const openEdit = (badge: Badge) => {
     setSelectedBadge(badge);
     setEditError(null);
-
-    const criterias = (badge.criterias?.length ? badge.criterias : []).map(
-      c => ({
+    setEditForm({
+      title: badge.title,
+      description: badge.description,
+      criterias: badge.criterias.map(c => ({
         quest_id: c.quest_id,
         target_count: String(c.target_count),
-      }),
-    );
-
-    setEditForm({
-      title: badge.title ?? '',
-      description: badge.description ?? '',
-      criterias: criterias.length
-        ? criterias
-        : [{ quest_id: '', target_count: '1' }],
+      })),
     });
-
     setEditOpen(true);
   };
 
   const closeEdit = () => {
-    if (!editLoading) {
-      setEditOpen(false);
-      setSelectedBadge(null);
-      setEditError(null);
-    }
+    setEditOpen(false);
+    setSelectedBadge(null);
+    setEditError(null);
   };
 
-  const submitEdit = async () => {
+  const submitEdit = () => {
     if (!selectedBadge) return;
 
     const validation = validateBadgeForm(editForm);
@@ -331,73 +294,44 @@ export const BadgesAdminPage = ({
       return;
     }
 
-    setEditLoading(true);
-    setEditError(null);
+    const updatedBadge: Badge = {
+      ...selectedBadge,
+      title: editForm.title.trim(),
+      description: editForm.description.trim(),
+      criterias: editForm.criterias.map(c => ({
+        quest_id: c.quest_id,
+        target_count: parseInt(c.target_count, 10),
+      })),
+    };
 
-    try {
-      const updatedBadge: Badge = {
-        ...selectedBadge,
-        title: editForm.title.trim(),
-        description: editForm.description.trim(),
-        criterias: editForm.criterias.map(c => ({
-          quest_id: c.quest_id,
-          target_count: parseInt(c.target_count, 10),
-        })),
-      };
+    setBadges(prev =>
+      prev.map(badge => (badge.id === selectedBadge.id ? updatedBadge : badge)),
+    );
 
-      // CHANGE 7: Temporär lokal edit istället för PATCH /badges/:id
-      setBadges(prev =>
-        prev.map(badge =>
-          badge.id === selectedBadge.id ? updatedBadge : badge,
-        ),
-      );
-
-      setEditOpen(false);
-      setSelectedBadge(null);
-    } catch (e: any) {
-      setEditError(e?.message ?? 'Ett okänt fel inträffade');
-    } finally {
-      setEditLoading(false);
-    }
+    setEditOpen(false);
+    setSelectedBadge(null);
   };
 
-  // ---------- Delete ----------
   const openDelete = (badge: Badge) => {
     setBadgeToDelete(badge);
-    setDeleteError(null);
     setDeleteOpen(true);
   };
 
   const closeDelete = () => {
-    if (!deleteLoading) {
-      setDeleteOpen(false);
-      setBadgeToDelete(null);
-      setDeleteError(null);
-    }
+    setDeleteOpen(false);
+    setBadgeToDelete(null);
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = () => {
     if (!badgeToDelete) return;
 
-    setDeleteLoading(true);
-    setDeleteError(null);
-
-    try {
-      // CHANGE 8: Temporär lokal delete istället för DELETE /badges/:id
-      setBadges(prev => prev.filter(badge => badge.id !== badgeToDelete.id));
-
-      setDeleteOpen(false);
-      setBadgeToDelete(null);
-    } catch (e: any) {
-      setDeleteError(e?.message ?? 'Ett okänt fel inträffade');
-    } finally {
-      setDeleteLoading(false);
-    }
+    setBadges(prev => prev.filter(badge => badge.id !== badgeToDelete.id));
+    setDeleteOpen(false);
+    setBadgeToDelete(null);
   };
 
-  // ---------- Render helpers ----------
   const renderCriteriaSummary = (criterias: BadgeCriteria[]) => {
-    if (!criterias?.length) {
+    if (!criterias.length) {
       return (
         <Typography variant="caption" color="textSecondary">
           Inga kriterier
@@ -405,34 +339,112 @@ export const BadgesAdminPage = ({
       );
     }
 
-    const shown = criterias.slice(0, 2);
-    const remaining = criterias.length - shown.length;
-
     return (
       <Box>
-        {shown.map((c, idx) => (
-          <Typography
-            key={`${c.quest_id}-${idx}`}
-            variant="caption"
-            display="block"
-          >
-            • {questsById.get(c.quest_id) ?? c.quest_id}: {c.target_count}x
-          </Typography>
-        ))}
-        {remaining > 0 && (
-          <Typography variant="caption" color="textSecondary">
-            +{remaining} till
-          </Typography>
-        )}
+        {criterias.map((c, idx) => {
+          const quest = getQuestById(c.quest_id);
+          const isOneTime = quest?.completion_policy === 'ONE_TIME';
+
+          return (
+            <Typography
+              key={`${c.quest_id}-${idx}`}
+              variant="caption"
+              display="block"
+            >
+              • {getQuestTitle(c.quest_id)} —{' '}
+              {isOneTime ? 'One-time' : `Repeatable, ${c.target_count}x`}
+            </Typography>
+          );
+        })}
       </Box>
     );
   };
 
+  const renderCriteriaRows = (
+    form: BadgeFormData,
+    setter: Dispatch<SetStateAction<BadgeFormData>>,
+    mode: 'create' | 'edit',
+  ) => {
+    return form.criterias.map((c, idx) => {
+      const selectedQuest = quests.find(q => q.id === c.quest_id);
+      const isOneTime = selectedQuest?.completion_policy === 'ONE_TIME';
+
+      return (
+        <Box
+          key={idx}
+          display="flex"
+          alignItems="flex-start"
+          style={{ gap: 12 }}
+          mb={2}
+        >
+          <TextField
+            select
+            label="Quest"
+            margin="dense"
+            value={c.quest_id}
+            onChange={e =>
+              updateCriteriaField(setter, idx, 'quest_id', e.target.value)
+            }
+            helperText={
+              !c.quest_id
+                ? 'Choose a quest'
+                : isOneTime
+                ? 'This quest is One-time'
+                : 'This quest is Repeatable'
+            }
+            style={{ flex: 1 }}
+          >
+            <MenuItem value="">
+              <em>Select quest</em>
+            </MenuItem>
+
+            {quests.map(q => (
+              <MenuItem key={q.id} value={q.id}>
+                {q.title} —{' '}
+                {q.completion_policy === 'ONE_TIME' ? 'One-time' : 'Repeatable'}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            label="Completion Policy"
+            margin="dense"
+            value={!c.quest_id ? '' : isOneTime ? 'One-time' : 'Repeatable'}
+            disabled
+            style={{ width: 140 }}
+          />
+
+          {!isOneTime && c.quest_id && (
+            <TextField
+              label="Count"
+              margin="dense"
+              type="number"
+              inputProps={{ min: 1 }}
+              value={c.target_count}
+              onChange={e =>
+                updateCriteriaField(setter, idx, 'target_count', e.target.value)
+              }
+              style={{ width: 120 }}
+            />
+          )}
+
+          <Button
+            style={{ marginTop: 12 }}
+            onClick={() => removeCriteriaRow(setter, idx)}
+            disabled={form.criterias.length <= 1}
+          >
+            Remove
+          </Button>
+        </Box>
+      );
+    });
+  };
+
   return (
     <>
-      {/* CREATE BADGE DIALOG */}
       <Dialog open={createOpen} onClose={closeCreate} maxWidth="sm" fullWidth>
         <DialogTitle>Create New Badge</DialogTitle>
+
         <DialogContent>
           {createError && (
             <Alert severity="error" style={{ marginBottom: 16 }}>
@@ -446,10 +458,9 @@ export const BadgesAdminPage = ({
             margin="dense"
             value={createForm.title}
             onChange={e => {
-              setCreateForm(p => ({ ...p, title: e.target.value }));
+              setCreateForm(prev => ({ ...prev, title: e.target.value }));
               setCreateError(null);
             }}
-            disabled={createLoading}
           />
 
           <TextField
@@ -460,117 +471,42 @@ export const BadgesAdminPage = ({
             minRows={3}
             value={createForm.description}
             onChange={e => {
-              setCreateForm(p => ({ ...p, description: e.target.value }));
+              setCreateForm(prev => ({
+                ...prev,
+                description: e.target.value,
+              }));
               setCreateError(null);
             }}
-            disabled={createLoading}
           />
 
-          <Box mt={2} mb={1}>
-            <Typography variant="subtitle2">Criterias</Typography>
-            <Typography variant="caption" color="textSecondary">
-              Välj quest + hur många gånger den måste klaras.
+          <Box mt={3} mb={1}>
+            <Typography variant="subtitle1">Criterias</Typography>
+            <Typography variant="body2" color="textSecondary">
+              Välj quest. One-time quests visar ingen count.
             </Typography>
           </Box>
 
-          {createForm.criterias.map((c, idx) => (
-            <Box
-              key={idx}
-              display="flex"
-              alignItems="center"
-              style={{ gap: 12 }}
-              mb={1}
-            >
-              <TextField
-                select
-                label="Quest"
-                margin="dense"
-                value={c.quest_id}
-                onChange={e =>
-                  updateCriteriaField(
-                    setCreateForm,
-                    idx,
-                    'quest_id',
-                    e.target.value,
-                  )
-                }
-                disabled={createLoading}
-                style={{ flex: 1 }}
-              >
-                <MenuItem value="">
-                  <em>Välj quest</em>
-                </MenuItem>
-                {quests.map(q => (
-                  <MenuItem key={q.id} value={q.id}>
-                    {q.title}
-                  </MenuItem>
-                ))}
-              </TextField>
+          {renderCriteriaRows(createForm, setCreateForm, 'create')}
 
-              <TextField
-                label="Count"
-                margin="dense"
-                type="number"
-                inputProps={{ min: 1 }}
-                value={c.target_count}
-                onChange={e =>
-                  updateCriteriaField(
-                    setCreateForm,
-                    idx,
-                    'target_count',
-                    e.target.value,
-                  )
-                }
-                disabled={createLoading}
-                style={{ width: 140 }}
-              />
-
-              <Button
-                onClick={() => removeCriteriaRow(setCreateForm, idx)}
-                disabled={createLoading || createForm.criterias.length <= 1}
-              >
-                Remove
-              </Button>
-            </Box>
-          ))}
-
-          <Box mt={1}>
-            <Button
-              startIcon={<AddIcon />}
-              onClick={() => addCriteriaRow(setCreateForm)}
-              disabled={createLoading}
-              size="small"
-            >
-              Add criteria
-            </Button>
-          </Box>
+          <Button
+            startIcon={<AddIcon />}
+            onClick={() => addCriteriaRow(setCreateForm)}
+          >
+            Add Criteria
+          </Button>
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={closeCreate} disabled={createLoading}>
-            Cancel
-          </Button>
-          <Button
-            onClick={submitCreate}
-            color="primary"
-            variant="contained"
-            disabled={createLoading}
-          >
-            {createLoading ? (
-              <>
-                <CircularProgress size={16} style={{ marginRight: 8 }} />
-                Skapar...
-              </>
-            ) : (
-              'Create Badge'
-            )}
+          <Button onClick={closeCreate}>Cancel</Button>
+          <Button onClick={submitCreate} color="primary" variant="contained">
+            Create Badge
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* EDIT BADGE DIALOG */}
       <Dialog open={editOpen} onClose={closeEdit} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Badge: {selectedBadge?.title}</DialogTitle>
+        <DialogTitle>Edit Badge</DialogTitle>
+
         <DialogContent>
           {editError && (
             <Alert severity="error" style={{ marginBottom: 16 }}>
@@ -584,10 +520,9 @@ export const BadgesAdminPage = ({
             margin="dense"
             value={editForm.title}
             onChange={e => {
-              setEditForm(p => ({ ...p, title: e.target.value }));
+              setEditForm(prev => ({ ...prev, title: e.target.value }));
               setEditError(null);
             }}
-            disabled={editLoading}
           />
 
           <TextField
@@ -598,152 +533,56 @@ export const BadgesAdminPage = ({
             minRows={3}
             value={editForm.description}
             onChange={e => {
-              setEditForm(p => ({ ...p, description: e.target.value }));
+              setEditForm(prev => ({
+                ...prev,
+                description: e.target.value,
+              }));
               setEditError(null);
             }}
-            disabled={editLoading}
           />
 
-          <Box mt={2} mb={1}>
-            <Typography variant="subtitle2">Criterias</Typography>
-            <Typography variant="caption" color="textSecondary">
-              Välj quest + hur många gånger den måste klaras.
+          <Box mt={3} mb={1}>
+            <Typography variant="subtitle1">Criterias</Typography>
+            <Typography variant="body2" color="textSecondary">
+              Välj quest. One-time quests visar ingen count.
             </Typography>
           </Box>
 
-          {editForm.criterias.map((c, idx) => (
-            <Box
-              key={idx}
-              display="flex"
-              alignItems="center"
-              style={{ gap: 12 }}
-              mb={1}
-            >
-              <TextField
-                select
-                label="Quest"
-                margin="dense"
-                value={c.quest_id}
-                onChange={e =>
-                  updateCriteriaField(
-                    setEditForm,
-                    idx,
-                    'quest_id',
-                    e.target.value,
-                  )
-                }
-                disabled={editLoading}
-                style={{ flex: 1 }}
-              >
-                <MenuItem value="">
-                  <em>Välj quest</em>
-                </MenuItem>
-                {quests.map(q => (
-                  <MenuItem key={q.id} value={q.id}>
-                    {q.title}
-                  </MenuItem>
-                ))}
-              </TextField>
+          {renderCriteriaRows(editForm, setEditForm, 'edit')}
 
-              <TextField
-                label="Count"
-                margin="dense"
-                type="number"
-                inputProps={{ min: 1 }}
-                value={c.target_count}
-                onChange={e =>
-                  updateCriteriaField(
-                    setEditForm,
-                    idx,
-                    'target_count',
-                    e.target.value,
-                  )
-                }
-                disabled={editLoading}
-                style={{ width: 140 }}
-              />
-
-              <Button
-                onClick={() => removeCriteriaRow(setEditForm, idx)}
-                disabled={editLoading || editForm.criterias.length <= 1}
-              >
-                Remove
-              </Button>
-            </Box>
-          ))}
-
-          <Box mt={1}>
-            <Button
-              startIcon={<AddIcon />}
-              onClick={() => addCriteriaRow(setEditForm)}
-              disabled={editLoading}
-              size="small"
-            >
-              Add criteria
-            </Button>
-          </Box>
+          <Button
+            startIcon={<AddIcon />}
+            onClick={() => addCriteriaRow(setEditForm)}
+          >
+            Add Criteria
+          </Button>
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={closeEdit} disabled={editLoading}>
-            Cancel
-          </Button>
-          <Button
-            onClick={submitEdit}
-            color="primary"
-            variant="contained"
-            disabled={editLoading}
-          >
-            {editLoading ? (
-              <>
-                <CircularProgress size={16} style={{ marginRight: 8 }} />
-                Sparar...
-              </>
-            ) : (
-              'Save Changes'
-            )}
+          <Button onClick={closeEdit}>Cancel</Button>
+          <Button onClick={submitEdit} color="primary" variant="contained">
+            Save Changes
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* DELETE BADGE DIALOG */}
       <Dialog open={deleteOpen} onClose={closeDelete} maxWidth="sm" fullWidth>
         <DialogTitle>Delete Badge?</DialogTitle>
+
         <DialogContent>
-          {deleteError && (
-            <Alert severity="error" style={{ marginBottom: 16 }}>
-              {deleteError}
-            </Alert>
-          )}
           <Typography>
-            Are you sure you want to delete "{badgeToDelete?.title}"? This
-            action cannot be undone.
+            Are you sure you want to delete "{badgeToDelete?.title}"?
           </Typography>
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={closeDelete} disabled={deleteLoading}>
-            Cancel
-          </Button>
-          <Button
-            onClick={confirmDelete}
-            color="secondary"
-            variant="contained"
-            disabled={deleteLoading}
-          >
-            {deleteLoading ? (
-              <>
-                <CircularProgress size={16} style={{ marginRight: 8 }} />
-                Tar bort...
-              </>
-            ) : (
-              'Delete'
-            )}
+          <Button onClick={closeDelete}>Cancel</Button>
+          <Button onClick={confirmDelete} color="secondary" variant="contained">
+            Delete
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* PAGE BODY */}
       <Grid container spacing={3}>
         <Grid item xs={12}>
           <InfoCard>
@@ -777,12 +616,9 @@ export const BadgesAdminPage = ({
             </ContentHeader>
 
             {loading && (
-              <div style={{ textAlign: 'center', padding: 20 }}>
-                <CircularProgress />
-                <Typography variant="body2" style={{ marginTop: 8 }}>
-                  Laddar badges...
-                </Typography>
-              </div>
+              <Box textAlign="center" p={2}>
+                <Typography>Laddar badges...</Typography>
+              </Box>
             )}
 
             {error && (
@@ -792,10 +628,7 @@ export const BadgesAdminPage = ({
             )}
 
             {!loading && !error && badges.length === 0 && (
-              <Typography variant="body2">
-                Inga badges hittades.
-                {isAdmin ? ' Skapa en ny badge via admin-panelen.' : ''}
-              </Typography>
+              <Typography variant="body2">Inga badges hittades.</Typography>
             )}
 
             {!loading && !error && badges.length > 0 && (
@@ -804,10 +637,10 @@ export const BadgesAdminPage = ({
                   <TableHead>
                     <TableRow>
                       <TableCell style={{ width: '20%' }}>Title</TableCell>
-                      <TableCell style={{ width: '40%' }}>
+                      <TableCell style={{ width: '35%' }}>
                         Description
                       </TableCell>
-                      <TableCell style={{ width: '30%' }}>Criterias</TableCell>
+                      <TableCell style={{ width: '35%' }}>Criterias</TableCell>
                       <TableCell align="right" style={{ width: '10%' }}>
                         {isAdmin ? 'Actions' : ''}
                       </TableCell>
@@ -834,6 +667,7 @@ export const BadgesAdminPage = ({
                                   <EditIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
+
                               <Tooltip title="Delete">
                                 <IconButton
                                   size="small"
@@ -844,9 +678,7 @@ export const BadgesAdminPage = ({
                                 </IconButton>
                               </Tooltip>
                             </>
-                          ) : (
-                            <span />
-                          )}
+                          ) : null}
                         </TableCell>
                       </TableRow>
                     ))}
