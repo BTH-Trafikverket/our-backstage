@@ -41,7 +41,7 @@ describe('XpRepository Integration Tests', () => {
     options: {
       title?: string;
       description?: string;
-      interval?: number;
+      target_count?: number;
       xp_reward?: number;
     } = {},
   ): Promise<void> {
@@ -49,7 +49,7 @@ describe('XpRepository Integration Tests', () => {
       id: questId,
       title: options.title || `Test Quest ${questId.substring(0, 8)}`,
       description: options.description || 'Test description',
-      interval: options.interval || 1,
+      target_count: options.target_count || 1,
       xp_reward: options.xp_reward || 10,
     });
   }
@@ -203,7 +203,7 @@ describe('XpRepository Integration Tests', () => {
 
       await createQuest(knex, questId, {
         title: 'Repeatable Quest',
-        interval: 5,
+        target_count: 5,
         xp_reward: 50,
       });
 
@@ -487,19 +487,19 @@ describe('XpRepository Integration Tests', () => {
 
       await createQuest(knex, dailyQuestId, {
         title: 'Daily Login',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
       });
 
       await createQuest(knex, weeklyQuestId, {
         title: 'Weekly Review',
-        interval: 7,
+        target_count: 7,
         xp_reward: 100,
       });
 
       await createQuest(knex, monthlyQuestId, {
         title: 'Monthly Challenge',
-        interval: 30,
+        target_count: 30,
         xp_reward: 1000,
       });
 

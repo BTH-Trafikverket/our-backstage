@@ -77,7 +77,7 @@ describe('xp routes', () => {
       id: questId,
       title: `Quest-${randomUUID()}`,
       description: '',
-      interval: 1,
+      target_count: 1,
       xp_reward: 1,
     });
 
