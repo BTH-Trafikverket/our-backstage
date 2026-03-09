@@ -38,10 +38,7 @@ export const ExampleComponent = () => {
 
   return (
     <Page themeId="tool">
-      <Header
-        title="Welcome to backstage-plugin-gamification!"
-        subtitle="Optional subtitle"
-      >
+      <Header title="Welcome to gamification!" subtitle="Optional subtitle">
         <HeaderLabel label="Owner" value="Team X" />
         <HeaderLabel label="Lifecycle" value="Alpha" />
       </Header>
@@ -53,11 +50,7 @@ export const ExampleComponent = () => {
               <Grid item xs={12}>
                 <InfoCard title="Gamification">
                   <List dense>
-                    <ListItem
-                      button
-                      component={Link}
-                      to="/backstage-plugin-gamification"
-                    >
+                    <ListItem button component={Link} to="/gamification">
                       <ListItemText primary="Quests" />
                     </ListItem>
 

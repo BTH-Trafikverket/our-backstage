@@ -1,6 +1,6 @@
 export {
-  backstagePluginGamificationPlugin,
-  BackstagePluginGamificationPage,
+  gamificationPlugin,
+  GamificationPage,
   GamificationXpDebugPage,
 } from './plugin';
 

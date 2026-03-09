@@ -23,8 +23,11 @@ import {
   FormControl,
   FormControlLabel,
   FormLabel,
+  InputLabel,
+  MenuItem,
   Radio,
   RadioGroup,
+  Select,
   Chip,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
@@ -39,6 +42,7 @@ import {
   useApi,
   fetchApiRef,
   discoveryApiRef,
+  identityApiRef,
 } from '@backstage/core-plugin-api';
 import { Alert } from '@material-ui/lab';
 
@@ -48,12 +52,13 @@ type Quest = {
   description: string;
   target_count: number;
   xp_reward: number;
+  subject_type?: 'user' | 'team';
   completion_policy: 'ONE_TIME' | 'REPEATABLE';
   cooldown_days: number | null;
   created_at?: string;
   updated_at?: string;
 
-  user_ref: string | null;
+  user_ref?: string | null;
   completion_count: number;
   progress_toward_target: number;
   next_milestone: number;
@@ -64,6 +69,8 @@ interface CreateQuestFormData {
   description: string;
   target_count: string;
   xp_reward: string;
+  /** 'user' | 'team' – kept as string for form input compatibility */
+  subject_type: string;
   /** 'ONE_TIME' | 'REPEATABLE' – kept as string for form input compatibility */
   completion_policy: string;
   cooldown_days: string;
@@ -82,6 +89,7 @@ export const QuestsAdminPage = ({
 }: QuestsAdminPageProps) => {
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
+  const identityApi = useApi(identityApiRef);
   const pluginId = 'gamification';
 
   const buildGamificationUrl = useCallback(
@@ -107,6 +115,14 @@ export const QuestsAdminPage = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState<string>('');
+  const [audienceFilter, setAudienceFilter] = useState<
+    'all' | 'individual' | 'team'
+  >('all');
+  const [statusFilter, setStatusFilter] = useState<
+    'active' | 'completed' | 'all'
+  >('active');
+  const [teamFilter, setTeamFilter] = useState<string>('');
+  const [teamOptions, setTeamOptions] = useState<string[]>([]);
 
   // Create quest dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -117,6 +133,7 @@ export const QuestsAdminPage = ({
     description: '',
     target_count: '',
     xp_reward: '',
+    subject_type: 'user',
     completion_policy: 'REPEATABLE',
     cooldown_days: '',
   });
@@ -131,6 +148,7 @@ export const QuestsAdminPage = ({
     description: '',
     target_count: '',
     xp_reward: '',
+    subject_type: 'user',
     completion_policy: 'REPEATABLE',
     cooldown_days: '',
   });
@@ -148,6 +166,11 @@ export const QuestsAdminPage = ({
     try {
       const url = await buildGamificationUrl('/quests/me', {
         ...(search.trim() ? { search: search.trim() } : {}),
+        audience: audienceFilter,
+        status: statusFilter,
+        ...(audienceFilter === 'team' && teamFilter
+          ? { team: teamFilter }
+          : {}),
       });
 
       const response = await fetchApi.fetch(url);
@@ -166,11 +189,50 @@ export const QuestsAdminPage = ({
     } finally {
       setLoading(false);
     }
-  }, [fetchApi, search, buildGamificationUrl]);
+  }, [
+    fetchApi,
+    search,
+    audienceFilter,
+    statusFilter,
+    teamFilter,
+    buildGamificationUrl,
+  ]);
 
   useEffect(() => {
     fetchQuests();
   }, [fetchQuests]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadTeams = async () => {
+      try {
+        const identity = await identityApi.getBackstageIdentity();
+        const refs = identity.ownershipEntityRefs ?? [];
+        const teams = refs.filter(ref =>
+          ref.toLocaleLowerCase('en-US').startsWith('group:'),
+        );
+        if (!mounted) {
+          return;
+        }
+        setTeamOptions(teams);
+        if (teams.length > 0 && !teamFilter) {
+          setTeamFilter(teams[0]);
+        }
+      } catch {
+        if (!mounted) {
+          return;
+        }
+        setTeamOptions([]);
+      }
+    };
+
+    loadTeams();
+
+    return () => {
+      mounted = false;
+    };
+  }, [identityApi, teamFilter]);
 
   const handleInputChange = (
     field: keyof CreateQuestFormData,
@@ -198,7 +260,6 @@ export const QuestsAdminPage = ({
       setCreateError('XP Reward must be at least 1');
       return;
     }
-
     setCreateLoading(true);
     setCreateError(null);
 
@@ -212,6 +273,7 @@ export const QuestsAdminPage = ({
           title: formData.title,
           description: formData.description,
           xp_reward: parseInt(formData.xp_reward, 10),
+          subject_type: formData.subject_type,
           completion_policy: formData.completion_policy,
           target_count: parseInt(formData.target_count, 10),
           ...(formData.completion_policy === 'REPEATABLE' && {
@@ -235,6 +297,7 @@ export const QuestsAdminPage = ({
         description: '',
         target_count: '',
         xp_reward: '',
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
       });
@@ -260,6 +323,7 @@ export const QuestsAdminPage = ({
         description: '',
         target_count: '',
         xp_reward: '',
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
       });
@@ -274,6 +338,7 @@ export const QuestsAdminPage = ({
       description: quest.description,
       target_count: quest.target_count.toString(),
       xp_reward: quest.xp_reward.toString(),
+      subject_type: quest.subject_type ?? 'user',
       completion_policy: quest.completion_policy ?? 'REPEATABLE',
       cooldown_days: quest.cooldown_days?.toString() ?? '',
     });
@@ -291,6 +356,7 @@ export const QuestsAdminPage = ({
         description: '',
         target_count: '',
         xp_reward: '',
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
       });
@@ -328,7 +394,6 @@ export const QuestsAdminPage = ({
       setEditError('XP Reward must be at least 1');
       return;
     }
-
     setEditLoading(true);
     setEditError(null);
 
@@ -342,6 +407,7 @@ export const QuestsAdminPage = ({
           title: editFormData.title,
           description: editFormData.description,
           xp_reward: parseInt(editFormData.xp_reward, 10),
+          subject_type: editFormData.subject_type,
           completion_policy: editFormData.completion_policy,
           target_count: parseInt(editFormData.target_count, 10),
           ...(editFormData.completion_policy === 'REPEATABLE' && {
@@ -424,6 +490,18 @@ export const QuestsAdminPage = ({
       target: quest.target_count,
     };
   };
+  const getQuestSubjectType = (quest: Quest) => quest.subject_type ?? 'user';
+  const renderSubject = (quest: Quest) => {
+    const subjectType = getQuestSubjectType(quest);
+
+    return (
+      <Chip
+        label={subjectType === 'team' ? 'Team quest' : 'User quest'}
+        size="small"
+        color={subjectType === 'team' ? 'primary' : 'default'}
+      />
+    );
+  };
 
   return (
     <>
@@ -459,6 +537,33 @@ export const QuestsAdminPage = ({
             onChange={e => handleInputChange('description', e.target.value)}
             disabled={createLoading}
           />
+          <FormControl
+            component="fieldset"
+            style={{ marginTop: 12, width: '100%' }}
+          >
+            <FormLabel component="legend">Quest Scope</FormLabel>
+            <RadioGroup
+              row
+              value={formData.subject_type}
+              onChange={e =>
+                handleInputChange(
+                  'subject_type',
+                  e.target.value as 'user' | 'team',
+                )
+              }
+            >
+              <FormControlLabel
+                value="user"
+                control={<Radio color="primary" disabled={createLoading} />}
+                label="User"
+              />
+              <FormControlLabel
+                value="team"
+                control={<Radio color="primary" disabled={createLoading} />}
+                label="Team"
+              />
+            </RadioGroup>
+          </FormControl>
           <FormControl
             component="fieldset"
             style={{ marginTop: 12, width: '100%' }}
@@ -575,6 +680,33 @@ export const QuestsAdminPage = ({
             onChange={e => handleEditInputChange('description', e.target.value)}
             disabled={editLoading}
           />
+          <FormControl
+            component="fieldset"
+            style={{ marginTop: 12, width: '100%' }}
+          >
+            <FormLabel component="legend">Quest Scope</FormLabel>
+            <RadioGroup
+              row
+              value={editFormData.subject_type}
+              onChange={e =>
+                handleEditInputChange(
+                  'subject_type',
+                  e.target.value as 'user' | 'team',
+                )
+              }
+            >
+              <FormControlLabel
+                value="user"
+                control={<Radio color="primary" disabled={editLoading} />}
+                label="User"
+              />
+              <FormControlLabel
+                value="team"
+                control={<Radio color="primary" disabled={editLoading} />}
+                label="Team"
+              />
+            </RadioGroup>
+          </FormControl>
           <FormControl
             component="fieldset"
             style={{ marginTop: 12, width: '100%' }}
@@ -742,6 +874,74 @@ export const QuestsAdminPage = ({
               onChange={e => setSearch(e.target.value)}
               style={{ marginBottom: 16 }}
             />
+            <Box display="flex" style={{ marginBottom: 16 }}>
+              <FormControl
+                variant="outlined"
+                size="small"
+                style={{ minWidth: 180 }}
+              >
+                <InputLabel id="audience-filter-label">Visa</InputLabel>
+                <Select
+                  labelId="audience-filter-label"
+                  value={audienceFilter}
+                  onChange={e =>
+                    setAudienceFilter(
+                      e.target.value as 'all' | 'individual' | 'team',
+                    )
+                  }
+                  label="Visa"
+                >
+                  <MenuItem value="all">Alla</MenuItem>
+                  <MenuItem value="individual">Individuella</MenuItem>
+                  <MenuItem value="team">Team</MenuItem>
+                </Select>
+              </FormControl>
+
+              {audienceFilter === 'team' && (
+                <FormControl
+                  variant="outlined"
+                  size="small"
+                  style={{ minWidth: 260 }}
+                  disabled={teamOptions.length === 0}
+                >
+                  <InputLabel id="team-filter-label">Team</InputLabel>
+                  <Select
+                    labelId="team-filter-label"
+                    value={teamFilter}
+                    onChange={e => setTeamFilter(e.target.value as string)}
+                    label="Team"
+                  >
+                    {teamOptions.map(team => (
+                      <MenuItem key={team} value={team}>
+                        {team}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
+              <FormControl
+                variant="outlined"
+                size="small"
+                style={{ minWidth: 180 }}
+              >
+                <InputLabel id="status-filter-label">Status</InputLabel>
+                <Select
+                  labelId="status-filter-label"
+                  value={statusFilter}
+                  onChange={e =>
+                    setStatusFilter(
+                      e.target.value as 'active' | 'completed' | 'all',
+                    )
+                  }
+                  label="Status"
+                >
+                  <MenuItem value="active">Pågående</MenuItem>
+                  <MenuItem value="completed">Avklarade</MenuItem>
+                  <MenuItem value="all">Alla</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
             {loading && (
               <div style={{ textAlign: 'center', padding: 20 }}>
                 <CircularProgress />
@@ -770,18 +970,21 @@ export const QuestsAdminPage = ({
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell style={{ width: '20%' }}>Title</TableCell>
-                          <TableCell style={{ width: '10%' }}>Type</TableCell>
-                          <TableCell style={{ width: '25%' }}>
+                          <TableCell style={{ width: '18%' }}>Title</TableCell>
+                          <TableCell style={{ width: '14%' }}>
+                            Subject
+                          </TableCell>
+                          <TableCell style={{ width: '12%' }}>Type</TableCell>
+                          <TableCell style={{ width: '21%' }}>
                             Description
                           </TableCell>
-                          <TableCell align="center" style={{ width: '15%' }}>
+                          <TableCell align="center" style={{ width: '12%' }}>
                             XP Reward
                           </TableCell>
-                          <TableCell align="right" style={{ width: '20%' }}>
+                          <TableCell align="right" style={{ width: '15%' }}>
                             Progress
                           </TableCell>
-                          <TableCell align="right" style={{ width: '10%' }}>
+                          <TableCell align="right" style={{ width: '8%' }}>
                             Actions
                           </TableCell>
                         </TableRow>
@@ -797,6 +1000,7 @@ export const QuestsAdminPage = ({
                           return (
                             <TableRow key={quest.id}>
                               <TableCell>{quest.title}</TableCell>
+                              <TableCell>{renderSubject(quest)}</TableCell>
                               <TableCell>
                                 {quest.completion_policy === 'ONE_TIME' ? (
                                   <Chip
@@ -866,17 +1070,20 @@ export const QuestsAdminPage = ({
                       <Table size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell style={{ width: '20%' }}>
+                            <TableCell style={{ width: '18%' }}>
                               Title
                             </TableCell>
-                            <TableCell style={{ width: '10%' }}>Type</TableCell>
-                            <TableCell style={{ width: '25%' }}>
+                            <TableCell style={{ width: '14%' }}>
+                              Subject
+                            </TableCell>
+                            <TableCell style={{ width: '12%' }}>Type</TableCell>
+                            <TableCell style={{ width: '21%' }}>
                               Description
                             </TableCell>
-                            <TableCell align="center" style={{ width: '20%' }}>
+                            <TableCell align="center" style={{ width: '15%' }}>
                               XP Reward
                             </TableCell>
-                            <TableCell align="right" style={{ width: '25%' }}>
+                            <TableCell align="right" style={{ width: '20%' }}>
                               Progress
                             </TableCell>
                           </TableRow>
@@ -892,6 +1099,7 @@ export const QuestsAdminPage = ({
                             return (
                               <TableRow key={quest.id}>
                                 <TableCell>{quest.title}</TableCell>
+                                <TableCell>{renderSubject(quest)}</TableCell>
                                 <TableCell>
                                   {quest.completion_policy === 'ONE_TIME' ? (
                                     <Chip

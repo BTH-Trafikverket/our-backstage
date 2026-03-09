@@ -277,6 +277,113 @@ describe('QuestsRepository Integration Tests', () => {
     });
   });
 
+  describe('getQuestsWithProgress', () => {
+    it('returns user quests plus one team quest row per owned team', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const userQuest = await repository.createQuest({
+        title: 'Personal Quest',
+        description: 'For the user',
+        target_count: 2,
+        xp_reward: 20,
+        subject_type: 'user',
+      });
+
+      const teamQuest = await repository.createQuest({
+        title: 'Team Quest',
+        description: 'For every team',
+        target_count: 3,
+        xp_reward: 30,
+        subject_type: 'team',
+      });
+
+      await repository.incrementQuestProgress({
+        quest_id: userQuest.id,
+        subject_ref: 'user:default/alice',
+        by: 1,
+      });
+
+      await repository.incrementQuestProgress({
+        quest_id: teamQuest.id,
+        subject_ref: 'group:default/platform',
+        by: 2,
+      });
+
+      const quests = await repository.getQuestsWithProgress({
+        user_ref: 'user:default/alice',
+        ownership_refs: [
+          'user:default/alice',
+          'group:default/platform',
+          'group:default/engineering',
+        ],
+      });
+
+      expect(quests).toHaveLength(3);
+
+      const personalQuest = quests.find(
+        quest =>
+          quest.id === userQuest.id &&
+          quest.subject_ref === 'user:default/alice',
+      );
+      expect(personalQuest).toBeDefined();
+      expect(personalQuest!.completion_count).toBe(1);
+      expect(personalQuest!.progress_toward_target).toBe(1);
+
+      const platformTeamQuest = quests.find(
+        quest =>
+          quest.id === teamQuest.id &&
+          quest.subject_ref === 'group:default/platform',
+      );
+      expect(platformTeamQuest).toBeDefined();
+      expect(platformTeamQuest!.completion_count).toBe(2);
+      expect(platformTeamQuest!.progress_toward_target).toBe(2);
+
+      const engineeringTeamQuest = quests.find(
+        quest =>
+          quest.id === teamQuest.id &&
+          quest.subject_ref === 'group:default/engineering',
+      );
+      expect(engineeringTeamQuest).toBeDefined();
+      expect(engineeringTeamQuest!.completion_count).toBe(0);
+      expect(engineeringTeamQuest!.progress_toward_target).toBe(0);
+
+      await knex.destroy();
+    });
+
+    it('does not return team quests when the user is not in any teams', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      await repository.createQuest({
+        title: 'Personal Quest',
+        description: 'For the user',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+      });
+
+      await repository.createQuest({
+        title: 'Team Quest',
+        description: 'For teams only',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'team',
+      });
+
+      const quests = await repository.getQuestsWithProgress({
+        user_ref: 'user:default/alice',
+        ownership_refs: ['user:default/alice'],
+      });
+
+      expect(quests).toHaveLength(1);
+      expect(quests[0].subject_type).toBe('user');
+      expect(quests[0].subject_ref).toBe('user:default/alice');
+
+      await knex.destroy();
+    });
+  });
+
   describe('CRUD operations with real database interactions', () => {
     it('should perform a complete create-read cycle', async () => {
       const knex = await initDb();
