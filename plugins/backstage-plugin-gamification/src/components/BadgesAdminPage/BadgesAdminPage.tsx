@@ -60,10 +60,40 @@ type BadgesAdminPageProps = {
 type BadgeFormData = {
   title: string;
   description: string;
-  criterias: { quest_id: string; target_count: string }[]; // string för input/validering
+  criterias: { quest_id: string; target_count: string }[];
 };
 
 const API_BASE = 'http://localhost:7007/api/backstage-backend-gamification';
+
+// CHANGE 1: Lägg till mock quests här
+const mockQuests: QuestLite[] = [
+  { id: '1', title: 'Documentation' },
+  { id: '2', title: 'Write New CI Tests' },
+  { id: '3', title: 'Code Contribution' },
+  { id: '4', title: 'Knowledge Sharing' },
+];
+
+// CHANGE 2: Lägg till mock badges här
+const mockBadges: Badge[] = [
+  {
+    id: '1',
+    title: 'Developers',
+    description: 'Complete developer related quests',
+    criterias: [
+      { quest_id: '1', target_count: 3 },
+      { quest_id: '2', target_count: 1 },
+    ],
+  },
+  {
+    id: '2',
+    title: 'System Explorers',
+    description: 'Complete exploration and contribution quests',
+    criterias: [
+      { quest_id: '3', target_count: 2 },
+      { quest_id: '4', target_count: 1 },
+    ],
+  },
+];
 
 export const BadgesAdminPage = ({
   isAdmin,
@@ -74,6 +104,7 @@ export const BadgesAdminPage = ({
 
   const [badges, setBadges] = useState<Badge[]>([]);
   const [quests, setQuests] = useState<QuestLite[]>([]);
+
   const questsById = useMemo(
     () => new Map(quests.map(q => [q.id, q.title])),
     [quests],
@@ -89,7 +120,7 @@ export const BadgesAdminPage = ({
   const [createForm, setCreateForm] = useState<BadgeFormData>({
     title: '',
     description: '',
-    criterias: [{ quest_id: '', target_count: '' }],
+    criterias: [{ quest_id: '', target_count: '1' }],
   });
 
   // Edit dialog
@@ -100,7 +131,7 @@ export const BadgesAdminPage = ({
   const [editForm, setEditForm] = useState<BadgeFormData>({
     title: '',
     description: '',
-    criterias: [{ quest_id: '', target_count: '' }],
+    criterias: [{ quest_id: '', target_count: '1' }],
   });
 
   // Delete dialog
@@ -110,63 +141,51 @@ export const BadgesAdminPage = ({
   const [badgeToDelete, setBadgeToDelete] = useState<Badge | null>(null);
 
   const fetchQuestsLite = useCallback(async () => {
-    // Vi använder quests som dropdown-data för criteria-input.
-    // Återanvänder er befintliga endpoint (/quests/me) som ni redan kör i QuestsAdminPage.
-    const resp = await fetchApi.fetch(`${API_BASE}/quests/me`);
-    if (!resp.ok) {
-      throw new Error(`Fel quests: ${resp.status} ${resp.statusText}`);
-    }
-    const data = (await resp.json()) as any[];
-    return (data || []).map(q => ({
-      id: String(q.id),
-      title: String(q.title),
-    })) as QuestLite[];
-  }, [fetchApi]);
+    // CHANGE 3: Temporärt mockad quest-lista istället för backend
+    // När backend är klar, byt tillbaka till riktig fetch.
+    return mockQuests;
+  }, []);
 
   const fetchBadges = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const [questsLite, badgesResp] = await Promise.all([
-        fetchQuestsLite().catch(() => [] as QuestLite[]),
-        fetchApi.fetch(`${API_BASE}/badges`),
-      ]);
-
+      // CHANGE 4: Använd mock data istället för API-anrop
+      const questsLite = await fetchQuestsLite();
       setQuests(questsLite);
 
-      if (!badgesResp.ok) {
-        const t = await badgesResp.text().catch(() => '');
-        throw new Error(
-          `Fel badges: ${badgesResp.status} ${badgesResp.statusText} ${t}`,
-        );
-      }
-
-      const badgeData = (await badgesResp.json()) as Badge[];
-      setBadges(badgeData || []);
+      // TEMP MOCK
+      setBadges(mockBadges);
     } catch (e: any) {
       setError(e?.message ?? 'Ett okänt fel inträffade');
       setBadges([]);
     } finally {
       setLoading(false);
     }
-  }, [fetchApi, fetchQuestsLite]);
+  }, [fetchQuestsLite]);
 
   useEffect(() => {
     fetchBadges();
   }, [fetchBadges]);
 
   // ---------- Criteria helpers ----------
-  const addCriteriaRow = (setter: (updater: any) => void) => {
+  const addCriteriaRow = (
+    setter: React.Dispatch<React.SetStateAction<BadgeFormData>>,
+  ) => {
     setter((prev: BadgeFormData) => ({
       ...prev,
-      criterias: [...prev.criterias, { quest_id: '', target_count: '' }],
+      criterias: [...prev.criterias, { quest_id: '', target_count: '1' }],
     }));
   };
 
-  const removeCriteriaRow = (setter: (updater: any) => void, idx: number) => {
+  const removeCriteriaRow = (
+    setter: React.Dispatch<React.SetStateAction<BadgeFormData>>,
+    idx: number,
+  ) => {
     setter((prev: BadgeFormData) => {
       if (prev.criterias.length <= 1) return prev;
+
       return {
         ...prev,
         criterias: prev.criterias.filter((_, i) => i !== idx),
@@ -175,7 +194,7 @@ export const BadgesAdminPage = ({
   };
 
   const updateCriteriaField = (
-    setter: (updater: any) => void,
+    setter: React.Dispatch<React.SetStateAction<BadgeFormData>>,
     idx: number,
     field: 'quest_id' | 'target_count',
     value: string,
@@ -221,7 +240,8 @@ export const BadgesAdminPage = ({
     setCreateForm({
       title: '',
       description: '',
-      criterias: [{ quest_id: '', target_count: '' }],
+      // CHANGE 5: bättre default-värde
+      criterias: [{ quest_id: '', target_count: '1' }],
     });
     setCreateOpen(true);
   };
@@ -244,7 +264,8 @@ export const BadgesAdminPage = ({
     setCreateError(null);
 
     try {
-      const body = {
+      const newBadge: Badge = {
+        id: String(Date.now()),
         title: createForm.title.trim(),
         description: createForm.description.trim(),
         criterias: createForm.criterias.map(c => ({
@@ -253,21 +274,15 @@ export const BadgesAdminPage = ({
         })),
       };
 
-      const resp = await fetchApi.fetch(`${API_BASE}/badges`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (!resp.ok) {
-        const errJson = await resp.json().catch(() => ({}));
-        throw new Error(
-          errJson.message || `Fel: ${resp.status} ${resp.statusText}`,
-        );
-      }
+      // CHANGE 6: Temporär lokal create istället för POST /badges
+      setBadges(prev => [newBadge, ...prev]);
 
       setCreateOpen(false);
-      await fetchBadges();
+      setCreateForm({
+        title: '',
+        description: '',
+        criterias: [{ quest_id: '', target_count: '1' }],
+      });
     } catch (e: any) {
       setCreateError(e?.message ?? 'Ett okänt fel inträffade');
     } finally {
@@ -292,7 +307,7 @@ export const BadgesAdminPage = ({
       description: badge.description ?? '',
       criterias: criterias.length
         ? criterias
-        : [{ quest_id: '', target_count: '' }],
+        : [{ quest_id: '', target_count: '1' }],
     });
 
     setEditOpen(true);
@@ -319,7 +334,8 @@ export const BadgesAdminPage = ({
     setEditError(null);
 
     try {
-      const body = {
+      const updatedBadge: Badge = {
+        ...selectedBadge,
         title: editForm.title.trim(),
         description: editForm.description.trim(),
         criterias: editForm.criterias.map(c => ({
@@ -328,24 +344,15 @@ export const BadgesAdminPage = ({
         })),
       };
 
-      const resp = await fetchApi.fetch(
-        `${API_BASE}/badges/${selectedBadge.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
+      // CHANGE 7: Temporär lokal edit istället för PATCH /badges/:id
+      setBadges(prev =>
+        prev.map(badge =>
+          badge.id === selectedBadge.id ? updatedBadge : badge,
+        ),
       );
 
-      if (!resp.ok) {
-        const errJson = await resp.json().catch(() => ({}));
-        throw new Error(
-          errJson.message || `Fel: ${resp.status} ${resp.statusText}`,
-        );
-      }
-
       setEditOpen(false);
-      await fetchBadges();
+      setSelectedBadge(null);
     } catch (e: any) {
       setEditError(e?.message ?? 'Ett okänt fel inträffade');
     } finally {
@@ -375,22 +382,11 @@ export const BadgesAdminPage = ({
     setDeleteError(null);
 
     try {
-      const resp = await fetchApi.fetch(
-        `${API_BASE}/badges/${badgeToDelete.id}`,
-        {
-          method: 'DELETE',
-        },
-      );
-
-      if (!resp.ok) {
-        const errJson = await resp.json().catch(() => ({}));
-        throw new Error(
-          errJson.message || `Fel: ${resp.status} ${resp.statusText}`,
-        );
-      }
+      // CHANGE 8: Temporär lokal delete istället för DELETE /badges/:id
+      setBadges(prev => prev.filter(badge => badge.id !== badgeToDelete.id));
 
       setDeleteOpen(false);
-      await fetchBadges();
+      setBadgeToDelete(null);
     } catch (e: any) {
       setDeleteError(e?.message ?? 'Ett okänt fel inträffade');
     } finally {
