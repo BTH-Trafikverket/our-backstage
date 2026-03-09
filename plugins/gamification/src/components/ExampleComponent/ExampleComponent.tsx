@@ -9,6 +9,7 @@ import {
 } from '@backstage/core-components';
 import { Link, Routes, Route } from 'react-router-dom';
 import { QuestsAdminPage } from '../QuestsAdminPage';
+import { BadgesAdminPage } from '../BadgesAdminPage';
 import { useApi, identityApiRef } from '@backstage/core-plugin-api';
 
 export const ExampleComponent = () => {
@@ -33,12 +34,15 @@ export const ExampleComponent = () => {
     checkAdminRole();
   }, [identityApi]);
 
+  const effectiveIsAdmin = demoMode ? !isAdmin : isAdmin;
+
   return (
     <Page themeId="tool">
       <Header title="Welcome to gamification!" subtitle="Optional subtitle">
         <HeaderLabel label="Owner" value="Team X" />
         <HeaderLabel label="Lifecycle" value="Alpha" />
       </Header>
+
       <Content>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={3}>
@@ -49,6 +53,7 @@ export const ExampleComponent = () => {
                     <ListItem button component={Link} to="/gamification">
                       <ListItemText primary="Quests" />
                     </ListItem>
+
                     <ListItem disabled>
                       <ListItemText
                         primary="Leaderboard"
@@ -57,13 +62,13 @@ export const ExampleComponent = () => {
                         }}
                       />
                     </ListItem>
-                    <ListItem disabled>
-                      <ListItemText
-                        primary="Badges"
-                        primaryTypographyProps={{
-                          style: { textDecoration: 'line-through' },
-                        }}
-                      />
+
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/backstage-plugin-gamification/badges"
+                    >
+                      <ListItemText primary="Badges" />
                     </ListItem>
                   </List>
                 </InfoCard>
@@ -77,7 +82,18 @@ export const ExampleComponent = () => {
                 path="/"
                 element={
                   <QuestsAdminPage
-                    isAdmin={demoMode ? !isAdmin : isAdmin}
+                    isAdmin={effectiveIsAdmin}
+                    onToggleDemo={() => setDemoMode(prev => !prev)}
+                    isDemoMode={demoMode}
+                  />
+                }
+              />
+
+              <Route
+                path="/badges"
+                element={
+                  <BadgesAdminPage
+                    isAdmin={effectiveIsAdmin}
                     onToggleDemo={() => setDemoMode(prev => !prev)}
                     isDemoMode={demoMode}
                   />

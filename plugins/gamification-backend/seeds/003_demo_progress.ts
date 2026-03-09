@@ -18,7 +18,7 @@ export const seed003DemoEvents: Seed = {
     const linus = 'user:default/linusandersson02';
     const zoe = 'user:default/zoebalowi';
 
-    const mara = 'user:default/maram227';
+    const mara = 'user:default/Maram277';
     const skz = 'user:default/skz911';
     const hahh = 'user:default/hahh24';
 
