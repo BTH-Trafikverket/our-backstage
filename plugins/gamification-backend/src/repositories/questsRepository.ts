@@ -80,8 +80,14 @@ export class QuestsRepository {
     return rows[0];
   }
 
-  async getQuests(): Promise<QuestRow[]> {
-    return await this.db<QuestRow>('quests').select('*');
+  async getQuests(searchTitle?: string): Promise<QuestRow[]> {
+    let query = this.db<QuestRow>('quests');
+
+    if (searchTitle) {
+      query = query.where('title', 'ilike', `%${searchTitle}%`);
+    }
+
+    return await query.select('*');
   }
 
   async getQuestById(id: string): Promise<QuestRow | undefined> {
@@ -90,16 +96,24 @@ export class QuestsRepository {
 
   async getQuestsWithProgress(params: {
     user_ref: string;
+    searchTitle?: string;
   }): Promise<QuestWithProgressRow[]> {
-    const { user_ref } = params;
+    const { user_ref, searchTitle } = params;
     const db = this.db;
 
-    return await db('quests')
-      .leftJoin('quest_progress', (join: any) => {
-        join
-          .on('quest_progress.quest_id', '=', 'quests.id')
-          .andOn('quest_progress.user_ref', '=', db.raw('?', [user_ref]));
-      })
+    let query = db('quests').leftJoin('quest_progress', function () {
+      this.on('quest_progress.quest_id', '=', 'quests.id').andOn(
+        'quest_progress.user_ref',
+        '=',
+        db.raw('?', [user_ref]),
+      );
+    });
+
+    if (searchTitle) {
+      query = query.where('quests.title', 'ilike', `%${searchTitle}%`);
+    }
+
+    return await query
       .select(
         'quests.id',
         'quests.title',

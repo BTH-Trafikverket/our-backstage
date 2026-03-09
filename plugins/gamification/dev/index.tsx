@@ -9,6 +9,6 @@ createDevApp()
   .addPage({
     element: <BackstagePluginGamificationPage />,
     title: 'Root Page',
-    path: '/backstage-plugin-gamification',
+    path: '/gamification',
   })
   .render();

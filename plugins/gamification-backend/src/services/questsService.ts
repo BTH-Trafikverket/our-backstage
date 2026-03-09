@@ -42,8 +42,8 @@ export class QuestsService {
     });
   }
 
-  async getQuests(_opts: QuestServiceOpts) {
-    return this.questsRepo.getQuests();
+  async getQuests(searchTitle?: string, _opts?: QuestServiceOpts) {
+    return this.questsRepo.getQuests(searchTitle);
   }
 
   async getQuestById(id: string, _opts: QuestServiceOpts) {
@@ -176,8 +176,15 @@ export class QuestsService {
     throw new NotFoundError('Actor could not be mapped to a Backstage user');
   }
 
-  async getQuestsWithProgress(userRef: string, _opts: QuestServiceOpts) {
-    return this.questsRepo.getQuestsWithProgress({ user_ref: userRef });
+  async getQuestsWithProgress(
+    userRef: string,
+    _opts: QuestServiceOpts,
+    searchTitle?: string,
+  ) {
+    return this.questsRepo.getQuestsWithProgress({
+      user_ref: userRef,
+      searchTitle,
+    });
   }
 
   async handleQuestEvent(params: {

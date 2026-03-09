@@ -49,6 +49,7 @@ export function createRouter({
     '/quests',
     QuestsRouter({
       httpAuth,
+      userInfo,
       questsService,
       config,
     }),

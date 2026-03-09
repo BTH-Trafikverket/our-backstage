@@ -6,7 +6,7 @@ import {
 import { rootRouteRef, xpRouteRef } from './routes';
 
 export const backstagePluginGamificationPlugin = createPlugin({
-  id: 'backstage-plugin-gamification',
+  id: 'gamification',
   routes: {
     root: rootRouteRef,
     xp: xpRouteRef,

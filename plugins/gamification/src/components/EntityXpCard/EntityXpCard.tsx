@@ -57,9 +57,7 @@ export const EntityXpCard = (props: {
         setLoading(true);
         setError(undefined);
 
-        const baseUrl = await discoveryApi.getBaseUrl(
-          'backstage-backend-gamification',
-        );
+        const baseUrl = await discoveryApi.getBaseUrl('gamification');
 
         const url = new URL(`${baseUrl}/xp`);
         url.searchParams.set('userRef', userRef);

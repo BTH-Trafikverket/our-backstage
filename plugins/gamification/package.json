@@ -1,5 +1,5 @@
 {
-  "name": "@internal/backstage-plugin-backstage-plugin-gamification",
+  "name": "@internal/backstage-plugin-gamification",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "private": true,
@@ -12,7 +12,7 @@
   },
   "backstage": {
     "role": "frontend-plugin",
-    "pluginId": "backstage-plugin-gamification"
+    "pluginId": "gamification"
   },
   "sideEffects": false,
   "scripts": {
