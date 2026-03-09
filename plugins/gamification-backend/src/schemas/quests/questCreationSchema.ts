@@ -7,10 +7,11 @@ export const questCreationSchema = z.object({
   title: z.string().min(1),
   description: z.string().default(''),
   /**
-   * interval is only required for REPEATABLE quests.
-   * For ONE_TIME quests it is forced to 1 by the service.
+   * How many completions are required before XP is awarded.
+   * For ONE_TIME quests this represents the total completions allowed (e.g. 3 means
+   * the quest can be completed up to 3 times, then is permanently done for that user).
    */
-  interval: z.number().int().positive().default(1),
+  target_count: z.number().int().positive().default(1),
   xp_reward: z.number().int().positive(),
   entityRef: z.string().optional(),
   completion_policy: z.enum(COMPLETION_POLICIES).default('REPEATABLE'),

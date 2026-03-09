@@ -46,7 +46,7 @@ type Quest = {
   id: string;
   title: string;
   description: string;
-  interval: number;
+  target_count: number;
   xp_reward: number;
   completion_policy: 'ONE_TIME' | 'REPEATABLE';
   cooldown_days: number | null;
@@ -55,14 +55,14 @@ type Quest = {
 
   user_ref: string | null;
   completion_count: number;
-  progress_in_interval: number;
+  progress_toward_target: number;
   next_milestone: number;
 };
 
 interface CreateQuestFormData {
   title: string;
   description: string;
-  interval: string;
+  target_count: string;
   xp_reward: string;
   /** 'ONE_TIME' | 'REPEATABLE' – kept as string for form input compatibility */
   completion_policy: string;
@@ -115,7 +115,7 @@ export const QuestsAdminPage = ({
   const [formData, setFormData] = useState<CreateQuestFormData>({
     title: '',
     description: '',
-    interval: '',
+    target_count: '',
     xp_reward: '',
     completion_policy: 'REPEATABLE',
     cooldown_days: '',
@@ -129,7 +129,7 @@ export const QuestsAdminPage = ({
   const [editFormData, setEditFormData] = useState<CreateQuestFormData>({
     title: '',
     description: '',
-    interval: '',
+    target_count: '',
     xp_reward: '',
     completion_policy: 'REPEATABLE',
     cooldown_days: '',
@@ -153,13 +153,15 @@ export const QuestsAdminPage = ({
       const response = await fetchApi.fetch(url);
 
       if (!response.ok) {
-        throw new Error(`Fel: ${response.status} ${response.statusText}`);
+        throw new Error(`Error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
       setQuests(data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ett okänt fel inträffade');
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
       setQuests([]);
     } finally {
       setLoading(false);
@@ -179,21 +181,21 @@ export const QuestsAdminPage = ({
   };
 
   const handleCreateQuest = async () => {
-    // Validering
+    // Validation
     if (!formData.title.trim()) {
-      setCreateError('Title är obligatorisk');
+      setCreateError('Title is required');
       return;
     }
     if (!formData.description.trim()) {
-      setCreateError('Description är obligatorisk');
+      setCreateError('Description is required');
       return;
     }
-    if (!formData.interval || parseInt(formData.interval, 10) < 1) {
-      setCreateError('Interval måste vara minst 1');
+    if (!formData.target_count || parseInt(formData.target_count, 10) < 1) {
+      setCreateError('Target count must be at least 1');
       return;
     }
     if (!formData.xp_reward || parseInt(formData.xp_reward, 10) < 1) {
-      setCreateError('XP Reward måste vara minst 1');
+      setCreateError('XP Reward must be at least 1');
       return;
     }
 
@@ -211,7 +213,7 @@ export const QuestsAdminPage = ({
           description: formData.description,
           xp_reward: parseInt(formData.xp_reward, 10),
           completion_policy: formData.completion_policy,
-          interval: parseInt(formData.interval, 10),
+          target_count: parseInt(formData.target_count, 10),
           ...(formData.completion_policy === 'REPEATABLE' && {
             cooldown_days: formData.cooldown_days
               ? parseInt(formData.cooldown_days, 10)
@@ -222,7 +224,8 @@ export const QuestsAdminPage = ({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `Fel: ${response.status} ${response.statusText}`,
+          errorData.message ||
+            `Error: ${response.status} ${response.statusText}`,
         );
       }
 
@@ -230,7 +233,7 @@ export const QuestsAdminPage = ({
       setFormData({
         title: '',
         description: '',
-        interval: '',
+        target_count: '',
         xp_reward: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
@@ -241,7 +244,7 @@ export const QuestsAdminPage = ({
       await fetchQuests();
     } catch (err) {
       setCreateError(
-        err instanceof Error ? err.message : 'Ett okänt fel inträffade',
+        err instanceof Error ? err.message : 'An unknown error occurred',
       );
     } finally {
       setCreateLoading(false);
@@ -255,7 +258,7 @@ export const QuestsAdminPage = ({
       setFormData({
         title: '',
         description: '',
-        interval: '',
+        target_count: '',
         xp_reward: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
@@ -269,7 +272,7 @@ export const QuestsAdminPage = ({
     setEditFormData({
       title: quest.title,
       description: quest.description,
-      interval: quest.interval.toString(),
+      target_count: quest.target_count.toString(),
       xp_reward: quest.xp_reward.toString(),
       completion_policy: quest.completion_policy ?? 'REPEATABLE',
       cooldown_days: quest.cooldown_days?.toString() ?? '',
@@ -286,7 +289,7 @@ export const QuestsAdminPage = ({
       setEditFormData({
         title: '',
         description: '',
-        interval: '',
+        target_count: '',
         xp_reward: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
@@ -305,21 +308,24 @@ export const QuestsAdminPage = ({
   const handleSaveEdit = async () => {
     if (!selectedQuest) return;
 
-    // Validering
+    // Validation
     if (!editFormData.title.trim()) {
-      setEditError('Title är obligatorisk');
+      setEditError('Title is required');
       return;
     }
     if (!editFormData.description.trim()) {
-      setEditError('Description är obligatorisk');
+      setEditError('Description is required');
       return;
     }
-    if (!editFormData.interval || parseInt(editFormData.interval, 10) < 1) {
-      setEditError('Interval måste vara minst 1');
+    if (
+      !editFormData.target_count ||
+      parseInt(editFormData.target_count, 10) < 1
+    ) {
+      setEditError('Target count must be at least 1');
       return;
     }
     if (!editFormData.xp_reward || parseInt(editFormData.xp_reward, 10) < 1) {
-      setEditError('XP Reward måste vara minst 1');
+      setEditError('XP Reward must be at least 1');
       return;
     }
 
@@ -337,7 +343,7 @@ export const QuestsAdminPage = ({
           description: editFormData.description,
           xp_reward: parseInt(editFormData.xp_reward, 10),
           completion_policy: editFormData.completion_policy,
-          interval: parseInt(editFormData.interval, 10),
+          target_count: parseInt(editFormData.target_count, 10),
           ...(editFormData.completion_policy === 'REPEATABLE' && {
             cooldown_days: editFormData.cooldown_days
               ? parseInt(editFormData.cooldown_days, 10)
@@ -348,7 +354,8 @@ export const QuestsAdminPage = ({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `Fel: ${response.status} ${response.statusText}`,
+          errorData.message ||
+            `Error: ${response.status} ${response.statusText}`,
         );
       }
 
@@ -357,7 +364,7 @@ export const QuestsAdminPage = ({
       await fetchQuests();
     } catch (err) {
       setEditError(
-        err instanceof Error ? err.message : 'Ett okänt fel inträffade',
+        err instanceof Error ? err.message : 'An unknown error occurred',
       );
     } finally {
       setEditLoading(false);
@@ -393,7 +400,8 @@ export const QuestsAdminPage = ({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `Fel: ${response.status} ${response.statusText}`,
+          errorData.message ||
+            `Error: ${response.status} ${response.statusText}`,
         );
       }
 
@@ -402,7 +410,7 @@ export const QuestsAdminPage = ({
       await fetchQuests();
     } catch (err) {
       setDeleteError(
-        err instanceof Error ? err.message : 'Ett okänt fel inträffade',
+        err instanceof Error ? err.message : 'An unknown error occurred',
       );
     } finally {
       setDeleteLoading(false);
@@ -411,7 +419,10 @@ export const QuestsAdminPage = ({
 
   const adminQuests = quests;
   const getQuestProgress = (quest: Quest) => {
-    return { current: quest.progress_in_interval, target: quest.interval };
+    return {
+      current: quest.progress_toward_target,
+      target: quest.target_count,
+    };
   };
 
   return (
@@ -477,12 +488,12 @@ export const QuestsAdminPage = ({
           </FormControl>
           <TextField
             fullWidth
-            label="Interval"
+            label="Target Count"
             margin="dense"
             type="number"
             inputProps={{ min: 1 }}
-            value={formData.interval}
-            onChange={e => handleInputChange('interval', e.target.value)}
+            value={formData.target_count}
+            onChange={e => handleInputChange('target_count', e.target.value)}
             disabled={createLoading}
             helperText="How many completions before XP is awarded (1 = every time)."
           />
@@ -523,7 +534,7 @@ export const QuestsAdminPage = ({
             {createLoading ? (
               <>
                 <CircularProgress size={16} style={{ marginRight: 8 }} />
-                Skapar...
+                Creating...
               </>
             ) : (
               'Create Quest'
@@ -593,12 +604,14 @@ export const QuestsAdminPage = ({
           </FormControl>
           <TextField
             fullWidth
-            label="Interval"
+            label="Target Count"
             margin="dense"
             type="number"
             inputProps={{ min: 1 }}
-            value={editFormData.interval}
-            onChange={e => handleEditInputChange('interval', e.target.value)}
+            value={editFormData.target_count}
+            onChange={e =>
+              handleEditInputChange('target_count', e.target.value)
+            }
             disabled={editLoading}
           />
           {editFormData.completion_policy === 'REPEATABLE' && (
@@ -640,7 +653,7 @@ export const QuestsAdminPage = ({
             {editLoading ? (
               <>
                 <CircularProgress size={16} style={{ marginRight: 8 }} />
-                Sparar...
+                Saving...
               </>
             ) : (
               'Save Changes'
@@ -681,7 +694,7 @@ export const QuestsAdminPage = ({
             {deleteLoading ? (
               <>
                 <CircularProgress size={16} style={{ marginRight: 8 }} />
-                Tar bort...
+                Deleting...
               </>
             ) : (
               'Delete'
@@ -695,7 +708,7 @@ export const QuestsAdminPage = ({
           <InfoCard>
             <ContentHeader title="Quests">
               <SupportButton>
-                Skapa och hantera quests (admin) eller se tillgangliga quests
+                Create and manage quests (admin) or view available quests
                 (user).
               </SupportButton>
               {isAdmin && (
@@ -716,12 +729,12 @@ export const QuestsAdminPage = ({
                   onClick={onToggleDemo}
                   size="small"
                 >
-                  {isDemoMode ? 'Demo: Visa motsatt vy' : 'Aktivera demo-läge'}
+                  {isDemoMode ? 'Demo: Switch view' : 'Enable demo mode'}
                 </Button>
               )}
             </ContentHeader>
             <TextField
-              placeholder="Sök quest..."
+              placeholder="Search quests..."
               variant="outlined"
               size="small"
               fullWidth
@@ -733,7 +746,7 @@ export const QuestsAdminPage = ({
               <div style={{ textAlign: 'center', padding: 20 }}>
                 <CircularProgress />
                 <Typography variant="body2" style={{ marginTop: 8 }}>
-                  Laddar quests...
+                  Loading quests...
                 </Typography>
               </div>
             )}
@@ -744,10 +757,10 @@ export const QuestsAdminPage = ({
             )}
             {!loading && !error && quests.length === 0 && (
               <Typography variant="body2">
-                Inga quests hittades.{' '}
+                No quests found.{' '}
                 {search
-                  ? 'Försök en annan sökning.'
-                  : 'Skapa en ny quest via admin-panelen.'}
+                  ? 'Try a different search.'
+                  : 'Create a new quest from the admin panel.'}
               </Typography>
             )}
             {!loading && !error && quests.length > 0 && (
@@ -778,7 +791,7 @@ export const QuestsAdminPage = ({
                           const progress = getQuestProgress(quest);
                           const isCompleted =
                             quest.completion_policy === 'ONE_TIME' &&
-                            quest.completion_count >= quest.interval;
+                            quest.completion_count >= quest.target_count;
                           const percent =
                             (progress.current / progress.target) * 100;
                           return (
@@ -873,7 +886,7 @@ export const QuestsAdminPage = ({
                             const progress = getQuestProgress(quest);
                             const isCompleted =
                               quest.completion_policy === 'ONE_TIME' &&
-                              quest.completion_count >= quest.interval;
+                              quest.completion_count >= quest.target_count;
                             const percent =
                               (progress.current / progress.target) * 100;
                             return (

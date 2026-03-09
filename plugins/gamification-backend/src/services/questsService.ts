@@ -29,13 +29,13 @@ export class QuestsService {
 
   async createQuest(data: QuestCreationInput, _opts: QuestServiceOpts) {
     const policy = data.completion_policy ?? 'REPEATABLE';
-    const interval = data.interval;
+    const target_count = data.target_count;
     const cooldown = policy === 'ONE_TIME' ? null : data.cooldown_days ?? null;
 
     return this.questsRepo.createQuest({
       title: data.title,
       description: data.description,
-      interval,
+      target_count,
       xp_reward: data.xp_reward,
       completion_policy: policy,
       cooldown_days: cooldown,
@@ -87,7 +87,7 @@ export class QuestsService {
         userRef,
         quest.id,
       );
-      if (progress && progress.completion_count >= quest.interval) {
+      if (progress && progress.completion_count >= quest.target_count) {
         throw new ConflictError(
           `Quest "${quest.title}" can only be completed once and has already been completed by this user.`,
         );
@@ -226,7 +226,20 @@ export class QuestsService {
       throw new NotFoundError(`Quest '${trigger.quest_id}' not found`);
     }
 
-    await this.enforceCompletionPolicy(quest, userRef);
+    try {
+      await this.enforceCompletionPolicy(quest, userRef);
+    } catch (err: any) {
+      if (err instanceof ConflictError) {
+        return {
+          duplicate: false,
+          blocked: true,
+          reason: err.message,
+          userRef,
+          questId: trigger.quest_id,
+        };
+      }
+      throw err;
+    }
 
     const progress = await this.questsRepo.incrementQuestProgress({
       user_ref: userRef,
@@ -236,6 +249,7 @@ export class QuestsService {
 
     return {
       duplicate: false,
+      blocked: false,
       userRef,
       questId: trigger.quest_id,
       completionCount: progress.completion_count,
