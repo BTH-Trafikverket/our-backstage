@@ -153,13 +153,15 @@ export const QuestsAdminPage = ({
       const response = await fetchApi.fetch(url);
 
       if (!response.ok) {
-        throw new Error(`Fel: ${response.status} ${response.statusText}`);
+        throw new Error(`Error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
       setQuests(data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ett okänt fel inträffade');
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
       setQuests([]);
     } finally {
       setLoading(false);
@@ -179,13 +181,13 @@ export const QuestsAdminPage = ({
   };
 
   const handleCreateQuest = async () => {
-    // Validering
+    // Validation
     if (!formData.title.trim()) {
-      setCreateError('Title är obligatorisk');
+      setCreateError('Title is required');
       return;
     }
     if (!formData.description.trim()) {
-      setCreateError('Description är obligatorisk');
+      setCreateError('Description is required');
       return;
     }
     if (!formData.target_count || parseInt(formData.target_count, 10) < 1) {
@@ -193,7 +195,7 @@ export const QuestsAdminPage = ({
       return;
     }
     if (!formData.xp_reward || parseInt(formData.xp_reward, 10) < 1) {
-      setCreateError('XP Reward måste vara minst 1');
+      setCreateError('XP Reward must be at least 1');
       return;
     }
 
@@ -222,7 +224,8 @@ export const QuestsAdminPage = ({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `Fel: ${response.status} ${response.statusText}`,
+          errorData.message ||
+            `Error: ${response.status} ${response.statusText}`,
         );
       }
 
@@ -241,7 +244,7 @@ export const QuestsAdminPage = ({
       await fetchQuests();
     } catch (err) {
       setCreateError(
-        err instanceof Error ? err.message : 'Ett okänt fel inträffade',
+        err instanceof Error ? err.message : 'An unknown error occurred',
       );
     } finally {
       setCreateLoading(false);
@@ -305,13 +308,13 @@ export const QuestsAdminPage = ({
   const handleSaveEdit = async () => {
     if (!selectedQuest) return;
 
-    // Validering
+    // Validation
     if (!editFormData.title.trim()) {
-      setEditError('Title är obligatorisk');
+      setEditError('Title is required');
       return;
     }
     if (!editFormData.description.trim()) {
-      setEditError('Description är obligatorisk');
+      setEditError('Description is required');
       return;
     }
     if (
@@ -322,7 +325,7 @@ export const QuestsAdminPage = ({
       return;
     }
     if (!editFormData.xp_reward || parseInt(editFormData.xp_reward, 10) < 1) {
-      setEditError('XP Reward måste vara minst 1');
+      setEditError('XP Reward must be at least 1');
       return;
     }
 
@@ -351,7 +354,8 @@ export const QuestsAdminPage = ({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `Fel: ${response.status} ${response.statusText}`,
+          errorData.message ||
+            `Error: ${response.status} ${response.statusText}`,
         );
       }
 
@@ -360,7 +364,7 @@ export const QuestsAdminPage = ({
       await fetchQuests();
     } catch (err) {
       setEditError(
-        err instanceof Error ? err.message : 'Ett okänt fel inträffade',
+        err instanceof Error ? err.message : 'An unknown error occurred',
       );
     } finally {
       setEditLoading(false);
@@ -396,7 +400,8 @@ export const QuestsAdminPage = ({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `Fel: ${response.status} ${response.statusText}`,
+          errorData.message ||
+            `Error: ${response.status} ${response.statusText}`,
         );
       }
 
@@ -405,7 +410,7 @@ export const QuestsAdminPage = ({
       await fetchQuests();
     } catch (err) {
       setDeleteError(
-        err instanceof Error ? err.message : 'Ett okänt fel inträffade',
+        err instanceof Error ? err.message : 'An unknown error occurred',
       );
     } finally {
       setDeleteLoading(false);
@@ -529,7 +534,7 @@ export const QuestsAdminPage = ({
             {createLoading ? (
               <>
                 <CircularProgress size={16} style={{ marginRight: 8 }} />
-                Skapar...
+                Creating...
               </>
             ) : (
               'Create Quest'
@@ -648,7 +653,7 @@ export const QuestsAdminPage = ({
             {editLoading ? (
               <>
                 <CircularProgress size={16} style={{ marginRight: 8 }} />
-                Sparar...
+                Saving...
               </>
             ) : (
               'Save Changes'
@@ -689,7 +694,7 @@ export const QuestsAdminPage = ({
             {deleteLoading ? (
               <>
                 <CircularProgress size={16} style={{ marginRight: 8 }} />
-                Tar bort...
+                Deleting...
               </>
             ) : (
               'Delete'
@@ -703,7 +708,7 @@ export const QuestsAdminPage = ({
           <InfoCard>
             <ContentHeader title="Quests">
               <SupportButton>
-                Skapa och hantera quests (admin) eller se tillgangliga quests
+                Create and manage quests (admin) or view available quests
                 (user).
               </SupportButton>
               {isAdmin && (
@@ -724,12 +729,12 @@ export const QuestsAdminPage = ({
                   onClick={onToggleDemo}
                   size="small"
                 >
-                  {isDemoMode ? 'Demo: Visa motsatt vy' : 'Aktivera demo-läge'}
+                  {isDemoMode ? 'Demo: Switch view' : 'Enable demo mode'}
                 </Button>
               )}
             </ContentHeader>
             <TextField
-              placeholder="Sök quest..."
+              placeholder="Search quests..."
               variant="outlined"
               size="small"
               fullWidth
@@ -741,7 +746,7 @@ export const QuestsAdminPage = ({
               <div style={{ textAlign: 'center', padding: 20 }}>
                 <CircularProgress />
                 <Typography variant="body2" style={{ marginTop: 8 }}>
-                  Laddar quests...
+                  Loading quests...
                 </Typography>
               </div>
             )}
@@ -752,10 +757,10 @@ export const QuestsAdminPage = ({
             )}
             {!loading && !error && quests.length === 0 && (
               <Typography variant="body2">
-                Inga quests hittades.{' '}
+                No quests found.{' '}
                 {search
-                  ? 'Försök en annan sökning.'
-                  : 'Skapa en ny quest via admin-panelen.'}
+                  ? 'Try a different search.'
+                  : 'Create a new quest from the admin panel.'}
               </Typography>
             )}
             {!loading && !error && quests.length > 0 && (

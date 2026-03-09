@@ -253,7 +253,7 @@ describe('QuestsRepository Integration Tests', () => {
       await repository.createQuest({
         title: 'Timestamp Check',
         description: 'Checking timestamps on retrieval',
-        interval: 1,
+        target_count: 1,
         xp_reward: 25,
       });
 
@@ -285,7 +285,7 @@ describe('QuestsRepository Integration Tests', () => {
       await repository.createQuest({
         title: 'Full CRUD Test',
         description: 'Testing complete CRUD operations',
-        interval: 10,
+        target_count: 10,
         xp_reward: 1000,
       });
 
@@ -313,7 +313,7 @@ describe('QuestsRepository Integration Tests', () => {
         repository.createQuest({
           title: `Concurrent Quest ${i + 1}`,
           description: `Quest created concurrently ${i + 1}`,
-          interval: i + 1,
+          target_count: i + 1,
           xp_reward: (i + 1) * 10,
         }),
       );
@@ -335,7 +335,7 @@ describe('QuestsRepository Integration Tests', () => {
       await repository.createQuest({
         title: 'Original Title',
         description: 'Original description',
-        interval: 5,
+        target_count: 5,
         xp_reward: 50,
       });
 
@@ -363,7 +363,7 @@ describe('QuestsRepository Integration Tests', () => {
       await repository.createQuest({
         title: 'To Be Deleted',
         description: 'This quest will be deleted',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
       });
 
