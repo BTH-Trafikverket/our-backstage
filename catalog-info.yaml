@@ -10,5 +10,5 @@ spec:
   type: website
   owner: user:default/LinusAndersson02
   lifecycle: experimental
-  providesApis:
-    - gamification-api
+  consumesApis:
+    - api:default/gamification-api

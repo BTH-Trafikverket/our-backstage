@@ -95,10 +95,6 @@ catalog:
       rules:
         - allow: [Component]
     - type: file
-      target: ./catalog/apis/gamification-api.yaml
-      rules:
-        - allow: [API]
-    - type: file
       target: ./catalog/users/alice.yaml
       rules:
         - allow: [User]

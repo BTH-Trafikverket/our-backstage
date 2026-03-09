@@ -8,3 +8,4 @@ spec:
   targets:
     - ../../catalog-info.yaml
     - ../../catalog/apis/gamification-api.yaml
+    - ../../catalog/gamification-backend.yaml
