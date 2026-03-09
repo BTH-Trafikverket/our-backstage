@@ -6,6 +6,7 @@ export type QuestRow = {
   id: string;
   title: string;
   description: string;
+  entity_ref: string | null;
   interval: number;
   xp_reward: number;
   completion_policy: CompletionPolicy;
@@ -17,6 +18,7 @@ export type QuestRow = {
 export type CreateQuestRow = {
   title: string;
   description: string;
+  entity_ref?: string | null;
   interval: number;
   xp_reward: number;
   /** Defaults to 'REPEATABLE' if not provided */
@@ -58,6 +60,9 @@ export type QuestWithProgressRow = QuestRow & {
   next_milestone: number;
 };
 
+export type QuestAudienceFilter = 'all' | 'individual' | 'team';
+export type QuestStatusFilter = 'active' | 'completed' | 'all';
+
 export class QuestsRepository {
   private readonly db: Knex;
 
@@ -70,6 +75,7 @@ export class QuestsRepository {
       .insert({
         title: data.title,
         description: data.description,
+        entity_ref: data.entity_ref ?? null,
         interval: data.interval,
         xp_reward: data.xp_reward,
         completion_policy: data.completion_policy ?? 'REPEATABLE',
@@ -96,10 +102,30 @@ export class QuestsRepository {
 
   async getQuestsWithProgress(params: {
     user_ref: string;
+    ownership_refs: string[];
     searchTitle?: string;
+    audience?: QuestAudienceFilter;
+    status?: QuestStatusFilter;
+    team_ref?: string;
   }): Promise<QuestWithProgressRow[]> {
-    const { user_ref, searchTitle } = params;
+    const {
+      user_ref,
+      ownership_refs,
+      searchTitle,
+      audience = 'all',
+      status = 'active',
+      team_ref,
+    } = params;
     const db = this.db;
+    const userRefLower = user_ref.toLocaleLowerCase('en-US');
+    const ownershipLower = ownership_refs.map(ref =>
+      ref.toLocaleLowerCase('en-US'),
+    );
+    const teamRefsLower = ownershipLower.filter(ref =>
+      ref.startsWith('group:'),
+    );
+
+    const completedCondition = `(quests.completion_policy = 'ONE_TIME' AND COALESCE(quest_progress.completion_count, 0) >= quests.interval)`;
 
     let query = db('quests').leftJoin('quest_progress', function () {
       this.on('quest_progress.quest_id', '=', 'quests.id').andOn(
@@ -109,8 +135,46 @@ export class QuestsRepository {
       );
     });
 
+    query = query.where(function () {
+      this.whereNull('quests.entity_ref').orWhereRaw(
+        'LOWER(quests.entity_ref) = ?',
+        [userRefLower],
+      );
+
+      if (teamRefsLower.length > 0) {
+        this.orWhere(function () {
+          for (const teamRef of teamRefsLower) {
+            this.orWhereRaw('LOWER(quests.entity_ref) = ?', [teamRef]);
+          }
+        });
+      }
+    });
+
     if (searchTitle) {
       query = query.where('quests.title', 'ilike', `%${searchTitle}%`);
+    }
+
+    if (audience === 'individual') {
+      query = query.whereRaw('LOWER(quests.entity_ref) = ?', [userRefLower]);
+    } else if (audience === 'team') {
+      const teamRefLower = team_ref?.toLocaleLowerCase('en-US');
+      if (teamRefLower) {
+        query = query.whereRaw('LOWER(quests.entity_ref) = ?', [teamRefLower]);
+      } else if (teamRefsLower.length > 0) {
+        query = query.where(function () {
+          for (const teamRef of teamRefsLower) {
+            this.orWhereRaw('LOWER(quests.entity_ref) = ?', [teamRef]);
+          }
+        });
+      } else {
+        query = query.whereRaw('1 = 0');
+      }
+    }
+
+    if (status === 'completed') {
+      query = query.whereRaw(completedCondition);
+    } else if (status === 'active') {
+      query = query.whereRaw(`NOT (${completedCondition})`);
     }
 
     return await query
@@ -118,6 +182,7 @@ export class QuestsRepository {
         'quests.id',
         'quests.title',
         'quests.description',
+        'quests.entity_ref',
         'quests.interval',
         'quests.xp_reward',
         'quests.completion_policy',
@@ -158,6 +223,7 @@ export class QuestsRepository {
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined)
       updateData.description = data.description;
+    if (data.entityRef !== undefined) updateData.entity_ref = data.entityRef;
     if (data.interval !== undefined) updateData.interval = data.interval;
     if (data.xp_reward !== undefined) updateData.xp_reward = data.xp_reward;
     if (data.completion_policy !== undefined)

@@ -2,6 +2,10 @@ import { QuestCreationInput } from '../schemas/quests/questCreationSchema';
 import { QuestEditSchema } from '../schemas/quests/questEditSchema';
 import { QuestsRepository } from '../repositories/questsRepository';
 import type { QuestRow } from '../repositories/questsRepository';
+import type {
+  QuestAudienceFilter,
+  QuestStatusFilter,
+} from '../repositories/questsRepository';
 import { CatalogClient } from '@backstage/catalog-client';
 import { AuthService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
@@ -35,6 +39,7 @@ export class QuestsService {
     return this.questsRepo.createQuest({
       title: data.title,
       description: data.description,
+      entity_ref: data.entityRef?.trim() || null,
       interval,
       xp_reward: data.xp_reward,
       completion_policy: policy,
@@ -178,12 +183,22 @@ export class QuestsService {
 
   async getQuestsWithProgress(
     userRef: string,
+    ownershipRefs: string[],
     _opts: QuestServiceOpts,
-    searchTitle?: string,
+    filters?: {
+      searchTitle?: string;
+      audience?: QuestAudienceFilter;
+      status?: QuestStatusFilter;
+      teamRef?: string;
+    },
   ) {
     return this.questsRepo.getQuestsWithProgress({
       user_ref: userRef,
-      searchTitle,
+      ownership_refs: ownershipRefs,
+      searchTitle: filters?.searchTitle,
+      audience: filters?.audience,
+      status: filters?.status,
+      team_ref: filters?.teamRef,
     });
   }
 
