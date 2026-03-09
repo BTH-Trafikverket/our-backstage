@@ -9,7 +9,7 @@ export type QuestRow = {
   id: string;
   title: string;
   description: string;
-  interval: number;
+  target_count: number;
   xp_reward: number;
   subject_type: QuestSubjectType;
   subject_ref: string | null;
@@ -22,10 +22,9 @@ export type QuestRow = {
 export type CreateQuestRow = {
   title: string;
   description: string;
-  interval: number;
+  target_count: number;
   xp_reward: number;
   subject_type?: QuestSubjectType;
-  subject_ref?: string | null;
   /** Defaults to 'REPEATABLE' if not provided */
   completion_policy?: CompletionPolicy;
   /** Defaults to null (no cooldown) if not provided */
@@ -60,7 +59,7 @@ export type QuestEventReceiptRow = {
 
 export type QuestWithProgressRow = QuestRow & {
   completion_count: number;
-  progress_in_interval: number;
+  progress_toward_target: number;
   next_milestone: number;
 };
 
@@ -76,10 +75,9 @@ export class QuestsRepository {
       .insert({
         title: data.title,
         description: data.description,
-        interval: data.interval,
+        target_count: data.target_count,
         xp_reward: data.xp_reward,
         subject_type: data.subject_type ?? 'user',
-        subject_ref: data.subject_ref ?? null,
         completion_policy: data.completion_policy ?? 'REPEATABLE',
         cooldown_days: data.cooldown_days ?? null,
       })
@@ -146,7 +144,7 @@ export class QuestsRepository {
         'quests.id',
         'quests.title',
         'quests.description',
-        'quests.interval',
+        'quests.target_count',
         'quests.xp_reward',
         'quests.subject_type',
         'quests.subject_ref',
@@ -159,17 +157,17 @@ export class QuestsRepository {
         ),
         db.raw(`
         CASE
-          WHEN quests.interval IS NULL OR quests.interval < 1 THEN 0
-          ELSE COALESCE(quest_progress.completion_count, 0) % quests.interval
-        END as progress_in_interval
+          WHEN quests.target_count IS NULL OR quests.target_count < 1 THEN 0
+          ELSE COALESCE(quest_progress.completion_count, 0) % quests.target_count
+        END as progress_toward_target
       `),
         db.raw(`
         CASE
-          WHEN quests.interval IS NULL OR quests.interval < 1 THEN COALESCE(quest_progress.completion_count, 0)
-          WHEN (COALESCE(quest_progress.completion_count, 0) % quests.interval) = 0
-            THEN COALESCE(quest_progress.completion_count, 0) + quests.interval
+          WHEN quests.target_count IS NULL OR quests.target_count < 1 THEN COALESCE(quest_progress.completion_count, 0)
+          WHEN (COALESCE(quest_progress.completion_count, 0) % quests.target_count) = 0
+            THEN COALESCE(quest_progress.completion_count, 0) + quests.target_count
           ELSE COALESCE(quest_progress.completion_count, 0)
-            + (quests.interval - (COALESCE(quest_progress.completion_count, 0) % quests.interval))
+            + (quests.target_count - (COALESCE(quest_progress.completion_count, 0) % quests.target_count))
         END as next_milestone
       `),
       )
@@ -187,12 +185,11 @@ export class QuestsRepository {
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined)
       updateData.description = data.description;
-    if (data.interval !== undefined) updateData.interval = data.interval;
+    if (data.target_count !== undefined)
+      updateData.target_count = data.target_count;
     if (data.xp_reward !== undefined) updateData.xp_reward = data.xp_reward;
     if (data.subject_type !== undefined)
       updateData.subject_type = data.subject_type;
-    if (data.subject_ref !== undefined)
-      updateData.subject_ref = data.subject_ref;
     if (data.completion_policy !== undefined)
       updateData.completion_policy = data.completion_policy;
     if (data.cooldown_days !== undefined)

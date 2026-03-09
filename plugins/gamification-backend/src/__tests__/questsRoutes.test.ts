@@ -14,7 +14,7 @@ describe('quests routes auth', () => {
   const createQuestPayload = {
     title: 'Ship a Feature',
     description: 'Deploy a new feature to production',
-    interval: 1,
+    target_count: 1,
     xp_reward: 100,
     subject_type: 'user' as const,
     completion_policy: 'REPEATABLE' as const,

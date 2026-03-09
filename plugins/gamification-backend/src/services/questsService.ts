@@ -30,49 +30,37 @@ export class QuestsService {
     this.auth = opts.auth;
   }
 
-  private normalizeQuestTarget(
-    subjectType: QuestSubjectType,
-    subjectRef: string | null | undefined,
-  ) {
-    if (subjectType === 'user') {
-      return {
-        subject_type: 'user' as const,
-        subject_ref: null,
-      };
-    }
+  private normalizeQuestSubjectType(subjectType: QuestSubjectType | undefined) {
+    return subjectType ?? ('user' as const);
+  }
 
-    if (!subjectRef) {
-      throw new InputError('subject_ref is required for team quests');
-    }
-
-    if (!subjectRef.startsWith('group:')) {
+  private resolveTeamActorRef(actor: QuestEventActor): string {
+    if (!actor.entityRef) {
       throw new InputError(
-        'subject_ref for team quests must be a group entity ref',
+        'team quest events must provide actor.entityRef as a group entity ref',
       );
     }
 
-    return {
-      subject_type: 'team' as const,
-      subject_ref: subjectRef,
-    };
+    if (!actor.entityRef.startsWith('group:')) {
+      throw new InputError(
+        'team quest events must provide a group entity ref in actor.entityRef',
+      );
+    }
+
+    return actor.entityRef;
   }
 
   async createQuest(data: QuestCreationInput, _opts: QuestServiceOpts) {
     const policy = data.completion_policy ?? 'REPEATABLE';
-    const interval = policy === 'ONE_TIME' ? 1 : data.interval;
+    const target_count = data.target_count;
     const cooldown = policy === 'ONE_TIME' ? null : data.cooldown_days ?? null;
-    const target = this.normalizeQuestTarget(
-      data.subject_type ?? 'user',
-      data.subject_ref,
-    );
 
     return this.questsRepo.createQuest({
       title: data.title,
       description: data.description,
-      interval,
+      target_count,
       xp_reward: data.xp_reward,
-      subject_type: target.subject_type,
-      subject_ref: target.subject_ref,
+      subject_type: this.normalizeQuestSubjectType(data.subject_type),
       completion_policy: policy,
       cooldown_days: cooldown,
     });
@@ -92,15 +80,9 @@ export class QuestsService {
       return undefined;
     }
 
-    const subjectType = data.subject_type ?? current.subject_type;
-    const subjectRef =
-      data.subject_ref !== undefined ? data.subject_ref : current.subject_ref;
-    const target = this.normalizeQuestTarget(subjectType, subjectRef);
-
     const completionPolicy =
       data.completion_policy ?? current.completion_policy;
-    const interval =
-      completionPolicy === 'ONE_TIME' ? 1 : data.interval ?? current.interval;
+    const target_count = data.target_count ?? current.target_count;
     const cooldown =
       completionPolicy === 'ONE_TIME'
         ? null
@@ -110,10 +92,11 @@ export class QuestsService {
 
     return this.questsRepo.editQuest(id, {
       ...data,
-      subject_type: target.subject_type,
-      subject_ref: target.subject_ref,
+      subject_type: this.normalizeQuestSubjectType(
+        data.subject_type ?? current.subject_type,
+      ),
       completion_policy: completionPolicy,
-      interval,
+      target_count,
       cooldown_days: cooldown,
     });
   }
@@ -137,9 +120,9 @@ export class QuestsService {
    * Throws ConflictError when the quest's completion policy blocks the user
    * from making further progress.
    *
-   *  - ONE_TIME:  blocks once completion_count has reached the interval
+   *  - ONE_TIME:  blocks once completion_count has reached the target_count
    *               (i.e. XP was already awarded).
-   *  - REPEATABLE with cooldown_days: blocks while the user is still within
+   *  - REPEATABLE with cooldown_days: blocks while the subject is still within
    *               the cooldown window after the last XP award.
    */
   private async enforceCompletionPolicy(
@@ -151,7 +134,7 @@ export class QuestsService {
         subjectRef,
         quest.id,
       );
-      if (progress && progress.completion_count >= quest.interval) {
+      if (progress && progress.completion_count >= quest.target_count) {
         throw new ConflictError(
           `Quest "${quest.title}" can only be completed once and has already been completed by this user.`,
         );
@@ -266,11 +249,6 @@ export class QuestsService {
   }) {
     const { eventId, eventKey, actor, callerSubject, opts } = params;
 
-    const userRef = await this.resolveActorToUserRef({
-      actor,
-      credentials: opts.credentials,
-    });
-
     const trigger = await this.questsRepo.getTriggerByEvent(eventKey);
     if (!trigger) {
       throw new NotFoundError(`No trigger found for eventKey '${eventKey}'`);
@@ -282,7 +260,12 @@ export class QuestsService {
     }
 
     const subjectRef =
-      quest.subject_type === 'team' ? quest.subject_ref ?? userRef : userRef;
+      quest.subject_type === 'team'
+        ? this.resolveTeamActorRef(actor)
+        : await this.resolveActorToUserRef({
+            actor,
+            credentials: opts.credentials,
+          });
 
     const inserted = await this.questsRepo.tryInsertReceipt({
       event_id: eventId,
@@ -294,13 +277,27 @@ export class QuestsService {
     if (!inserted) {
       return {
         duplicate: true,
-        userRef,
+        userRef: subjectRef,
         subjectRef,
         questId: trigger.quest_id,
       };
     }
 
-    await this.enforceCompletionPolicy(quest, subjectRef);
+    try {
+      await this.enforceCompletionPolicy(quest, subjectRef);
+    } catch (err: any) {
+      if (err instanceof ConflictError) {
+        return {
+          duplicate: false,
+          blocked: true,
+          reason: err.message,
+          userRef: subjectRef,
+          subjectRef,
+          questId: trigger.quest_id,
+        };
+      }
+      throw err;
+    }
 
     const progress = await this.questsRepo.incrementQuestProgress({
       subject_ref: subjectRef,
@@ -310,7 +307,8 @@ export class QuestsService {
 
     return {
       duplicate: false,
-      userRef,
+      blocked: false,
+      userRef: subjectRef,
       subjectRef,
       questId: trigger.quest_id,
       completionCount: progress.completion_count,

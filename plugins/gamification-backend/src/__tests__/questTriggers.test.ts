@@ -33,7 +33,7 @@ describe('quest_progress trigger -> xp_ledger', () => {
     return knex;
   }
 
-  it('inserts xp_ledger row when completion_count hits interval multiple', async () => {
+  it('inserts xp_ledger row when completion_count hits target_count multiple', async () => {
     const knex = await initDb();
 
     const questId = randomUUID();
@@ -43,7 +43,7 @@ describe('quest_progress trigger -> xp_ledger', () => {
       id: questId,
       title: 'Merge PRs',
       description: 'Merge a PR',
-      interval: 3,
+      target_count: 3,
       xp_reward: 10,
     });
 
@@ -77,7 +77,7 @@ describe('quest_progress trigger -> xp_ledger', () => {
       id: questId,
       title: 'Build',
       description: '',
-      interval: 2,
+      target_count: 2,
       xp_reward: 7,
     });
 
@@ -108,7 +108,7 @@ describe('quest_progress trigger -> xp_ledger', () => {
       id: questId,
       title: 'Ship',
       description: '',
-      interval: 2,
+      target_count: 2,
       xp_reward: 5,
     });
 

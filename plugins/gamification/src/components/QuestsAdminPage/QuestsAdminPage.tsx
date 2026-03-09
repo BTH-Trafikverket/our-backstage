@@ -46,10 +46,9 @@ type Quest = {
   id: string;
   title: string;
   description: string;
-  interval: number;
+  target_count: number;
   xp_reward: number;
   subject_type?: 'user' | 'team';
-  subject_ref?: string | null;
   completion_policy: 'ONE_TIME' | 'REPEATABLE';
   cooldown_days: number | null;
   created_at?: string;
@@ -57,18 +56,17 @@ type Quest = {
 
   user_ref?: string | null;
   completion_count: number;
-  progress_in_interval: number;
+  progress_toward_target: number;
   next_milestone: number;
 };
 
 interface CreateQuestFormData {
   title: string;
   description: string;
-  interval: string;
+  target_count: string;
   xp_reward: string;
   /** 'user' | 'team' – kept as string for form input compatibility */
   subject_type: string;
-  subject_ref: string;
   /** 'ONE_TIME' | 'REPEATABLE' – kept as string for form input compatibility */
   completion_policy: string;
   cooldown_days: string;
@@ -120,10 +118,9 @@ export const QuestsAdminPage = ({
   const [formData, setFormData] = useState<CreateQuestFormData>({
     title: '',
     description: '',
-    interval: '',
+    target_count: '',
     xp_reward: '',
     subject_type: 'user',
-    subject_ref: '',
     completion_policy: 'REPEATABLE',
     cooldown_days: '',
   });
@@ -136,10 +133,9 @@ export const QuestsAdminPage = ({
   const [editFormData, setEditFormData] = useState<CreateQuestFormData>({
     title: '',
     description: '',
-    interval: '',
+    target_count: '',
     xp_reward: '',
     subject_type: 'user',
-    subject_ref: '',
     completion_policy: 'REPEATABLE',
     cooldown_days: '',
   });
@@ -197,19 +193,14 @@ export const QuestsAdminPage = ({
       setCreateError('Description är obligatorisk');
       return;
     }
-    if (!formData.interval || parseInt(formData.interval, 10) < 1) {
-      setCreateError('Interval måste vara minst 1');
+    if (!formData.target_count || parseInt(formData.target_count, 10) < 1) {
+      setCreateError('Target count must be at least 1');
       return;
     }
     if (!formData.xp_reward || parseInt(formData.xp_reward, 10) < 1) {
       setCreateError('XP Reward måste vara minst 1');
       return;
     }
-    if (formData.subject_type === 'team' && !formData.subject_ref.trim()) {
-      setCreateError('Team entity ref är obligatorisk för team quests');
-      return;
-    }
-
     setCreateLoading(true);
     setCreateError(null);
 
@@ -224,11 +215,8 @@ export const QuestsAdminPage = ({
           description: formData.description,
           xp_reward: parseInt(formData.xp_reward, 10),
           subject_type: formData.subject_type,
-          ...(formData.subject_type === 'team' && {
-            subject_ref: formData.subject_ref.trim(),
-          }),
           completion_policy: formData.completion_policy,
-          interval: parseInt(formData.interval, 10),
+          target_count: parseInt(formData.target_count, 10),
           ...(formData.completion_policy === 'REPEATABLE' && {
             cooldown_days: formData.cooldown_days
               ? parseInt(formData.cooldown_days, 10)
@@ -247,10 +235,9 @@ export const QuestsAdminPage = ({
       setFormData({
         title: '',
         description: '',
-        interval: '',
+        target_count: '',
         xp_reward: '',
         subject_type: 'user',
-        subject_ref: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
       });
@@ -274,10 +261,9 @@ export const QuestsAdminPage = ({
       setFormData({
         title: '',
         description: '',
-        interval: '',
+        target_count: '',
         xp_reward: '',
         subject_type: 'user',
-        subject_ref: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
       });
@@ -290,10 +276,9 @@ export const QuestsAdminPage = ({
     setEditFormData({
       title: quest.title,
       description: quest.description,
-      interval: quest.interval.toString(),
+      target_count: quest.target_count.toString(),
       xp_reward: quest.xp_reward.toString(),
       subject_type: quest.subject_type ?? 'user',
-      subject_ref: quest.subject_ref ?? '',
       completion_policy: quest.completion_policy ?? 'REPEATABLE',
       cooldown_days: quest.cooldown_days?.toString() ?? '',
     });
@@ -309,10 +294,9 @@ export const QuestsAdminPage = ({
       setEditFormData({
         title: '',
         description: '',
-        interval: '',
+        target_count: '',
         xp_reward: '',
         subject_type: 'user',
-        subject_ref: '',
         completion_policy: 'REPEATABLE',
         cooldown_days: '',
       });
@@ -339,22 +323,17 @@ export const QuestsAdminPage = ({
       setEditError('Description är obligatorisk');
       return;
     }
-    if (!editFormData.interval || parseInt(editFormData.interval, 10) < 1) {
-      setEditError('Interval måste vara minst 1');
+    if (
+      !editFormData.target_count ||
+      parseInt(editFormData.target_count, 10) < 1
+    ) {
+      setEditError('Target count must be at least 1');
       return;
     }
     if (!editFormData.xp_reward || parseInt(editFormData.xp_reward, 10) < 1) {
       setEditError('XP Reward måste vara minst 1');
       return;
     }
-    if (
-      editFormData.subject_type === 'team' &&
-      !editFormData.subject_ref.trim()
-    ) {
-      setEditError('Team entity ref är obligatorisk för team quests');
-      return;
-    }
-
     setEditLoading(true);
     setEditError(null);
 
@@ -369,12 +348,8 @@ export const QuestsAdminPage = ({
           description: editFormData.description,
           xp_reward: parseInt(editFormData.xp_reward, 10),
           subject_type: editFormData.subject_type,
-          subject_ref:
-            editFormData.subject_type === 'team'
-              ? editFormData.subject_ref.trim()
-              : null,
           completion_policy: editFormData.completion_policy,
-          interval: parseInt(editFormData.interval, 10),
+          target_count: parseInt(editFormData.target_count, 10),
           ...(editFormData.completion_policy === 'REPEATABLE' && {
             cooldown_days: editFormData.cooldown_days
               ? parseInt(editFormData.cooldown_days, 10)
@@ -448,36 +423,21 @@ export const QuestsAdminPage = ({
 
   const adminQuests = quests;
   const getQuestProgress = (quest: Quest) => {
-    return { current: quest.progress_in_interval, target: quest.interval };
+    return {
+      current: quest.progress_toward_target,
+      target: quest.target_count,
+    };
   };
   const getQuestSubjectType = (quest: Quest) => quest.subject_type ?? 'user';
-  const getQuestSubjectRef = (quest: Quest) => quest.subject_ref ?? null;
-  const getSubjectDisplayName = (subjectRef: string | null) => {
-    if (!subjectRef) {
-      return null;
-    }
-
-    const [, namePart = subjectRef] = subjectRef.split('/');
-    return namePart;
-  };
   const renderSubject = (quest: Quest) => {
     const subjectType = getQuestSubjectType(quest);
-    const subjectRef = getQuestSubjectRef(quest);
-    const subjectName = getSubjectDisplayName(subjectRef);
 
     return (
-      <Box display="flex" flexDirection="column" alignItems="flex-start">
-        <Chip
-          label={subjectType === 'team' ? 'Team quest' : 'User quest'}
-          size="small"
-          color={subjectType === 'team' ? 'primary' : 'default'}
-        />
-        {subjectType === 'team' && subjectName && (
-          <Typography variant="caption" color="textSecondary">
-            {subjectName}
-          </Typography>
-        )}
-      </Box>
+      <Chip
+        label={subjectType === 'team' ? 'Team quest' : 'User quest'}
+        size="small"
+        color={subjectType === 'team' ? 'primary' : 'default'}
+      />
     );
   };
 
@@ -542,17 +502,6 @@ export const QuestsAdminPage = ({
               />
             </RadioGroup>
           </FormControl>
-          {formData.subject_type === 'team' && (
-            <TextField
-              fullWidth
-              label="Team entity ref"
-              margin="dense"
-              value={formData.subject_ref}
-              onChange={e => handleInputChange('subject_ref', e.target.value)}
-              disabled={createLoading}
-              helperText="Use a Backstage group entity ref, for example group:default/platform."
-            />
-          )}
           <FormControl
             component="fieldset"
             style={{ marginTop: 12, width: '100%' }}
@@ -582,12 +531,12 @@ export const QuestsAdminPage = ({
           </FormControl>
           <TextField
             fullWidth
-            label="Interval"
+            label="Target Count"
             margin="dense"
             type="number"
             inputProps={{ min: 1 }}
-            value={formData.interval}
-            onChange={e => handleInputChange('interval', e.target.value)}
+            value={formData.target_count}
+            onChange={e => handleInputChange('target_count', e.target.value)}
             disabled={createLoading}
             helperText="How many completions before XP is awarded (1 = every time)."
           />
@@ -696,19 +645,6 @@ export const QuestsAdminPage = ({
               />
             </RadioGroup>
           </FormControl>
-          {editFormData.subject_type === 'team' && (
-            <TextField
-              fullWidth
-              label="Team entity ref"
-              margin="dense"
-              value={editFormData.subject_ref}
-              onChange={e =>
-                handleEditInputChange('subject_ref', e.target.value)
-              }
-              disabled={editLoading}
-              helperText="Use a Backstage group entity ref, for example group:default/platform."
-            />
-          )}
           <FormControl
             component="fieldset"
             style={{ marginTop: 12, width: '100%' }}
@@ -738,12 +674,14 @@ export const QuestsAdminPage = ({
           </FormControl>
           <TextField
             fullWidth
-            label="Interval"
+            label="Target Count"
             margin="dense"
             type="number"
             inputProps={{ min: 1 }}
-            value={editFormData.interval}
-            onChange={e => handleEditInputChange('interval', e.target.value)}
+            value={editFormData.target_count}
+            onChange={e =>
+              handleEditInputChange('target_count', e.target.value)
+            }
             disabled={editLoading}
           />
           {editFormData.completion_policy === 'REPEATABLE' && (
@@ -926,7 +864,7 @@ export const QuestsAdminPage = ({
                           const progress = getQuestProgress(quest);
                           const isCompleted =
                             quest.completion_policy === 'ONE_TIME' &&
-                            quest.completion_count >= quest.interval;
+                            quest.completion_count >= quest.target_count;
                           const percent =
                             (progress.current / progress.target) * 100;
                           return (
@@ -1025,7 +963,7 @@ export const QuestsAdminPage = ({
                             const progress = getQuestProgress(quest);
                             const isCompleted =
                               quest.completion_policy === 'ONE_TIME' &&
-                              quest.completion_count >= quest.interval;
+                              quest.completion_count >= quest.target_count;
                             const percent =
                               (progress.current / progress.target) * 100;
                             return (
