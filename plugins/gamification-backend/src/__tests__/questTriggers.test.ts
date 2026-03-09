@@ -33,7 +33,7 @@ describe('quest_progress trigger -> xp_ledger', () => {
     return knex;
   }
 
-  it('inserts xp_ledger row when completion_count hits interval multiple', async () => {
+  it('inserts xp_ledger row when completion_count hits target_count multiple', async () => {
     const knex = await initDb();
 
     const questId = randomUUID();
@@ -43,12 +43,12 @@ describe('quest_progress trigger -> xp_ledger', () => {
       id: questId,
       title: 'Merge PRs',
       description: 'Merge a PR',
-      interval: 3,
+      target_count: 3,
       xp_reward: 10,
     });
 
     await knex('quest_progress').insert({
-      user_ref: userRef,
+      subject_ref: userRef,
       quest_id: questId,
       completion_count: 1,
     });
@@ -56,12 +56,12 @@ describe('quest_progress trigger -> xp_ledger', () => {
     expect(await knex('xp_ledger').select('*')).toHaveLength(0);
 
     await knex('quest_progress')
-      .where({ user_ref: userRef, quest_id: questId })
+      .where({ subject_ref: userRef, quest_id: questId })
       .update({ completion_count: 3 });
 
     const rows = await knex('xp_ledger').select('*');
     expect(rows).toHaveLength(1);
-    expect(rows[0].user_ref).toBe(userRef);
+    expect(rows[0].subject_ref).toBe(userRef);
     expect(rows[0].quest_id).toBe(questId);
     expect(rows[0].awarded_on_completion_count).toBe(3);
     expect(rows[0].xp_amount).toBe(10);
@@ -77,13 +77,13 @@ describe('quest_progress trigger -> xp_ledger', () => {
       id: questId,
       title: 'Build',
       description: '',
-      interval: 2,
+      target_count: 2,
       xp_reward: 7,
     });
 
     // Insert at a milestone => trigger should award once
     await knex('quest_progress').insert({
-      user_ref: userRef,
+      subject_ref: userRef,
       quest_id: questId,
       completion_count: 2,
     });
@@ -92,7 +92,7 @@ describe('quest_progress trigger -> xp_ledger', () => {
 
     // Update to same value => should not add another ledger row
     await knex('quest_progress')
-      .where({ user_ref: userRef, quest_id: questId })
+      .where({ subject_ref: userRef, quest_id: questId })
       .update({ completion_count: 2 });
 
     expect(await knex('xp_ledger').select('*')).toHaveLength(1);
@@ -108,12 +108,12 @@ describe('quest_progress trigger -> xp_ledger', () => {
       id: questId,
       title: 'Ship',
       description: '',
-      interval: 2,
+      target_count: 2,
       xp_reward: 5,
     });
 
     await knex('quest_progress').insert({
-      user_ref: userRef,
+      subject_ref: userRef,
       quest_id: questId,
       completion_count: 2,
     });
@@ -121,7 +121,7 @@ describe('quest_progress trigger -> xp_ledger', () => {
     expect(await knex('xp_ledger').select('*')).toHaveLength(1);
 
     await knex('quest_progress')
-      .where({ user_ref: userRef, quest_id: questId })
+      .where({ subject_ref: userRef, quest_id: questId })
       .update({ completion_count: 1 });
 
     expect(await knex('xp_ledger').select('*')).toHaveLength(1);

@@ -1,7 +1,14 @@
-import { QuestCreationInput } from '../schemas/quests/questCreationSchema';
+import {
+  QuestCreationInput,
+  QuestSubjectType,
+} from '../schemas/quests/questCreationSchema';
 import { QuestEditSchema } from '../schemas/quests/questEditSchema';
 import { QuestsRepository } from '../repositories/questsRepository';
 import type { QuestRow } from '../repositories/questsRepository';
+import type {
+  QuestAudienceFilter,
+  QuestStatusFilter,
+} from '../repositories/questsRepository';
 import { CatalogClient } from '@backstage/catalog-client';
 import { AuthService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
@@ -27,16 +34,37 @@ export class QuestsService {
     this.auth = opts.auth;
   }
 
+  private normalizeQuestSubjectType(subjectType: QuestSubjectType | undefined) {
+    return subjectType ?? ('user' as const);
+  }
+
+  private resolveTeamActorRef(actor: QuestEventActor): string {
+    if (!actor.entityRef) {
+      throw new InputError(
+        'team quest events must provide actor.entityRef as a group entity ref',
+      );
+    }
+
+    if (!actor.entityRef.startsWith('group:')) {
+      throw new InputError(
+        'team quest events must provide a group entity ref in actor.entityRef',
+      );
+    }
+
+    return actor.entityRef;
+  }
+
   async createQuest(data: QuestCreationInput, _opts: QuestServiceOpts) {
     const policy = data.completion_policy ?? 'REPEATABLE';
-    const interval = data.interval;
+    const target_count = data.target_count;
     const cooldown = policy === 'ONE_TIME' ? null : data.cooldown_days ?? null;
 
     return this.questsRepo.createQuest({
       title: data.title,
       description: data.description,
-      interval,
+      target_count,
       xp_reward: data.xp_reward,
+      subject_type: this.normalizeQuestSubjectType(data.subject_type),
       completion_policy: policy,
       cooldown_days: cooldown,
     });
@@ -51,20 +79,43 @@ export class QuestsService {
   }
 
   async editQuest(id: string, data: QuestEditSchema, _opts: QuestServiceOpts) {
-    return this.questsRepo.editQuest(id, data);
+    const current = await this.questsRepo.getQuestById(id);
+    if (!current) {
+      return undefined;
+    }
+
+    const completionPolicy =
+      data.completion_policy ?? current.completion_policy;
+    const target_count = data.target_count ?? current.target_count;
+    let cooldown = current.cooldown_days;
+    if (completionPolicy === 'ONE_TIME') {
+      cooldown = null;
+    } else if (data.cooldown_days !== undefined) {
+      cooldown = data.cooldown_days;
+    }
+
+    return this.questsRepo.editQuest(id, {
+      ...data,
+      subject_type: this.normalizeQuestSubjectType(
+        data.subject_type ?? current.subject_type,
+      ),
+      completion_policy: completionPolicy,
+      target_count,
+      cooldown_days: cooldown,
+    });
   }
 
   async deleteQuest(id: string, _opts: QuestServiceOpts) {
     return this.questsRepo.deleteQuest(id);
   }
 
-  async completeQuest(questId: string, userRef: string) {
+  async completeQuest(questId: string, subjectRef: string) {
     const quest = await this.questsRepo.getQuestById(questId);
     if (!quest) throw new NotFoundError(`Quest '${questId}' not found`);
-    await this.enforceCompletionPolicy(quest, userRef);
+    await this.enforceCompletionPolicy(quest, subjectRef);
     return this.questsRepo.incrementQuestProgress({
       quest_id: questId,
-      user_ref: userRef,
+      subject_ref: subjectRef,
       by: 1,
     });
   }
@@ -73,21 +124,21 @@ export class QuestsService {
    * Throws ConflictError when the quest's completion policy blocks the user
    * from making further progress.
    *
-   *  - ONE_TIME:  blocks once completion_count has reached the interval
+   *  - ONE_TIME:  blocks once completion_count has reached the target_count
    *               (i.e. XP was already awarded).
-   *  - REPEATABLE with cooldown_days: blocks while the user is still within
+   *  - REPEATABLE with cooldown_days: blocks while the subject is still within
    *               the cooldown window after the last XP award.
    */
   private async enforceCompletionPolicy(
     quest: QuestRow,
-    userRef: string,
+    subjectRef: string,
   ): Promise<void> {
     if (quest.completion_policy === 'ONE_TIME') {
-      const progress = await this.questsRepo.getProgressForUserQuest(
-        userRef,
+      const progress = await this.questsRepo.getProgressForSubjectQuest(
+        subjectRef,
         quest.id,
       );
-      if (progress && progress.completion_count >= quest.interval) {
+      if (progress && progress.completion_count >= quest.target_count) {
         throw new ConflictError(
           `Quest "${quest.title}" can only be completed once and has already been completed by this user.`,
         );
@@ -100,7 +151,7 @@ export class QuestsService {
       quest.cooldown_days !== null
     ) {
       const lastAwardedAt = await this.questsRepo.getLastAwardedAt(
-        userRef,
+        subjectRef,
         quest.id,
       );
       if (lastAwardedAt) {
@@ -178,12 +229,22 @@ export class QuestsService {
 
   async getQuestsWithProgress(
     userRef: string,
+    ownershipRefs: string[],
     _opts: QuestServiceOpts,
-    searchTitle?: string,
+    filters?: {
+      searchTitle?: string;
+      audience?: QuestAudienceFilter;
+      status?: QuestStatusFilter;
+      teamRef?: string;
+    },
   ) {
     return this.questsRepo.getQuestsWithProgress({
       user_ref: userRef,
-      searchTitle,
+      ownership_refs: ownershipRefs,
+      searchTitle: filters?.searchTitle,
+      audience: filters?.audience,
+      status: filters?.status,
+      team_ref: filters?.teamRef,
     });
   }
 
@@ -196,29 +257,9 @@ export class QuestsService {
   }) {
     const { eventId, eventKey, actor, callerSubject, opts } = params;
 
-    const userRef = await this.resolveActorToUserRef({
-      actor,
-      credentials: opts.credentials,
-    });
-
     const trigger = await this.questsRepo.getTriggerByEvent(eventKey);
     if (!trigger) {
       throw new NotFoundError(`No trigger found for eventKey '${eventKey}'`);
-    }
-
-    const inserted = await this.questsRepo.tryInsertReceipt({
-      event_id: eventId,
-      event_key: eventKey,
-      user_ref: userRef,
-      caller_subject: callerSubject,
-    });
-
-    if (!inserted) {
-      return {
-        duplicate: true,
-        userRef,
-        questId: trigger.quest_id,
-      };
     }
 
     const quest = await this.questsRepo.getQuestById(trigger.quest_id);
@@ -226,17 +267,57 @@ export class QuestsService {
       throw new NotFoundError(`Quest '${trigger.quest_id}' not found`);
     }
 
-    await this.enforceCompletionPolicy(quest, userRef);
+    const subjectRef =
+      quest.subject_type === 'team'
+        ? this.resolveTeamActorRef(actor)
+        : await this.resolveActorToUserRef({
+            actor,
+            credentials: opts.credentials,
+          });
+
+    const inserted = await this.questsRepo.tryInsertReceipt({
+      event_id: eventId,
+      event_key: eventKey,
+      subject_ref: subjectRef,
+      caller_subject: callerSubject,
+    });
+
+    if (!inserted) {
+      return {
+        duplicate: true,
+        userRef: subjectRef,
+        subjectRef,
+        questId: trigger.quest_id,
+      };
+    }
+
+    try {
+      await this.enforceCompletionPolicy(quest, subjectRef);
+    } catch (err: any) {
+      if (err instanceof ConflictError) {
+        return {
+          duplicate: false,
+          blocked: true,
+          reason: err.message,
+          userRef: subjectRef,
+          subjectRef,
+          questId: trigger.quest_id,
+        };
+      }
+      throw err;
+    }
 
     const progress = await this.questsRepo.incrementQuestProgress({
-      user_ref: userRef,
+      subject_ref: subjectRef,
       quest_id: trigger.quest_id,
       by: trigger.increment_by,
     });
 
     return {
       duplicate: false,
-      userRef,
+      blocked: false,
+      userRef: subjectRef,
+      subjectRef,
       questId: trigger.quest_id,
       completionCount: progress.completion_count,
     };

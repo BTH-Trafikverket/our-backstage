@@ -1,8 +1,9 @@
 import {
   HttpAuthService,
   RootConfigService,
+  UserInfoService,
 } from '@backstage/backend-plugin-api';
-import { InputError, NotFoundError } from '@backstage/errors';
+import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import express from 'express';
 import Router from 'express-promise-router';
 import { questCreationSchema } from '../schemas/quests/questCreationSchema';
@@ -12,14 +13,42 @@ import { questEventSchema } from '../schemas/quests/questEventSchema';
 
 export function QuestsRouter({
   httpAuth,
+  userInfo,
   questsService,
   config,
 }: {
   httpAuth: HttpAuthService;
+  userInfo: UserInfoService;
   questsService: QuestsService;
   config: RootConfigService;
 }): express.Router {
   const router = Router();
+  const adminGroups = new Set(
+    (config.getOptionalStringArray('gamification.admin.groups') ?? []).map(
+      ref => ref.toLocaleLowerCase('en-US'),
+    ),
+  );
+
+  const requireAdminCredentials = async (req: express.Request) => {
+    const credentials = await httpAuth.credentials(req, {
+      allow: ['user', 'service'],
+    });
+
+    if (credentials.principal.type !== 'user') {
+      throw new NotAllowedError('Only admin users can manage quests');
+    }
+
+    const info = await userInfo.getUserInfo(credentials);
+    const hasAdminGroup = info.ownershipEntityRefs.some(ref =>
+      adminGroups.has(ref.toLocaleLowerCase('en-US')),
+    );
+
+    if (!hasAdminGroup) {
+      throw new NotAllowedError('Only admin users can manage quests');
+    }
+
+    return credentials;
+  };
 
   router.post('/', async (req, res) => {
     const parsed = questCreationSchema.safeParse(req.body);
@@ -27,9 +56,7 @@ export function QuestsRouter({
       throw new InputError(parsed.error.toString());
     }
 
-    const credentials = await httpAuth.credentials(req, {
-      allow: ['user', 'service'],
-    });
+    const credentials = await requireAdminCredentials(req);
 
     const result = await questsService.createQuest(parsed.data, {
       credentials,
@@ -49,9 +76,7 @@ export function QuestsRouter({
       throw new InputError(parsed.error.toString());
     }
 
-    const credentials = await httpAuth.credentials(req, {
-      allow: ['user', 'service'],
-    });
+    const credentials = await requireAdminCredentials(req);
 
     const updated = await questsService.editQuest(id, parsed.data, {
       credentials,
@@ -70,9 +95,7 @@ export function QuestsRouter({
       throw new InputError('Missing quest id');
     }
 
-    const credentials = await httpAuth.credentials(req, {
-      allow: ['user', 'service'],
-    });
+    const credentials = await requireAdminCredentials(req);
 
     const deleted = await questsService.deleteQuest(id, { credentials });
     if (!deleted) {
@@ -114,9 +137,7 @@ export function QuestsRouter({
   });
 
   router.get('/', async (req, res) => {
-    const credentials = await httpAuth.credentials(req, {
-      allow: ['user', 'service'],
-    });
+    const credentials = await requireAdminCredentials(req);
 
     const search =
       typeof req.query.search === 'string' ? req.query.search : undefined;
@@ -135,15 +156,37 @@ export function QuestsRouter({
     }
 
     const userRef = principal.userEntityRef;
+    const info = await userInfo.getUserInfo(credentials);
     const search =
       typeof req.query.search === 'string' ? req.query.search : undefined;
+    const audienceQuery =
+      typeof req.query.audience === 'string' ? req.query.audience : undefined;
+    const statusQuery =
+      typeof req.query.status === 'string' ? req.query.status : undefined;
+    const team =
+      typeof req.query.team === 'string' ? req.query.team : undefined;
+
+    const audience =
+      audienceQuery === 'individual' || audienceQuery === 'team'
+        ? audienceQuery
+        : 'all';
+    const status =
+      statusQuery === 'completed' || statusQuery === 'all'
+        ? statusQuery
+        : 'active';
 
     const quests = await questsService.getQuestsWithProgress(
       userRef,
+      info.ownershipEntityRefs,
       {
         credentials,
       },
-      search,
+      {
+        searchTitle: search,
+        audience,
+        status,
+        teamRef: team,
+      },
     );
 
     res.status(200).json(quests);

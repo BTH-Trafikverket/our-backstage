@@ -18,8 +18,6 @@ describe('ExampleComponent', () => {
 
   it('should render', async () => {
     await renderInTestApp(<ExampleComponent />);
-    expect(
-      screen.getByText('Welcome to backstage-plugin-gamification!'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Welcome to gamification!')).toBeInTheDocument();
   });
 });

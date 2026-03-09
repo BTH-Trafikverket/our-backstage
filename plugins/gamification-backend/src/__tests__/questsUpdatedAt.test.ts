@@ -40,7 +40,7 @@ describe('quests updated_at trigger', () => {
       id: questId,
       title: 'Original Title',
       description: 'Original description',
-      interval: 1,
+      target_count: 1,
       xp_reward: 10,
     });
 
@@ -82,7 +82,7 @@ describe('quests updated_at trigger', () => {
       id: questId,
       title: 'Static Quest',
       description: 'Test',
-      interval: 1,
+      target_count: 1,
       xp_reward: 10,
     });
 
@@ -112,7 +112,7 @@ describe('quests updated_at trigger', () => {
       id: questId,
       title: 'Read Only Quest',
       description: 'Test',
-      interval: 1,
+      target_count: 1,
       xp_reward: 10,
     });
 

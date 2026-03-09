@@ -1,7 +1,7 @@
-import { backstagePluginGamificationPlugin } from './plugin';
+import { gamificationPlugin } from './plugin';
 
-describe('backstage-plugin-gamification', () => {
+describe('gamification', () => {
   it('should export plugin', () => {
-    expect(backstagePluginGamificationPlugin).toBeDefined();
+    expect(gamificationPlugin).toBeDefined();
   });
 });

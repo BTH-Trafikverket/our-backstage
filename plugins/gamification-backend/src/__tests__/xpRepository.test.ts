@@ -41,7 +41,7 @@ describe('XpRepository Integration Tests', () => {
     options: {
       title?: string;
       description?: string;
-      interval?: number;
+      target_count?: number;
       xp_reward?: number;
     } = {},
   ): Promise<void> {
@@ -49,7 +49,7 @@ describe('XpRepository Integration Tests', () => {
       id: questId,
       title: options.title || `Test Quest ${questId.substring(0, 8)}`,
       description: options.description || 'Test description',
-      interval: options.interval || 1,
+      target_count: options.target_count || 1,
       xp_reward: options.xp_reward || 10,
     });
   }
@@ -68,7 +68,7 @@ describe('XpRepository Integration Tests', () => {
   ): Promise<void> {
     await knex('xp_ledger').insert({
       id: randomUUID(),
-      user_ref: data.userRef,
+      subject_ref: data.userRef,
       quest_id: data.questId,
       xp_amount: data.xpAmount,
       awarded_on_completion_count: data.awardedOnCompletionCount || 1,
@@ -112,7 +112,7 @@ describe('XpRepository Integration Tests', () => {
 
       // Verify the entry is actually in the database
       const dbEntry = await knex('xp_ledger')
-        .where({ user_ref: userRef })
+        .where({ subject_ref: userRef })
         .first();
       expect(dbEntry).toBeDefined();
       expect(dbEntry.xp_amount).toBe(100);
@@ -203,7 +203,7 @@ describe('XpRepository Integration Tests', () => {
 
       await createQuest(knex, questId, {
         title: 'Repeatable Quest',
-        interval: 5,
+        target_count: 5,
         xp_reward: 50,
       });
 
@@ -367,7 +367,7 @@ describe('XpRepository Integration Tests', () => {
       await expect(
         knex('xp_ledger').insert({
           id: randomUUID(),
-          user_ref: userRef,
+          subject_ref: userRef,
           quest_id: nonExistentQuestId,
           xp_amount: 100,
           awarded_on_completion_count: 1,
@@ -378,7 +378,7 @@ describe('XpRepository Integration Tests', () => {
       await knex.destroy();
     });
 
-    it('should verify unique constraint on user_ref, quest_id, and awarded_on_completion_count', async () => {
+    it('should verify unique constraint on subject_ref, quest_id, and awarded_on_completion_count', async () => {
       const knex = await initDb();
 
       const userRef = 'user:default/duplicate-test';
@@ -487,19 +487,19 @@ describe('XpRepository Integration Tests', () => {
 
       await createQuest(knex, dailyQuestId, {
         title: 'Daily Login',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
       });
 
       await createQuest(knex, weeklyQuestId, {
         title: 'Weekly Review',
-        interval: 7,
+        target_count: 7,
         xp_reward: 100,
       });
 
       await createQuest(knex, monthlyQuestId, {
         title: 'Monthly Challenge',
-        interval: 30,
+        target_count: 30,
         xp_reward: 1000,
       });
 

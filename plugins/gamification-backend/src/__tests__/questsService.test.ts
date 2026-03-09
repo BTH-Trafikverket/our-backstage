@@ -12,9 +12,12 @@ describe('QuestsService', () => {
     mockRepo = {
       createQuest: jest.fn(),
       getQuestById: jest.fn(),
-      getProgressForUserQuest: jest.fn(),
+      getProgressForSubjectQuest: jest.fn(),
       getLastAwardedAt: jest.fn(),
       incrementQuestProgress: jest.fn(),
+      getQuestsWithProgress: jest.fn(),
+      getTriggerByEvent: jest.fn(),
+      tryInsertReceipt: jest.fn(),
     } as any;
 
     const mockCatalogClient = {} as any;
@@ -32,15 +35,16 @@ describe('QuestsService', () => {
       const questInput: QuestCreationInput = {
         title: 'Ship a Feature',
         description: 'Deploy a new feature to production',
-        interval: 1,
+        target_count: 1,
         xp_reward: 100,
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
       };
 
       const expectedQuest = {
         title: 'Ship a Feature',
         description: 'Deploy a new feature to production',
-        interval: 1,
+        target_count: 1,
         xp_reward: 100,
         created_at: new Date(),
         updated_at: new Date(),
@@ -58,16 +62,17 @@ describe('QuestsService', () => {
       const callArgs = mockRepo.createQuest.mock.calls[0][0];
       expect(callArgs.title).toBe('Ship a Feature');
       expect(callArgs.description).toBe('Deploy a new feature to production');
-      expect(callArgs.interval).toBe(1);
+      expect(callArgs.target_count).toBe(1);
       expect(callArgs.xp_reward).toBe(100);
     });
 
-    it('should create quest with different interval values', async () => {
+    it('should create quest with different target_count values', async () => {
       const questInput: QuestCreationInput = {
         title: 'Review PRs',
         description: 'Review 5 pull requests',
-        interval: 5,
+        target_count: 5,
         xp_reward: 50,
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
       };
 
@@ -83,7 +88,7 @@ describe('QuestsService', () => {
         credentials: {} as any,
       });
 
-      expect(result.interval).toBe(5);
+      expect(result.target_count).toBe(5);
       expect(result.xp_reward).toBe(50);
     });
 
@@ -91,8 +96,9 @@ describe('QuestsService', () => {
       const questInput: QuestCreationInput = {
         title: 'Quick Task',
         description: '',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
       };
 
@@ -115,8 +121,9 @@ describe('QuestsService', () => {
       const questInput: QuestCreationInput = {
         title: 'Test Quest',
         description: 'Test',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
       };
 
@@ -137,14 +144,15 @@ describe('QuestsService', () => {
       expect(mockRepo.createQuest).toHaveBeenCalledTimes(3);
     });
 
-    it('should force interval=1 and cooldown_days=null for ONE_TIME quests', async () => {
+    it('should clear cooldown_days for ONE_TIME quests', async () => {
       const questInput: QuestCreationInput = {
         title: 'First PR Merge',
         description: 'Merge your very first PR',
-        interval: 5, // should be overridden to 1
+        target_count: 5, // NOT overridden – ONE_TIME supports any target_count
         xp_reward: 200,
+        subject_type: 'user',
         completion_policy: 'ONE_TIME',
-        cooldown_days: 7, // should be overridden to null
+        cooldown_days: 7, // should be cleared to null
       };
 
       mockRepo.createQuest.mockImplementation(
@@ -163,16 +171,17 @@ describe('QuestsService', () => {
 
       const callArgs = mockRepo.createQuest.mock.calls[0][0];
       expect(callArgs.completion_policy).toBe('ONE_TIME');
-      expect(callArgs.interval).toBe(1);
+      expect(callArgs.target_count).toBe(5);
       expect(callArgs.cooldown_days).toBeNull();
     });
 
-    it('should preserve interval and cooldown_days for REPEATABLE quests', async () => {
+    it('should preserve target_count and cooldown_days for REPEATABLE quests', async () => {
       const questInput: QuestCreationInput = {
         title: 'Weekly PR Review',
         description: 'Review PRs every week',
-        interval: 5,
+        target_count: 5,
         xp_reward: 50,
+        subject_type: 'user',
         completion_policy: 'REPEATABLE',
         cooldown_days: 7,
       };
@@ -193,8 +202,31 @@ describe('QuestsService', () => {
 
       const callArgs = mockRepo.createQuest.mock.calls[0][0];
       expect(callArgs.completion_policy).toBe('REPEATABLE');
-      expect(callArgs.interval).toBe(5);
+      expect(callArgs.target_count).toBe(5);
       expect(callArgs.cooldown_days).toBe(7);
+    });
+
+    it('should create global team quests', async () => {
+      const questInput: QuestCreationInput = {
+        title: 'Platform Team Review',
+        description: 'Review PRs as a team',
+        target_count: 3,
+        xp_reward: 75,
+        subject_type: 'team',
+        completion_policy: 'REPEATABLE',
+      };
+
+      mockRepo.createQuest.mockResolvedValue({
+        ...questInput,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      await service.createQuest(questInput, { credentials: {} as any });
+
+      const callArgs = mockRepo.createQuest.mock.calls[0][0];
+      expect(callArgs.subject_type).toBe('team');
+      expect(callArgs).not.toHaveProperty('subject_ref');
     });
   });
 
@@ -203,8 +235,10 @@ describe('QuestsService', () => {
       id: 'quest-ot',
       title: 'First Deploy',
       description: '',
-      interval: 1,
+      target_count: 1,
       xp_reward: 100,
+      subject_type: 'user' as const,
+      subject_ref: null,
       completion_policy: 'ONE_TIME' as const,
       cooldown_days: null,
       created_at: new Date(),
@@ -213,8 +247,8 @@ describe('QuestsService', () => {
 
     it('should block completion when ONE_TIME quest already completed', async () => {
       mockRepo.getQuestById.mockResolvedValue(oneTimeQuest);
-      mockRepo.getProgressForUserQuest.mockResolvedValue({
-        user_ref: 'user:default/alice',
+      mockRepo.getProgressForSubjectQuest.mockResolvedValue({
+        subject_ref: 'user:default/alice',
         quest_id: 'quest-ot',
         completion_count: 1,
         created_at: new Date(),
@@ -230,9 +264,9 @@ describe('QuestsService', () => {
 
     it('should allow first completion of a ONE_TIME quest', async () => {
       mockRepo.getQuestById.mockResolvedValue(oneTimeQuest);
-      mockRepo.getProgressForUserQuest.mockResolvedValue(undefined);
+      mockRepo.getProgressForSubjectQuest.mockResolvedValue(undefined);
       mockRepo.incrementQuestProgress.mockResolvedValue({
-        user_ref: 'user:default/alice',
+        subject_ref: 'user:default/alice',
         quest_id: 'quest-ot',
         completion_count: 1,
         created_at: new Date(),
@@ -250,8 +284,8 @@ describe('QuestsService', () => {
     it('should block a second user who already completed a ONE_TIME quest', async () => {
       mockRepo.getQuestById.mockResolvedValue(oneTimeQuest);
       // alice already completed it
-      mockRepo.getProgressForUserQuest.mockResolvedValue({
-        user_ref: 'user:default/alice',
+      mockRepo.getProgressForSubjectQuest.mockResolvedValue({
+        subject_ref: 'user:default/alice',
         quest_id: 'quest-ot',
         completion_count: 1,
         created_at: new Date(),
@@ -263,9 +297,9 @@ describe('QuestsService', () => {
       ).rejects.toThrow();
 
       // bob has not completed it – should be allowed
-      mockRepo.getProgressForUserQuest.mockResolvedValue(undefined);
+      mockRepo.getProgressForSubjectQuest.mockResolvedValue(undefined);
       mockRepo.incrementQuestProgress.mockResolvedValue({
-        user_ref: 'user:default/bob',
+        subject_ref: 'user:default/bob',
         quest_id: 'quest-ot',
         completion_count: 1,
         created_at: new Date(),
@@ -285,8 +319,10 @@ describe('QuestsService', () => {
       id: 'quest-cd',
       title: 'Weekly PR Review',
       description: '',
-      interval: 1,
+      target_count: 1,
       xp_reward: 50,
+      subject_type: 'user' as const,
+      subject_ref: null,
       completion_policy: 'REPEATABLE' as const,
       cooldown_days: 7,
       created_at: new Date(),
@@ -312,7 +348,7 @@ describe('QuestsService', () => {
       const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
       mockRepo.getLastAwardedAt.mockResolvedValue(tenDaysAgo);
       mockRepo.incrementQuestProgress.mockResolvedValue({
-        user_ref: 'user:default/bob',
+        subject_ref: 'user:default/bob',
         quest_id: 'quest-cd',
         completion_count: 2,
         created_at: new Date(),
@@ -331,7 +367,7 @@ describe('QuestsService', () => {
       mockRepo.getQuestById.mockResolvedValue(cooldownQuest);
       mockRepo.getLastAwardedAt.mockResolvedValue(null);
       mockRepo.incrementQuestProgress.mockResolvedValue({
-        user_ref: 'user:default/carol',
+        subject_ref: 'user:default/carol',
         quest_id: 'quest-cd',
         completion_count: 1,
         created_at: new Date(),
@@ -350,7 +386,7 @@ describe('QuestsService', () => {
       mockRepo.getQuestById.mockResolvedValue(questNoCooldown);
       // getLastAwardedAt should not even be called
       mockRepo.incrementQuestProgress.mockResolvedValue({
-        user_ref: 'user:default/dave',
+        subject_ref: 'user:default/dave',
         quest_id: 'quest-cd',
         completion_count: 5,
         created_at: new Date(),
@@ -363,6 +399,231 @@ describe('QuestsService', () => {
       );
       expect(result.completion_count).toBe(5);
       expect(mockRepo.getLastAwardedAt).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getQuestsWithProgress', () => {
+    it('passes the current user and owned teams to the repository', async () => {
+      mockRepo.getQuestsWithProgress = jest.fn(async () => []) as any;
+
+      await service.getQuestsWithProgress(
+        'user:default/alice',
+        [
+          'user:default/alice',
+          'group:default/platform',
+          'group:default/engineering',
+        ],
+        { credentials: {} as any },
+        {
+          searchTitle: 'platform',
+        },
+      );
+
+      expect(mockRepo.getQuestsWithProgress).toHaveBeenCalledWith({
+        user_ref: 'user:default/alice',
+        ownership_refs: [
+          'user:default/alice',
+          'group:default/platform',
+          'group:default/engineering',
+        ],
+        searchTitle: 'platform',
+        audience: undefined,
+        status: undefined,
+        team_ref: undefined,
+      });
+    });
+  });
+
+  describe('handleQuestEvent policy enforcement', () => {
+    const trigger = {
+      id: 'trigger-1',
+      event_key: 'github.pr_merged',
+      quest_id: 'quest-ot',
+      increment_by: 1,
+      enabled: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    beforeEach(() => {
+      mockRepo.getTriggerByEvent.mockResolvedValue(trigger);
+      mockRepo.tryInsertReceipt.mockResolvedValue(true);
+    });
+
+    it('returns blocked=true when ONE_TIME quest already completed (no ConflictError thrown)', async () => {
+      const oneTimeQuest = {
+        id: 'quest-ot',
+        title: 'First Deploy',
+        description: '',
+        target_count: 1,
+        xp_reward: 100,
+        subject_type: 'user' as const,
+        subject_ref: null,
+        completion_policy: 'ONE_TIME' as const,
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockRepo.getQuestById.mockResolvedValue(oneTimeQuest);
+      // alice already completed it
+      mockRepo.getProgressForSubjectQuest.mockResolvedValue({
+        subject_ref: 'user:default/alice',
+        quest_id: 'quest-ot',
+        completion_count: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const result = await service.handleQuestEvent({
+        eventId: 'evt-1',
+        eventKey: 'github.pr_merged',
+        actor: { entityRef: 'user:default/alice' },
+        callerSubject: 'plugin:github-listener',
+        opts: { credentials: {} as any },
+      });
+
+      expect(result.blocked).toBe(true);
+      expect((result as any).reason).toMatch(/can only be completed once/);
+      expect(mockRepo.incrementQuestProgress).not.toHaveBeenCalled();
+    });
+
+    it('returns blocked=true when REPEATABLE quest is within cooldown window', async () => {
+      const cooldownQuest = {
+        id: 'quest-ot',
+        title: 'Weekly Review',
+        description: '',
+        target_count: 1,
+        xp_reward: 50,
+        subject_type: 'user' as const,
+        subject_ref: null,
+        completion_policy: 'REPEATABLE' as const,
+        cooldown_days: 7,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockRepo.getQuestById.mockResolvedValue(cooldownQuest);
+      const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+      mockRepo.getLastAwardedAt.mockResolvedValue(twoDaysAgo);
+
+      const result = await service.handleQuestEvent({
+        eventId: 'evt-2',
+        eventKey: 'github.pr_merged',
+        actor: { entityRef: 'user:default/bob' },
+        callerSubject: 'plugin:github-listener',
+        opts: { credentials: {} as any },
+      });
+
+      expect(result.blocked).toBe(true);
+      expect((result as any).reason).toMatch(/on cooldown/);
+      expect(mockRepo.incrementQuestProgress).not.toHaveBeenCalled();
+    });
+
+    it('returns blocked=false and completionCount on successful first event completion', async () => {
+      const repeatableQuest = {
+        id: 'quest-ot',
+        title: 'Daily Commit',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user' as const,
+        subject_ref: null,
+        completion_policy: 'REPEATABLE' as const,
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockRepo.getQuestById.mockResolvedValue(repeatableQuest);
+      mockRepo.incrementQuestProgress.mockResolvedValue({
+        subject_ref: 'user:default/carol',
+        quest_id: 'quest-ot',
+        completion_count: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const result = await service.handleQuestEvent({
+        eventId: 'evt-3',
+        eventKey: 'github.pr_merged',
+        actor: { entityRef: 'user:default/carol' },
+        callerSubject: 'plugin:github-listener',
+        opts: { credentials: {} as any },
+      });
+
+      expect(result.duplicate).toBe(false);
+      expect(result.blocked).toBe(false);
+      expect((result as any).completionCount).toBe(1);
+    });
+
+    it('returns duplicate=true when receipt already exists', async () => {
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-ot',
+        title: 'Daily Commit',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+        subject_ref: null,
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+      mockRepo.tryInsertReceipt.mockResolvedValue(false); // duplicate
+
+      const result = await service.handleQuestEvent({
+        eventId: 'evt-dup',
+        eventKey: 'github.pr_merged',
+        actor: { entityRef: 'user:default/dave' },
+        callerSubject: 'plugin:github-listener',
+        opts: { credentials: {} as any },
+      });
+
+      expect(result.duplicate).toBe(true);
+      expect(mockRepo.incrementQuestProgress).not.toHaveBeenCalled();
+    });
+
+    it('uses the group entity ref as the subject for team quest events', async () => {
+      const teamQuest = {
+        id: 'quest-team',
+        title: 'Dependency Health',
+        description: '',
+        target_count: 1,
+        xp_reward: 100,
+        subject_type: 'team' as const,
+        subject_ref: null,
+        completion_policy: 'REPEATABLE' as const,
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockRepo.getQuestById.mockResolvedValue(teamQuest);
+      mockRepo.incrementQuestProgress.mockResolvedValue({
+        subject_ref: 'group:default/platform',
+        quest_id: 'quest-team',
+        completion_count: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const result = await service.handleQuestEvent({
+        eventId: 'evt-team',
+        eventKey: 'github.pr_merged',
+        actor: { entityRef: 'group:default/platform' },
+        callerSubject: 'plugin:github-listener',
+        opts: { credentials: {} as any },
+      });
+
+      expect(mockRepo.tryInsertReceipt).toHaveBeenCalledWith({
+        event_id: 'evt-team',
+        event_key: 'github.pr_merged',
+        subject_ref: 'group:default/platform',
+        caller_subject: 'plugin:github-listener',
+      });
+      expect(result.subjectRef).toBe('group:default/platform');
     });
   });
 });

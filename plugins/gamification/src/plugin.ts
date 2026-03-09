@@ -5,7 +5,7 @@ import {
 
 import { rootRouteRef, xpRouteRef } from './routes';
 
-export const backstagePluginGamificationPlugin = createPlugin({
+export const gamificationPlugin = createPlugin({
   id: 'gamification',
   routes: {
     root: rootRouteRef,
@@ -13,24 +13,22 @@ export const backstagePluginGamificationPlugin = createPlugin({
   },
 });
 
-export const BackstagePluginGamificationPage =
-  backstagePluginGamificationPlugin.provide(
-    createRoutableExtension({
-      name: 'BackstagePluginGamificationPage',
-      component: () =>
-        import('./components/ExampleComponent').then(m => m.ExampleComponent),
-      mountPoint: rootRouteRef,
-    }),
-  );
+export const GamificationPage = gamificationPlugin.provide(
+  createRoutableExtension({
+    name: 'GamificationPage',
+    component: () =>
+      import('./components/ExampleComponent').then(m => m.ExampleComponent),
+    mountPoint: rootRouteRef,
+  }),
+);
 
-export const GamificationXpDebugPage =
-  backstagePluginGamificationPlugin.provide(
-    createRoutableExtension({
-      name: 'GamificationEntityXpCard',
-      component: () =>
-        import('./components/EntityXpCard/EntityXpCard').then(
-          m => m.EntityXpCard,
-        ),
-      mountPoint: xpRouteRef,
-    }),
-  );
+export const GamificationXpDebugPage = gamificationPlugin.provide(
+  createRoutableExtension({
+    name: 'GamificationEntityXpCard',
+    component: () =>
+      import('./components/EntityXpCard/EntityXpCard').then(
+        m => m.EntityXpCard,
+      ),
+    mountPoint: xpRouteRef,
+  }),
+);

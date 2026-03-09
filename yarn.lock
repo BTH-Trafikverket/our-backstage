@@ -6519,9 +6519,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@internal/backstage-plugin-gamification-backend@workspace:^, @internal/backstage-plugin-gamification-backend@workspace:plugins/gamification-backend":
+"@internal/gamification-backend@workspace:^, @internal/gamification-backend@workspace:plugins/gamification-backend":
   version: 0.0.0-use.local
-  resolution: "@internal/backstage-plugin-gamification-backend@workspace:plugins/gamification-backend"
+  resolution: "@internal/gamification-backend@workspace:plugins/gamification-backend"
   dependencies:
     "@backstage/backend-common": "npm:^0.25.0"
     "@backstage/backend-defaults": "npm:^0.15.0"
@@ -6545,9 +6545,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@internal/backstage-plugin-gamification@workspace:^, @internal/backstage-plugin-gamification@workspace:plugins/gamification":
+"@internal/gamification@workspace:^, @internal/gamification@workspace:plugins/gamification":
   version: 0.0.0-use.local
-  resolution: "@internal/backstage-plugin-gamification@workspace:plugins/gamification"
+  resolution: "@internal/gamification@workspace:plugins/gamification"
   dependencies:
     "@backstage/catalog-model": "npm:^1.7.6"
     "@backstage/cli": "npm:^0.35.2"
@@ -17485,7 +17485,7 @@ __metadata:
     "@backstage/test-utils": "npm:^1.7.14"
     "@backstage/theme": "npm:^0.7.1"
     "@backstage/ui": "npm:^0.11.0"
-    "@internal/backstage-plugin-gamification": "workspace:^"
+    "@internal/gamification": "workspace:^"
     "@material-ui/core": "npm:^4.12.2"
     "@material-ui/icons": "npm:^4.9.1"
     "@playwright/test": "npm:^1.32.3"
@@ -18132,7 +18132,7 @@ __metadata:
     "@backstage/plugin-search-backend-node": "npm:^1.4.0"
     "@backstage/plugin-signals-backend": "npm:^0.3.11"
     "@backstage/plugin-techdocs-backend": "npm:^2.1.4"
-    "@internal/backstage-plugin-gamification-backend": "workspace:^"
+    "@internal/gamification-backend": "workspace:^"
     app: "link:../app"
     better-sqlite3: "npm:^12.0.0"
     node-gyp: "npm:^10.0.0"

@@ -1,1 +1,1 @@
-export { backstageBackendGamificationPlugin as default } from './plugin';
+export { gamificationBackendPlugin as default } from './plugin';

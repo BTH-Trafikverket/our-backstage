@@ -37,7 +37,7 @@ describe('QuestsRepository Integration Tests', () => {
       const questData = {
         title: 'Complete Integration Test',
         description: 'Write comprehensive integration tests',
-        interval: 5,
+        target_count: 5,
         xp_reward: 100,
       };
 
@@ -46,7 +46,7 @@ describe('QuestsRepository Integration Tests', () => {
       expect(createdQuest).toBeDefined();
       expect(createdQuest.title).toBe(questData.title);
       expect(createdQuest.description).toBe(questData.description);
-      expect(createdQuest.interval).toBe(questData.interval);
+      expect(createdQuest.target_count).toBe(questData.target_count);
       expect(createdQuest.xp_reward).toBe(questData.xp_reward);
       expect(createdQuest.created_at).toBeInstanceOf(Date);
       expect(createdQuest.updated_at).toBeInstanceOf(Date);
@@ -55,7 +55,7 @@ describe('QuestsRepository Integration Tests', () => {
         .where({
           title: questData.title,
           description: questData.description,
-          interval: questData.interval,
+          target_count: questData.target_count,
           xp_reward: questData.xp_reward,
         })
         .first();
@@ -73,14 +73,14 @@ describe('QuestsRepository Integration Tests', () => {
       const quest1 = {
         title: 'Daily Quest',
         description: 'Complete daily tasks',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
       };
 
       const quest2 = {
         title: 'Weekly Challenge',
         description: 'Complete weekly objectives',
-        interval: 7,
+        target_count: 7,
         xp_reward: 500,
       };
 
@@ -106,7 +106,7 @@ describe('QuestsRepository Integration Tests', () => {
       const quest = await repository.createQuest({
         title: 'Timestamp Test',
         description: 'Testing timestamp generation',
-        interval: 1,
+        target_count: 1,
         xp_reward: 50,
       });
 
@@ -132,7 +132,7 @@ describe('QuestsRepository Integration Tests', () => {
       const invalidQuest = {
         title: 'Invalid Quest',
         description: 'This should fail',
-        interval: 1,
+        target_count: 1,
         xp_reward: 0,
       };
 
@@ -141,14 +141,14 @@ describe('QuestsRepository Integration Tests', () => {
       await knex.destroy();
     });
 
-    it('should enforce database constraints (positive interval)', async () => {
+    it('should enforce database constraints (positive target_count)', async () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
       const invalidQuest = {
-        title: 'Invalid Interval Quest',
+        title: 'Invalid Target Count Quest',
         description: 'This should fail',
-        interval: 0,
+        target_count: 0,
         xp_reward: 100,
       };
 
@@ -166,7 +166,7 @@ describe('QuestsRepository Integration Tests', () => {
       const questData = {
         title: 'Retrieve Me',
         description: 'This quest should be retrievable',
-        interval: 3,
+        target_count: 3,
         xp_reward: 75,
       };
 
@@ -176,7 +176,7 @@ describe('QuestsRepository Integration Tests', () => {
         .where({
           title: questData.title,
           description: questData.description,
-          interval: questData.interval,
+          target_count: questData.target_count,
           xp_reward: questData.xp_reward,
         })
         .first();
@@ -188,7 +188,7 @@ describe('QuestsRepository Integration Tests', () => {
       expect(retrievedQuest).toBeDefined();
       expect(retrievedQuest!.title).toBe(questData.title);
       expect(retrievedQuest!.description).toBe(questData.description);
-      expect(retrievedQuest!.interval).toBe(questData.interval);
+      expect(retrievedQuest!.target_count).toBe(questData.target_count);
       expect(retrievedQuest!.xp_reward).toBe(questData.xp_reward);
 
       await knex.destroy();
@@ -214,21 +214,21 @@ describe('QuestsRepository Integration Tests', () => {
       await repository.createQuest({
         title: 'Quest 1',
         description: 'First quest',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
       });
 
       await repository.createQuest({
         title: 'Quest 2',
         description: 'Second quest',
-        interval: 2,
+        target_count: 2,
         xp_reward: 20,
       });
 
       await repository.createQuest({
         title: 'Quest 3',
         description: 'Third quest',
-        interval: 3,
+        target_count: 3,
         xp_reward: 30,
       });
 
@@ -253,7 +253,7 @@ describe('QuestsRepository Integration Tests', () => {
       await repository.createQuest({
         title: 'Timestamp Check',
         description: 'Checking timestamps on retrieval',
-        interval: 1,
+        target_count: 1,
         xp_reward: 25,
       });
 
@@ -277,6 +277,113 @@ describe('QuestsRepository Integration Tests', () => {
     });
   });
 
+  describe('getQuestsWithProgress', () => {
+    it('returns user quests plus one team quest row per owned team', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const userQuest = await repository.createQuest({
+        title: 'Personal Quest',
+        description: 'For the user',
+        target_count: 2,
+        xp_reward: 20,
+        subject_type: 'user',
+      });
+
+      const teamQuest = await repository.createQuest({
+        title: 'Team Quest',
+        description: 'For every team',
+        target_count: 3,
+        xp_reward: 30,
+        subject_type: 'team',
+      });
+
+      await repository.incrementQuestProgress({
+        quest_id: userQuest.id,
+        subject_ref: 'user:default/alice',
+        by: 1,
+      });
+
+      await repository.incrementQuestProgress({
+        quest_id: teamQuest.id,
+        subject_ref: 'group:default/platform',
+        by: 2,
+      });
+
+      const quests = await repository.getQuestsWithProgress({
+        user_ref: 'user:default/alice',
+        ownership_refs: [
+          'user:default/alice',
+          'group:default/platform',
+          'group:default/engineering',
+        ],
+      });
+
+      expect(quests).toHaveLength(3);
+
+      const personalQuest = quests.find(
+        quest =>
+          quest.id === userQuest.id &&
+          quest.subject_ref === 'user:default/alice',
+      );
+      expect(personalQuest).toBeDefined();
+      expect(personalQuest!.completion_count).toBe(1);
+      expect(personalQuest!.progress_toward_target).toBe(1);
+
+      const platformTeamQuest = quests.find(
+        quest =>
+          quest.id === teamQuest.id &&
+          quest.subject_ref === 'group:default/platform',
+      );
+      expect(platformTeamQuest).toBeDefined();
+      expect(platformTeamQuest!.completion_count).toBe(2);
+      expect(platformTeamQuest!.progress_toward_target).toBe(2);
+
+      const engineeringTeamQuest = quests.find(
+        quest =>
+          quest.id === teamQuest.id &&
+          quest.subject_ref === 'group:default/engineering',
+      );
+      expect(engineeringTeamQuest).toBeDefined();
+      expect(engineeringTeamQuest!.completion_count).toBe(0);
+      expect(engineeringTeamQuest!.progress_toward_target).toBe(0);
+
+      await knex.destroy();
+    });
+
+    it('does not return team quests when the user is not in any teams', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      await repository.createQuest({
+        title: 'Personal Quest',
+        description: 'For the user',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+      });
+
+      await repository.createQuest({
+        title: 'Team Quest',
+        description: 'For teams only',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'team',
+      });
+
+      const quests = await repository.getQuestsWithProgress({
+        user_ref: 'user:default/alice',
+        ownership_refs: ['user:default/alice'],
+      });
+
+      expect(quests).toHaveLength(1);
+      expect(quests[0].subject_type).toBe('user');
+      expect(quests[0].subject_ref).toBe('user:default/alice');
+
+      await knex.destroy();
+    });
+  });
+
   describe('CRUD operations with real database interactions', () => {
     it('should perform a complete create-read cycle', async () => {
       const knex = await initDb();
@@ -285,7 +392,7 @@ describe('QuestsRepository Integration Tests', () => {
       await repository.createQuest({
         title: 'Full CRUD Test',
         description: 'Testing complete CRUD operations',
-        interval: 10,
+        target_count: 10,
         xp_reward: 1000,
       });
 
@@ -313,7 +420,7 @@ describe('QuestsRepository Integration Tests', () => {
         repository.createQuest({
           title: `Concurrent Quest ${i + 1}`,
           description: `Quest created concurrently ${i + 1}`,
-          interval: i + 1,
+          target_count: i + 1,
           xp_reward: (i + 1) * 10,
         }),
       );
@@ -335,7 +442,7 @@ describe('QuestsRepository Integration Tests', () => {
       await repository.createQuest({
         title: 'Original Title',
         description: 'Original description',
-        interval: 5,
+        target_count: 5,
         xp_reward: 50,
       });
 
@@ -363,7 +470,7 @@ describe('QuestsRepository Integration Tests', () => {
       await repository.createQuest({
         title: 'To Be Deleted',
         description: 'This quest will be deleted',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
       });
 

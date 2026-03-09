@@ -52,21 +52,21 @@ describe('Completion Policy – Integration Tests', () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   describe('ONE_TIME policy', () => {
-    it('stores completion_policy = ONE_TIME in DB with interval forced to 1', async () => {
+    it('stores completion_policy = ONE_TIME in DB with the given target_count', async () => {
       const knex = await initDb();
       const repo = new QuestsRepository(knex);
 
       const quest = await repo.createQuest({
         title: 'First PR',
         description: 'Merge your first PR ever',
-        interval: 1,
+        target_count: 1,
         xp_reward: 200,
         completion_policy: 'ONE_TIME',
         cooldown_days: null,
       });
 
       expect(quest.completion_policy).toBe('ONE_TIME');
-      expect(quest.interval).toBe(1);
+      expect(quest.target_count).toBe(1);
       expect(quest.cooldown_days).toBeNull();
 
       // Verify DB round-trip
@@ -84,7 +84,7 @@ describe('Completion Policy – Integration Tests', () => {
       const quest = await repo.createQuest({
         title: 'First Commit',
         description: '',
-        interval: 1,
+        target_count: 1,
         xp_reward: 50,
         completion_policy: 'ONE_TIME',
         cooldown_days: null,
@@ -107,7 +107,7 @@ describe('Completion Policy – Integration Tests', () => {
       const quest = await repo.createQuest({
         title: 'Onboarding Badge',
         description: '',
-        interval: 1,
+        target_count: 1,
         xp_reward: 100,
         completion_policy: 'ONE_TIME',
         cooldown_days: null,
@@ -122,7 +122,7 @@ describe('Completion Policy – Integration Tests', () => {
       ).rejects.toThrow(/can only be completed once/);
 
       // Verify completion_count did not increment
-      const progress = await repo.getProgressForUserQuest(
+      const progress = await repo.getProgressForSubjectQuest(
         'user:default/bob',
         quest.id,
       );
@@ -139,7 +139,7 @@ describe('Completion Policy – Integration Tests', () => {
       const quest = await repo.createQuest({
         title: 'First Review',
         description: '',
-        interval: 1,
+        target_count: 1,
         xp_reward: 75,
         completion_policy: 'ONE_TIME',
         cooldown_days: null,
@@ -175,7 +175,7 @@ describe('Completion Policy – Integration Tests', () => {
       const quest = await repo.createQuest({
         title: 'Weekly Review',
         description: '',
-        interval: 1,
+        target_count: 1,
         xp_reward: 50,
         completion_policy: 'REPEATABLE',
         cooldown_days: 7,
@@ -215,7 +215,7 @@ describe('Completion Policy – Integration Tests', () => {
         id: questId,
         title: 'CD Quest',
         description: '',
-        interval: 1,
+        target_count: 1,
         xp_reward: 10,
         completion_policy: 'REPEATABLE',
       });
@@ -226,7 +226,7 @@ describe('Completion Policy – Integration Tests', () => {
       await knex('xp_ledger').insert([
         {
           id: randomUUID(),
-          user_ref: userRef,
+          subject_ref: userRef,
           quest_id: questId,
           awarded_on_completion_count: 1,
           xp_amount: 10,
@@ -235,7 +235,7 @@ describe('Completion Policy – Integration Tests', () => {
         },
         {
           id: randomUUID(),
-          user_ref: userRef,
+          subject_ref: userRef,
           quest_id: questId,
           awarded_on_completion_count: 2,
           xp_amount: 10,
@@ -259,7 +259,7 @@ describe('Completion Policy – Integration Tests', () => {
       const quest = await repo.createQuest({
         title: 'Bi-weekly Deploy',
         description: '',
-        interval: 1,
+        target_count: 1,
         xp_reward: 30,
         completion_policy: 'REPEATABLE',
         cooldown_days: 14,
@@ -269,7 +269,7 @@ describe('Completion Policy – Integration Tests', () => {
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
       await knex('xp_ledger').insert({
         id: randomUUID(),
-        user_ref: 'user:default/dave',
+        subject_ref: 'user:default/dave',
         quest_id: quest.id,
         awarded_on_completion_count: 1,
         xp_amount: 30,
@@ -292,7 +292,7 @@ describe('Completion Policy – Integration Tests', () => {
       const quest = await repo.createQuest({
         title: 'Monthly Challenge',
         description: '',
-        interval: 1,
+        target_count: 1,
         xp_reward: 100,
         completion_policy: 'REPEATABLE',
         cooldown_days: 7,
@@ -302,7 +302,7 @@ describe('Completion Policy – Integration Tests', () => {
       const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
       await knex('xp_ledger').insert({
         id: randomUUID(),
-        user_ref: 'user:default/eve',
+        subject_ref: 'user:default/eve',
         quest_id: quest.id,
         awarded_on_completion_count: 1,
         xp_amount: 100,
@@ -312,7 +312,7 @@ describe('Completion Policy – Integration Tests', () => {
 
       // Also seed the existing progress row
       await knex('quest_progress').insert({
-        user_ref: 'user:default/eve',
+        subject_ref: 'user:default/eve',
         quest_id: quest.id,
         completion_count: 1,
       });
@@ -335,7 +335,7 @@ describe('Completion Policy – Integration Tests', () => {
       const quest = await repo.createQuest({
         title: 'Daily Commit',
         description: '',
-        interval: 1,
+        target_count: 1,
         xp_reward: 5,
         completion_policy: 'REPEATABLE',
         cooldown_days: null,
