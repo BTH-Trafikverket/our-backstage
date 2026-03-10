@@ -131,7 +131,7 @@ export const BadgesAdminPage = ({
       setQuests(mockQuests);
       setBadges(mockBadges);
     } catch (e: any) {
-      setError(e?.message ?? 'Ett okänt fel inträffade');
+      setError(e?.message ?? 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
@@ -205,23 +205,23 @@ export const BadgesAdminPage = ({
   };
 
   const validateBadgeForm = (form: BadgeFormData): string | null => {
-    if (!form.title.trim()) return 'Title är obligatorisk';
-    if (!form.description.trim()) return 'Description är obligatorisk';
-    if (!form.criterias.length) return 'Minst ett kriterium krävs';
+    if (!form.title.trim()) return 'Title is required';
+    if (!form.description.trim()) return 'Description is required';
+    if (!form.criterias.length) return 'At least one criterion is required';
 
     const selectedIds = form.criterias
       .map(c => c.quest_id)
       .filter(id => id.trim() !== '');
 
     if (new Set(selectedIds).size !== selectedIds.length) {
-      return 'Du har valt samma quest flera gånger i kriterierna';
+      return 'You have selected the same quest multiple times in the criteria';
     }
 
     for (let i = 0; i < form.criterias.length; i++) {
       const criteria = form.criterias[i];
 
       if (!criteria.quest_id) {
-        return `Kriterium ${i + 1}: Välj en quest`;
+        return `Criterion ${i + 1}: Select a quest`;
       }
 
       const quest = getQuestById(criteria.quest_id);
@@ -229,14 +229,14 @@ export const BadgesAdminPage = ({
 
       if (quest?.completion_policy === 'ONE_TIME') {
         if (parsedCount !== 1) {
-          return `Kriterium ${i + 1}: One-time quest måste ha count 1`;
+          return `Criterion ${i + 1}: One-time quests must have a count of 1`;
         }
       } else if (
         !criteria.target_count ||
         Number.isNaN(parsedCount) ||
         parsedCount < 1
       ) {
-        return `Kriterium ${i + 1}: Count måste vara minst 1`;
+        return `Criterion ${i + 1}: Count must be at least 1`;
       }
     }
 
@@ -425,7 +425,7 @@ export const BadgesAdminPage = ({
             style={{ flex: 1 }}
           >
             <MenuItem value="">
-              <em>Välj quest</em>
+              <em>Select a quest</em>
             </MenuItem>
             {quests.map(q => {
               const policyLabel =
@@ -515,7 +515,7 @@ export const BadgesAdminPage = ({
           <Box mt={3} mb={1}>
             <Typography variant="subtitle1">Criterias</Typography>
             <Typography variant="body2" color="textSecondary">
-              Välj quest. One-time quests visar ingen count.
+              Select a quest. One-time quests do not show a count.
             </Typography>
           </Box>
 
@@ -577,7 +577,7 @@ export const BadgesAdminPage = ({
           <Box mt={3} mb={1}>
             <Typography variant="subtitle1">Criterias</Typography>
             <Typography variant="body2" color="textSecondary">
-              Välj quest. One-time quests visar ingen count.
+              Select a quest. One-time quests do not show a count.
             </Typography>
           </Box>
 
@@ -621,7 +621,7 @@ export const BadgesAdminPage = ({
           <InfoCard>
             <ContentHeader title="Badges">
               <SupportButton>
-                Skapa och hantera badges (admin) eller se badges (user).
+                Create and manage badges (admin) or view badges (user).
               </SupportButton>
 
               {isAdmin && (
@@ -643,7 +643,7 @@ export const BadgesAdminPage = ({
                   onClick={onToggleDemo}
                   size="small"
                 >
-                  {isDemoMode ? 'Demo: Visa motsatt vy' : 'Aktivera demo-läge'}
+                  {isDemoMode ? 'Demo: Show opposite view' : 'Enable demo mode'}
                 </Button>
               )}
             </ContentHeader>

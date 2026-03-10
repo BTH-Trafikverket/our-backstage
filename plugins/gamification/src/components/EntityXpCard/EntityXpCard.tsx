@@ -122,10 +122,10 @@ export const EntityXpCard = (props: {
 
         <Box mt={1}>
           <Typography variant="body2">
-            {data.xpIntoLevel}/{levelTotal} XP i nivån
+            {data.xpIntoLevel}/{levelTotal} XP in this level
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            {data.xpToNextLevel} XP kvar till nästa level
+            {data.xpToNextLevel} XP until next level
           </Typography>
         </Box>
       </Box>

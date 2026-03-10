@@ -6,5 +6,5 @@ export {
 
 export { rootRouteRef, xpRouteRef } from './routes';
 
-// valfritt, men bra att ha:
+// optional, but useful to have:
 export { EntityXpCard } from './components/EntityXpCard/EntityXpCard';

@@ -917,7 +917,9 @@ export const QuestsAdminPage = ({
                 size="small"
                 style={{ minWidth: 180 }}
               >
-                <InputLabel id="audience-filter-label">Visa</InputLabel>
+                <InputLabel id="audience-filter-label">
+                  Filter by audience
+                </InputLabel>
                 <Select
                   labelId="audience-filter-label"
                   value={audienceFilter}
