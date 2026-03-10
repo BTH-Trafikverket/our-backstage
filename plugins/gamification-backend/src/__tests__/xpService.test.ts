@@ -28,7 +28,7 @@ describe('XpService', () => {
 
       // Assert: Check the results
       expect(status).toEqual({
-        userRef: 'user:default/alice',
+        subjectRef: 'user:default/alice',
         totalXp: 0,
         level: 1,
         currentLevelXp: 0,

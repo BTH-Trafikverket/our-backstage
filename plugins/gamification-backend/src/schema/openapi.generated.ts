@@ -13,15 +13,15 @@ export const spec = {
       get: {
         operationId: 'getXpStatus',
         tags: ['XP'],
-        summary: 'Get XP status for a user',
+        summary: 'Get XP status for a subject',
         parameters: [
           {
             in: 'query',
-            name: 'userRef',
+            name: 'subjectRef',
             required: false,
             schema: { type: 'string' },
             description:
-              'Optional Backstage entity ref. If omitted, the authenticated user is used.',
+              'Optional Backstage subject ref. If omitted, the authenticated user is used. Service credentials must provide subjectRef.',
           },
         ],
         responses: {
@@ -254,13 +254,13 @@ export const spec = {
           {
             type: 'object',
             required: [
-              'user_ref',
+              'subject_ref',
               'completion_count',
               'progress_in_interval',
               'next_milestone',
             ],
             properties: {
-              user_ref: { type: 'string', nullable: true },
+              subject_ref: { type: 'string', nullable: true },
               completion_count: { type: 'integer' },
               progress_in_interval: { type: 'integer' },
               next_milestone: { type: 'integer' },
@@ -327,10 +327,10 @@ export const spec = {
       },
       QuestEventResult: {
         type: 'object',
-        required: ['duplicate', 'userRef', 'questId'],
+        required: ['duplicate', 'subjectRef', 'questId'],
         properties: {
           duplicate: { type: 'boolean' },
-          userRef: { type: 'string' },
+          subjectRef: { type: 'string' },
           questId: { type: 'string' },
           completionCount: { type: 'integer' },
         },
@@ -338,7 +338,7 @@ export const spec = {
       XpStatus: {
         type: 'object',
         required: [
-          'userRef',
+          'subjectRef',
           'totalXp',
           'level',
           'currentLevelXp',
@@ -348,7 +348,7 @@ export const spec = {
           'progress',
         ],
         properties: {
-          userRef: { type: 'string' },
+          subjectRef: { type: 'string' },
           totalXp: { type: 'integer' },
           level: { type: 'integer' },
           currentLevelXp: { type: 'integer' },

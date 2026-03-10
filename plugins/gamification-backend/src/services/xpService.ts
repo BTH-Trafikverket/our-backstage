@@ -1,7 +1,7 @@
 import { XpRepository } from '../repositories/xpRepository';
 
 export type XpStatus = {
-  userRef: string;
+  subjectRef: string;
   totalXp: number;
 
   level: number;
@@ -46,8 +46,8 @@ export class XpService {
     };
   }
 
-  async getStatus(userRef: string): Promise<XpStatus> {
-    const totalXp = await this.repo.getTotalXp(userRef);
-    return { userRef, totalXp, ...this.compute(totalXp) };
+  async getStatus(subjectRef: string): Promise<XpStatus> {
+    const totalXp = await this.repo.getTotalXp(subjectRef);
+    return { subjectRef, totalXp, ...this.compute(totalXp) };
   }
 }

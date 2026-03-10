@@ -80,10 +80,25 @@ export type PaginatedQuestsResult = {
 };
 
 export class QuestsRepository {
-  private readonly db: Knex;
+  private readonly db: Knex | Knex.Transaction;
 
-  constructor(db: Knex) {
+  constructor(db: Knex | Knex.Transaction) {
     this.db = db;
+  }
+
+  async withTransaction<T>(
+    fn: (repo: QuestsRepository) => Promise<T>,
+  ): Promise<T> {
+    return this.db.transaction(async trx => fn(new QuestsRepository(trx)));
+  }
+
+  async lockSubjectQuest(subjectRef: string, questId: string): Promise<void> {
+    // Serialize writes per subject+quest so policy checks and progress updates
+    // observe a stable view before the trigger writes XP ledger rows.
+    await this.db.raw(
+      'SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))',
+      [subjectRef, questId],
+    );
   }
 
   async createQuest(data: CreateQuestRow): Promise<QuestRow> {
