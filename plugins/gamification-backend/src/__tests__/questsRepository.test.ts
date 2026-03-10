@@ -29,6 +29,34 @@ describe('QuestsRepository Integration Tests', () => {
     return knex;
   }
 
+  describe('withTransaction', () => {
+    it('rolls back quest event receipts when the transaction fails', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      await expect(
+        repository.withTransaction(async repo => {
+          await repo.tryInsertReceipt({
+            event_id: 'evt-rollback',
+            event_key: 'github.pr_merged',
+            subject_ref: 'group:default/platform',
+            caller_subject: 'plugin:test-listener',
+          });
+
+          throw new Error('force rollback');
+        }),
+      ).rejects.toThrow('force rollback');
+
+      const receipt = await knex('quest_event_receipts')
+        .where({ event_id: 'evt-rollback' })
+        .first();
+
+      expect(receipt).toBeUndefined();
+
+      await knex.destroy();
+    });
+  });
+
   describe('createQuest', () => {
     it('should create a quest in the database and return it', async () => {
       const knex = await initDb();

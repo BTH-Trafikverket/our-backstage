@@ -12,6 +12,8 @@ describe('QuestsService', () => {
     mockRepo = {
       createQuest: jest.fn(),
       getQuestById: jest.fn(),
+      withTransaction: jest.fn(async fn => fn(mockRepo)),
+      lockSubjectQuest: jest.fn(),
       getProgressForSubjectQuest: jest.fn(),
       getLastAwardedAt: jest.fn(),
       incrementQuestProgress: jest.fn(),

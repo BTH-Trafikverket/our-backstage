@@ -57,7 +57,7 @@ describe('quests routes auth', () => {
       getQuestsWithProgress: jest.fn(async () => []),
       handleQuestEvent: jest.fn(async () => ({
         duplicate: false,
-        userRef: 'user:default/alice',
+        subjectRef: 'user:default/alice',
         questId: 'quest-1',
         completionCount: 1,
       })),

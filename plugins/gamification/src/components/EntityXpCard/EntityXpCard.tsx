@@ -22,7 +22,7 @@ import {
 import InfoOutlinedIcon from '@material-ui/icons/InfoOutlined';
 
 type XpStatus = {
-  userRef: string;
+  subjectRef: string;
   totalXp: number;
   level: number;
   currentLevelXp: number;
@@ -43,7 +43,7 @@ export const EntityXpCard = (props: {
   const identityApi = useApi(identityApiRef);
 
   const { entity } = useEntity();
-  const userRef = useMemo(() => stringifyEntityRef(entity), [entity]);
+  const subjectRef = useMemo(() => stringifyEntityRef(entity), [entity]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
@@ -60,7 +60,7 @@ export const EntityXpCard = (props: {
         const baseUrl = await discoveryApi.getBaseUrl('gamification');
 
         const url = new URL(`${baseUrl}/xp`);
-        url.searchParams.set('userRef', userRef);
+        url.searchParams.set('subjectRef', subjectRef);
 
         const { token } = await identityApi.getCredentials();
 
@@ -86,7 +86,7 @@ export const EntityXpCard = (props: {
     return () => {
       cancelled = true;
     };
-  }, [discoveryApi, fetchApi, identityApi, userRef]);
+  }, [discoveryApi, fetchApi, identityApi, subjectRef]);
 
   let body: JSX.Element;
 

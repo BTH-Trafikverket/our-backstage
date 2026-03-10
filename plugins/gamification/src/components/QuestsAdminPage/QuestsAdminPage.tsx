@@ -58,7 +58,7 @@ type Quest = {
   created_at?: string;
   updated_at?: string;
 
-  user_ref?: string | null;
+  subject_ref?: string | null;
   completion_count: number;
   progress_toward_target: number;
   next_milestone: number;
