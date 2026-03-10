@@ -4,10 +4,12 @@ import {
 } from '../schemas/quests/questCreationSchema';
 import { QuestEditSchema } from '../schemas/quests/questEditSchema';
 import { QuestsRepository } from '../repositories/questsRepository';
-import type { QuestRow } from '../repositories/questsRepository';
 import type {
+  QuestRow,
   QuestAudienceFilter,
   QuestStatusFilter,
+  QuestSortField,
+  SortOrder,
 } from '../repositories/questsRepository';
 import { CatalogClient } from '@backstage/catalog-client';
 import { AuthService } from '@backstage/backend-plugin-api';
@@ -236,6 +238,10 @@ export class QuestsService {
       audience?: QuestAudienceFilter;
       status?: QuestStatusFilter;
       teamRef?: string;
+      sortBy?: QuestSortField;
+      order?: SortOrder;
+      page?: number;
+      limit?: number;
     },
   ) {
     return this.questsRepo.getQuestsWithProgress({
@@ -245,6 +251,10 @@ export class QuestsService {
       audience: filters?.audience,
       status: filters?.status,
       team_ref: filters?.teamRef,
+      sortBy: filters?.sortBy,
+      order: filters?.order,
+      page: filters?.page,
+      limit: filters?.limit,
     });
   }
 
