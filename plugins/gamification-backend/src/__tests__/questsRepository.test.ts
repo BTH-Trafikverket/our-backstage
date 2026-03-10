@@ -310,7 +310,7 @@ describe('QuestsRepository Integration Tests', () => {
         by: 2,
       });
 
-      const quests = await repository.getQuestsWithProgress({
+      const result = await repository.getQuestsWithProgress({
         user_ref: 'user:default/alice',
         ownership_refs: [
           'user:default/alice',
@@ -319,6 +319,7 @@ describe('QuestsRepository Integration Tests', () => {
         ],
       });
 
+      const quests = result.data;
       expect(quests).toHaveLength(3);
 
       const personalQuest = quests.find(
@@ -371,11 +372,12 @@ describe('QuestsRepository Integration Tests', () => {
         subject_type: 'team',
       });
 
-      const quests = await repository.getQuestsWithProgress({
+      const result = await repository.getQuestsWithProgress({
         user_ref: 'user:default/alice',
         ownership_refs: ['user:default/alice'],
       });
 
+      const quests = result.data;
       expect(quests).toHaveLength(1);
       expect(quests[0].subject_type).toBe('user');
       expect(quests[0].subject_ref).toBe('user:default/alice');

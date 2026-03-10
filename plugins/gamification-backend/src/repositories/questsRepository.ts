@@ -66,6 +66,18 @@ export type QuestWithProgressRow = QuestRow & {
 
 export type QuestAudienceFilter = 'all' | 'individual' | 'team';
 export type QuestStatusFilter = 'active' | 'completed' | 'all';
+export type QuestSortField = 'created_at' | 'title' | 'xp_reward';
+export type SortOrder = 'asc' | 'desc';
+
+export type PaginatedQuestsResult = {
+  data: QuestWithProgressRow[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
 
 export class QuestsRepository {
   private readonly db: Knex;
@@ -111,7 +123,11 @@ export class QuestsRepository {
     audience?: QuestAudienceFilter;
     status?: QuestStatusFilter;
     team_ref?: string;
-  }): Promise<QuestWithProgressRow[]> {
+    sortBy?: QuestSortField;
+    order?: SortOrder;
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedQuestsResult> {
     const {
       user_ref,
       ownership_refs,
@@ -119,8 +135,17 @@ export class QuestsRepository {
       audience = 'all',
       status = 'active',
       team_ref,
+      sortBy = 'created_at',
+      order = 'asc',
+      page = 1,
+      limit = 10,
     } = params;
     const db = this.db;
+
+    const safePage = Math.max(1, Math.floor(page));
+    const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const offset = (safePage - 1) * safeLimit;
+
     const teamRefs = ownership_refs.filter(
       ref => ref !== user_ref && ref.startsWith('group:'),
     );
@@ -214,7 +239,15 @@ export class QuestsRepository {
     }
 
     if (queries.length === 0) {
-      return [];
+      return {
+        data: [],
+        pagination: {
+          page: safePage,
+          limit: safeLimit,
+          total: 0,
+          totalPages: 0,
+        },
+      };
     }
 
     const [firstQuery, ...restQueries] = queries;
@@ -253,10 +286,58 @@ export class QuestsRepository {
       query = query.whereRaw(`NOT (${completedCondition})`);
     }
 
-    return await query.orderBy([
-      { column: 'quest_rows.created_at', order: 'asc' },
-      { column: 'quest_rows.subject_ref', order: 'asc' },
-    ]);
+    // Map sortBy to actual column names
+    const sortColumn = `quest_rows.${sortBy}`;
+    const sortOrder = order === 'desc' ? 'desc' : 'asc';
+
+    // Use window function to get total count in same query
+    const results = await query
+      .select(db.raw('COUNT(*) OVER() as full_count'))
+      .orderBy([
+        { column: sortColumn, order: sortOrder },
+        { column: 'quest_rows.subject_ref', order: 'asc' },
+        { column: 'quest_rows.id', order: 'asc' },
+      ])
+      .limit(safeLimit)
+      .offset(offset);
+
+    let total = results.length > 0 ? Number(results[0].full_count || 0) : 0;
+
+    // When page is out of range, LIMIT/OFFSET returns no rows and we lose
+    // the windowed count; run a lightweight count to keep pagination metadata.
+    if (results.length === 0 && safePage > 1) {
+      const countRow = await db
+        .from(questRowsQuery.as('quest_rows'))
+        .count<{ count: string }[]>({ count: '*' })
+        .modify(queryBuilder => {
+          if (status === 'completed') {
+            queryBuilder.whereRaw(completedCondition);
+          } else if (status === 'active') {
+            queryBuilder.whereRaw(`NOT (${completedCondition})`);
+          }
+        })
+        .first();
+
+      total = Number(countRow?.count ?? 0);
+    }
+
+    const totalPages = Math.ceil(total / safeLimit) || 0;
+
+    // Remove full_count from each row
+    const data = results.map((row: any) => {
+      const { full_count, ...rest } = row;
+      return rest as QuestWithProgressRow;
+    });
+
+    return {
+      data,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages,
+      },
+    };
   }
 
   async editQuest(

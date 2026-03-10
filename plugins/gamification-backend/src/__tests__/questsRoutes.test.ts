@@ -154,9 +154,10 @@ describe('quests routes auth', () => {
     });
     const { app, questsService } = makeApp({ userInfo });
 
-    (questsService.getQuestsWithProgress as jest.Mock).mockResolvedValue([
-      { id: 'quest-1', title: 'Quest 1', completion_count: 0 },
-    ]);
+    (questsService.getQuestsWithProgress as jest.Mock).mockResolvedValue({
+      data: [{ id: 'quest-1', title: 'Quest 1', completion_count: 0 }],
+      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+    });
 
     const res = await request(app)
       .get('/quests/me')
@@ -179,7 +180,16 @@ describe('quests routes auth', () => {
         audience: 'all',
         status: 'active',
         teamRef: undefined,
+        sortBy: 'created_at',
+        order: 'asc',
+        page: 1,
+        limit: 10,
       },
     );
+
+    expect(res.body).toEqual({
+      data: [{ id: 'quest-1', title: 'Quest 1', completion_count: 0 }],
+      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+    });
   });
 });

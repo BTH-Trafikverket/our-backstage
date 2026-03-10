@@ -123,6 +123,14 @@ export const QuestsAdminPage = ({
   >('active');
   const [teamFilter, setTeamFilter] = useState<string>('');
   const [teamOptions, setTeamOptions] = useState<string[]>([]);
+  const [page, setPage] = useState<number>(1);
+  const [limit] = useState<number>(10);
+  const [total, setTotal] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [sortBy, setSortBy] = useState<'created_at' | 'title' | 'xp_reward'>(
+    'created_at',
+  );
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
   // Create quest dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -171,6 +179,10 @@ export const QuestsAdminPage = ({
         ...(audienceFilter === 'team' && teamFilter
           ? { team: teamFilter }
           : {}),
+        sortBy,
+        order,
+        page: String(page),
+        limit: String(limit),
       });
 
       const response = await fetchApi.fetch(url);
@@ -179,13 +191,29 @@ export const QuestsAdminPage = ({
         throw new Error(`Error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
-      setQuests(data || []);
+      const result = await response.json();
+
+      // Handle paginated response
+      if (result && result.data && result.pagination) {
+        setQuests(result.data || []);
+        setTotal(result.pagination.total || 0);
+        setTotalPages(result.pagination.totalPages || 1);
+      } else if (Array.isArray(result)) {
+        // Fallback for non-paginated response
+        setQuests(result);
+        setTotal(result.length);
+        setTotalPages(1);
+      } else {
+        setQuests([]);
+        setTotal(0);
+        setTotalPages(1);
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'An unknown error occurred',
       );
       setQuests([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -195,12 +223,21 @@ export const QuestsAdminPage = ({
     audienceFilter,
     statusFilter,
     teamFilter,
+    sortBy,
+    order,
+    page,
+    limit,
     buildGamificationUrl,
   ]);
 
   useEffect(() => {
     fetchQuests();
   }, [fetchQuests]);
+
+  // Reset to page 1 when filters/search/sort change
+  useEffect(() => {
+    setPage(1);
+  }, [search, audienceFilter, statusFilter, teamFilter, sortBy, order]);
 
   useEffect(() => {
     let mounted = true;
@@ -889,10 +926,10 @@ export const QuestsAdminPage = ({
                       e.target.value as 'all' | 'individual' | 'team',
                     )
                   }
-                  label="Visa"
+                  label="Filter by audience"
                 >
-                  <MenuItem value="all">Alla</MenuItem>
-                  <MenuItem value="individual">Individuella</MenuItem>
+                  <MenuItem value="all">All</MenuItem>
+                  <MenuItem value="individual">Individual</MenuItem>
                   <MenuItem value="team">Team</MenuItem>
                 </Select>
               </FormControl>
@@ -936,9 +973,48 @@ export const QuestsAdminPage = ({
                   }
                   label="Status"
                 >
-                  <MenuItem value="active">Pågående</MenuItem>
-                  <MenuItem value="completed">Avklarade</MenuItem>
-                  <MenuItem value="all">Alla</MenuItem>
+                  <MenuItem value="active">Active</MenuItem>
+                  <MenuItem value="completed">Completed</MenuItem>
+                  <MenuItem value="all">All</MenuItem>
+                </Select>
+              </FormControl>
+
+              <FormControl
+                variant="outlined"
+                size="small"
+                style={{ minWidth: 180, marginLeft: 8 }}
+              >
+                <InputLabel id="sort-by-label">Sort by</InputLabel>
+                <Select
+                  labelId="sort-by-label"
+                  value={sortBy}
+                  onChange={e =>
+                    setSortBy(
+                      e.target.value as 'created_at' | 'title' | 'xp_reward',
+                    )
+                  }
+                  label="Sort by"
+                >
+                  <MenuItem value="created_at">Created</MenuItem>
+                  <MenuItem value="title">Title</MenuItem>
+                  <MenuItem value="xp_reward">XP Reward</MenuItem>
+                </Select>
+              </FormControl>
+
+              <FormControl
+                variant="outlined"
+                size="small"
+                style={{ minWidth: 140, marginLeft: 8 }}
+              >
+                <InputLabel id="order-label">Order</InputLabel>
+                <Select
+                  labelId="order-label"
+                  value={order}
+                  onChange={e => setOrder(e.target.value as 'asc' | 'desc')}
+                  label="Order"
+                >
+                  <MenuItem value="asc">Ascending</MenuItem>
+                  <MenuItem value="desc">Descending</MenuItem>
                 </Select>
               </FormControl>
             </Box>
@@ -966,104 +1042,142 @@ export const QuestsAdminPage = ({
             {!loading && !error && quests.length > 0 && (
               <>
                 {isAdmin ? (
-                  <TableContainer component={Paper} style={{ marginTop: 16 }}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell style={{ width: '18%' }}>Title</TableCell>
-                          <TableCell style={{ width: '14%' }}>
-                            Subject
-                          </TableCell>
-                          <TableCell style={{ width: '12%' }}>Type</TableCell>
-                          <TableCell style={{ width: '21%' }}>
-                            Description
-                          </TableCell>
-                          <TableCell align="center" style={{ width: '12%' }}>
-                            XP Reward
-                          </TableCell>
-                          <TableCell align="right" style={{ width: '15%' }}>
-                            Progress
-                          </TableCell>
-                          <TableCell align="right" style={{ width: '8%' }}>
-                            Actions
-                          </TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {adminQuests.map(quest => {
-                          const progress = getQuestProgress(quest);
-                          const isCompleted =
-                            quest.completion_policy === 'ONE_TIME' &&
-                            quest.completion_count >= quest.target_count;
-                          const percent =
-                            (progress.current / progress.target) * 100;
-                          return (
-                            <TableRow key={quest.id}>
-                              <TableCell>{quest.title}</TableCell>
-                              <TableCell>{renderSubject(quest)}</TableCell>
-                              <TableCell>
-                                {quest.completion_policy === 'ONE_TIME' ? (
-                                  <Chip
-                                    label="One-time"
-                                    size="small"
-                                    color="secondary"
-                                  />
-                                ) : (
-                                  <Chip
-                                    label={
-                                      quest.cooldown_days
-                                        ? `Every ${quest.cooldown_days}d`
-                                        : 'Repeatable'
-                                    }
-                                    size="small"
-                                  />
-                                )}
-                              </TableCell>
-                              <TableCell>{quest.description}</TableCell>
-                              <TableCell align="center">
-                                {quest.xp_reward}
-                              </TableCell>
-                              <TableCell align="right">
-                                <Box minWidth={120} textAlign="right">
-                                  <LinearProgress
-                                    variant="determinate"
-                                    value={Math.min(100, Math.max(0, percent))}
-                                  />
-                                  <Typography variant="caption">
-                                    {isCompleted
-                                      ? '\u2713 Completed'
-                                      : `${progress.current}/${progress.target}`}
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell align="right">
-                                <Tooltip title="Edit">
-                                  <IconButton
-                                    size="small"
-                                    color="primary"
-                                    onClick={() => handleOpenEditDialog(quest)}
-                                  >
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete">
-                                  <IconButton
-                                    size="small"
-                                    color="secondary"
-                                    onClick={() =>
-                                      handleOpenDeleteDialog(quest)
-                                    }
-                                  >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                  <>
+                    <TableContainer component={Paper} style={{ marginTop: 16 }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell style={{ width: '18%' }}>
+                              Title
+                            </TableCell>
+                            <TableCell style={{ width: '14%' }}>
+                              Subject
+                            </TableCell>
+                            <TableCell style={{ width: '12%' }}>Type</TableCell>
+                            <TableCell style={{ width: '21%' }}>
+                              Description
+                            </TableCell>
+                            <TableCell align="center" style={{ width: '12%' }}>
+                              XP Reward
+                            </TableCell>
+                            <TableCell align="right" style={{ width: '15%' }}>
+                              Progress
+                            </TableCell>
+                            <TableCell align="right" style={{ width: '8%' }}>
+                              Actions
+                            </TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {adminQuests.map(quest => {
+                            const progress = getQuestProgress(quest);
+                            const isCompleted =
+                              quest.completion_policy === 'ONE_TIME' &&
+                              quest.completion_count >= quest.target_count;
+                            const percent =
+                              (progress.current / progress.target) * 100;
+                            return (
+                              <TableRow key={quest.id}>
+                                <TableCell>{quest.title}</TableCell>
+                                <TableCell>{renderSubject(quest)}</TableCell>
+                                <TableCell>
+                                  {quest.completion_policy === 'ONE_TIME' ? (
+                                    <Chip
+                                      label="One-time"
+                                      size="small"
+                                      color="secondary"
+                                    />
+                                  ) : (
+                                    <Chip
+                                      label={
+                                        quest.cooldown_days
+                                          ? `Every ${quest.cooldown_days}d`
+                                          : 'Repeatable'
+                                      }
+                                      size="small"
+                                    />
+                                  )}
+                                </TableCell>
+                                <TableCell>{quest.description}</TableCell>
+                                <TableCell align="center">
+                                  {quest.xp_reward}
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Box minWidth={120} textAlign="right">
+                                    <LinearProgress
+                                      variant="determinate"
+                                      value={Math.min(
+                                        100,
+                                        Math.max(0, percent),
+                                      )}
+                                    />
+                                    <Typography variant="caption">
+                                      {isCompleted
+                                        ? '\u2713 Completed'
+                                        : `${progress.current}/${progress.target}`}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Tooltip title="Edit">
+                                    <IconButton
+                                      size="small"
+                                      color="primary"
+                                      onClick={() =>
+                                        handleOpenEditDialog(quest)
+                                      }
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete">
+                                    <IconButton
+                                      size="small"
+                                      color="secondary"
+                                      onClick={() =>
+                                        handleOpenDeleteDialog(quest)
+                                      }
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+
+                    <Box
+                      display="flex"
+                      justifyContent="center"
+                      alignItems="center"
+                      mt={2}
+                      style={{ gap: 16 }}
+                    >
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        disabled={page === 1}
+                        onClick={() => setPage(p => p - 1)}
+                      >
+                        Previous
+                      </Button>
+                      <Typography variant="body2">
+                        Page {page} of {Math.max(1, totalPages)} ({total}{' '}
+                        quests)
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        disabled={page >= Math.max(1, totalPages)}
+                        onClick={() => setPage(p => p + 1)}
+                      >
+                        Next
+                      </Button>
+                    </Box>
+                  </>
                 ) : (
                   <>
                     <TableContainer component={Paper} style={{ marginTop: 16 }}>
@@ -1144,6 +1258,35 @@ export const QuestsAdminPage = ({
                         </TableBody>
                       </Table>
                     </TableContainer>
+
+                    <Box
+                      display="flex"
+                      justifyContent="center"
+                      alignItems="center"
+                      style={{ gap: 16 }}
+                      mt={2}
+                    >
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        disabled={page === 1}
+                        onClick={() => setPage(p => p - 1)}
+                      >
+                        Previous
+                      </Button>
+                      <Typography variant="body2">
+                        Page {page} of {Math.max(1, totalPages)} ({total}{' '}
+                        quests)
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        disabled={page >= Math.max(1, totalPages)}
+                        onClick={() => setPage(p => p + 1)}
+                      >
+                        Next
+                      </Button>
+                    </Box>
                   </>
                 )}
               </>

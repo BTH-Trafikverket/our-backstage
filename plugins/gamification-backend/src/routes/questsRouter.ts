@@ -165,6 +165,14 @@ export function QuestsRouter({
       typeof req.query.status === 'string' ? req.query.status : undefined;
     const team =
       typeof req.query.team === 'string' ? req.query.team : undefined;
+    const sortByQuery =
+      typeof req.query.sortBy === 'string' ? req.query.sortBy : undefined;
+    const orderQuery =
+      typeof req.query.order === 'string' ? req.query.order : undefined;
+    const pageQuery =
+      typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
+    const limitQuery =
+      typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 10;
 
     const audience =
       audienceQuery === 'individual' || audienceQuery === 'team'
@@ -174,8 +182,16 @@ export function QuestsRouter({
       statusQuery === 'completed' || statusQuery === 'all'
         ? statusQuery
         : 'active';
+    const sortBy =
+      sortByQuery === 'title' || sortByQuery === 'xp_reward'
+        ? sortByQuery
+        : 'created_at';
+    const order = orderQuery === 'desc' ? 'desc' : 'asc';
+    const page = Number.isFinite(pageQuery) && pageQuery > 0 ? pageQuery : 1;
+    const limit =
+      Number.isFinite(limitQuery) && limitQuery > 0 ? limitQuery : 10;
 
-    const quests = await questsService.getQuestsWithProgress(
+    const result = await questsService.getQuestsWithProgress(
       userRef,
       info.ownershipEntityRefs,
       {
@@ -186,10 +202,14 @@ export function QuestsRouter({
         audience,
         status,
         teamRef: team,
+        sortBy,
+        order,
+        page,
+        limit,
       },
     );
 
-    res.status(200).json(quests);
+    res.status(200).json(result);
   });
 
   return router;
