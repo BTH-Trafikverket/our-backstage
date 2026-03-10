@@ -12,6 +12,7 @@ export const seed003DemoEvents: Seed = {
   description:
     'Seed demo quest progress by replaying events (triggers + receipts)',
   async run({ knex }) {
+    const adminGroup = 'group:default/admin';
     const alice = 'user:local/alice';
     const bob = 'user:local/bob';
 
@@ -337,5 +338,50 @@ export const seed003DemoEvents: Seed = {
           ]),
         });
     }
+
+    // Seed direct XP for the admin group so group entity pages show level
+    // progress even when no team quest events have been replayed yet.
+    const adminGroupQuests = await knex('quests')
+      .select(['id', 'title', 'xp_reward'])
+      .whereIn('title', ['Merge a PR', 'Review PRs', 'Fix a failing build']);
+
+    const adminQuestByTitle = new Map(
+      adminGroupQuests.map((quest: any) => [quest.title, quest]),
+    );
+
+    const mergeQuest = adminQuestByTitle.get('Merge a PR');
+    const reviewQuest = adminQuestByTitle.get('Review PRs');
+    const fixBuildQuest = adminQuestByTitle.get('Fix a failing build');
+
+    if (!mergeQuest || !reviewQuest || !fixBuildQuest) {
+      throw new Error('Missing base quests required for admin group XP seed');
+    }
+
+    await knex('xp_ledger')
+      .insert([
+        {
+          subject_ref: adminGroup,
+          quest_id: mergeQuest.id,
+          awarded_on_completion_count: 1,
+          xp_amount: mergeQuest.xp_reward,
+          source: 'seed_admin_group',
+        },
+        {
+          subject_ref: adminGroup,
+          quest_id: reviewQuest.id,
+          awarded_on_completion_count: 3,
+          xp_amount: reviewQuest.xp_reward,
+          source: 'seed_admin_group',
+        },
+        {
+          subject_ref: adminGroup,
+          quest_id: fixBuildQuest.id,
+          awarded_on_completion_count: 2,
+          xp_amount: fixBuildQuest.xp_reward,
+          source: 'seed_admin_group',
+        },
+      ])
+      .onConflict(['subject_ref', 'quest_id', 'awarded_on_completion_count'])
+      .ignore();
   },
 };

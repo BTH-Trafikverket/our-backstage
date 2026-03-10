@@ -126,4 +126,32 @@ describe('quest_progress trigger -> xp_ledger', () => {
 
     expect(await knex('xp_ledger').select('*')).toHaveLength(1);
   });
+
+  it('writes XP ledger entries for team subject refs', async () => {
+    const knex = await initDb();
+
+    const questId = randomUUID();
+    const subjectRef = 'group:default/platform';
+
+    await knex('quests').insert({
+      id: questId,
+      title: 'Team Dependency Cleanup',
+      description: '',
+      target_count: 2,
+      xp_reward: 25,
+      subject_type: 'team',
+    });
+
+    await knex('quest_progress').insert({
+      subject_ref: subjectRef,
+      quest_id: questId,
+      completion_count: 2,
+    });
+
+    const rows = await knex('xp_ledger').select('*');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].subject_ref).toBe(subjectRef);
+    expect(rows[0].quest_id).toBe(questId);
+    expect(rows[0].xp_amount).toBe(25);
+  });
 });

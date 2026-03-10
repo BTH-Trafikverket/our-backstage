@@ -112,18 +112,23 @@ export class QuestsService {
   }
 
   async completeQuest(questId: string, subjectRef: string) {
-    const quest = await this.questsRepo.getQuestById(questId);
-    if (!quest) throw new NotFoundError(`Quest '${questId}' not found`);
-    await this.enforceCompletionPolicy(quest, subjectRef);
-    return this.questsRepo.incrementQuestProgress({
-      quest_id: questId,
-      subject_ref: subjectRef,
-      by: 1,
+    return this.questsRepo.withTransaction(async repo => {
+      const quest = await repo.getQuestById(questId);
+      if (!quest) throw new NotFoundError(`Quest '${questId}' not found`);
+
+      await repo.lockSubjectQuest(subjectRef, questId);
+      await this.enforceCompletionPolicy(repo, quest, subjectRef);
+
+      return repo.incrementQuestProgress({
+        quest_id: questId,
+        subject_ref: subjectRef,
+        by: 1,
+      });
     });
   }
 
   /**
-   * Throws ConflictError when the quest's completion policy blocks the user
+   * Throws ConflictError when the quest's completion policy blocks the subject
    * from making further progress.
    *
    *  - ONE_TIME:  blocks once completion_count has reached the target_count
@@ -132,17 +137,18 @@ export class QuestsService {
    *               the cooldown window after the last XP award.
    */
   private async enforceCompletionPolicy(
+    questsRepo: QuestsRepository,
     quest: QuestRow,
     subjectRef: string,
   ): Promise<void> {
     if (quest.completion_policy === 'ONE_TIME') {
-      const progress = await this.questsRepo.getProgressForSubjectQuest(
+      const progress = await questsRepo.getProgressForSubjectQuest(
         subjectRef,
         quest.id,
       );
       if (progress && progress.completion_count >= quest.target_count) {
         throw new ConflictError(
-          `Quest "${quest.title}" can only be completed once and has already been completed by this user.`,
+          `Quest "${quest.title}" can only be completed once and has already been completed by this subject.`,
         );
       }
       return;
@@ -152,7 +158,7 @@ export class QuestsService {
       quest.completion_policy === 'REPEATABLE' &&
       quest.cooldown_days !== null
     ) {
-      const lastAwardedAt = await this.questsRepo.getLastAwardedAt(
+      const lastAwardedAt = await questsRepo.getLastAwardedAt(
         subjectRef,
         quest.id,
       );
@@ -285,51 +291,52 @@ export class QuestsService {
             credentials: opts.credentials,
           });
 
-    const inserted = await this.questsRepo.tryInsertReceipt({
-      event_id: eventId,
-      event_key: eventKey,
-      subject_ref: subjectRef,
-      caller_subject: callerSubject,
-    });
+    return this.questsRepo.withTransaction(async repo => {
+      await repo.lockSubjectQuest(subjectRef, trigger.quest_id);
 
-    if (!inserted) {
-      return {
-        duplicate: true,
-        userRef: subjectRef,
-        subjectRef,
-        questId: trigger.quest_id,
-      };
-    }
+      const inserted = await repo.tryInsertReceipt({
+        event_id: eventId,
+        event_key: eventKey,
+        subject_ref: subjectRef,
+        caller_subject: callerSubject,
+      });
 
-    try {
-      await this.enforceCompletionPolicy(quest, subjectRef);
-    } catch (err: any) {
-      if (err instanceof ConflictError) {
+      if (!inserted) {
         return {
-          duplicate: false,
-          blocked: true,
-          reason: err.message,
-          userRef: subjectRef,
+          duplicate: true,
           subjectRef,
           questId: trigger.quest_id,
         };
       }
-      throw err;
-    }
 
-    const progress = await this.questsRepo.incrementQuestProgress({
-      subject_ref: subjectRef,
-      quest_id: trigger.quest_id,
-      by: trigger.increment_by,
+      try {
+        await this.enforceCompletionPolicy(repo, quest, subjectRef);
+      } catch (err: any) {
+        if (err instanceof ConflictError) {
+          return {
+            duplicate: false,
+            blocked: true,
+            reason: err.message,
+            subjectRef,
+            questId: trigger.quest_id,
+          };
+        }
+        throw err;
+      }
+
+      const progress = await repo.incrementQuestProgress({
+        subject_ref: subjectRef,
+        quest_id: trigger.quest_id,
+        by: trigger.increment_by,
+      });
+
+      return {
+        duplicate: false,
+        blocked: false,
+        subjectRef,
+        questId: trigger.quest_id,
+        completionCount: progress.completion_count,
+      };
     });
-
-    return {
-      duplicate: false,
-      blocked: false,
-      userRef: subjectRef,
-      subjectRef,
-      questId: trigger.quest_id,
-      completionCount: progress.completion_count,
-    };
   }
 }

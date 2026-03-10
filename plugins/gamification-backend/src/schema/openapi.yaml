@@ -14,14 +14,14 @@ paths:
       operationId: getXpStatus
       tags:
         - XP
-      summary: Get XP status for a user
+      summary: Get XP status for a subject
       parameters:
         - in: query
-          name: userRef
+          name: subjectRef
           required: false
           schema:
             type: string
-          description: Optional Backstage entity ref. If omitted, the authenticated user is used.
+          description: Optional Backstage subject ref. If omitted, the authenticated user is used. Service credentials must provide subjectRef.
       responses:
         '200':
           description: XP status
@@ -233,12 +233,12 @@ components:
         - $ref: '#/components/schemas/Quest'
         - type: object
           required:
-            - user_ref
+            - subject_ref
             - completion_count
             - progress_in_interval
             - next_milestone
           properties:
-            user_ref:
+            subject_ref:
               type: string
               nullable: true
             completion_count:
@@ -348,12 +348,12 @@ components:
       type: object
       required:
         - duplicate
-        - userRef
+        - subjectRef
         - questId
       properties:
         duplicate:
           type: boolean
-        userRef:
+        subjectRef:
           type: string
         questId:
           type: string
@@ -362,7 +362,7 @@ components:
     XpStatus:
       type: object
       required:
-        - userRef
+        - subjectRef
         - totalXp
         - level
         - currentLevelXp
@@ -371,7 +371,7 @@ components:
         - xpToNextLevel
         - progress
       properties:
-        userRef:
+        subjectRef:
           type: string
         totalXp:
           type: integer
