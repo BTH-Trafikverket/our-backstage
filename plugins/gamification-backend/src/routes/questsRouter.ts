@@ -3,13 +3,14 @@ import {
   RootConfigService,
   UserInfoService,
 } from '@backstage/backend-plugin-api';
-import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 import express from 'express';
 import Router from 'express-promise-router';
 import { questCreationSchema } from '../schemas/quests/questCreationSchema';
 import { QuestsService } from '../services/questsService';
 import { questEditSchema } from '../schemas/quests/questEditSchema';
 import { questEventSchema } from '../schemas/quests/questEventSchema';
+import { createRequireAdminCredentials } from './adminAccess';
 
 export function QuestsRouter({
   httpAuth,
@@ -23,32 +24,12 @@ export function QuestsRouter({
   config: RootConfigService;
 }): express.Router {
   const router = Router();
-  const adminGroups = new Set(
-    (config.getOptionalStringArray('gamification.admin.groups') ?? []).map(
-      ref => ref.toLocaleLowerCase('en-US'),
-    ),
-  );
-
-  const requireAdminCredentials = async (req: express.Request) => {
-    const credentials = await httpAuth.credentials(req, {
-      allow: ['user', 'service'],
-    });
-
-    if (credentials.principal.type !== 'user') {
-      throw new NotAllowedError('Only admin users can manage quests');
-    }
-
-    const info = await userInfo.getUserInfo(credentials);
-    const hasAdminGroup = info.ownershipEntityRefs.some(ref =>
-      adminGroups.has(ref.toLocaleLowerCase('en-US')),
-    );
-
-    if (!hasAdminGroup) {
-      throw new NotAllowedError('Only admin users can manage quests');
-    }
-
-    return credentials;
-  };
+  const requireAdminCredentials = createRequireAdminCredentials({
+    httpAuth,
+    userInfo,
+    config,
+    deniedMessage: 'Only admin users can manage quests',
+  });
 
   router.post('/', async (req, res) => {
     const parsed = questCreationSchema.safeParse(req.body);
