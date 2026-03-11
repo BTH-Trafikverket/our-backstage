@@ -526,19 +526,22 @@ components:
     QuestEventRequest:
       type: object
       required:
-        - eventKey
-        - eventId
-        - actor
+        - questId
       additionalProperties: false
       properties:
-        eventKey:
+        questId:
           type: string
-          minLength: 1
-        eventId:
+          format: uuid
+        subjectRef:
           type: string
           minLength: 1
         actor:
           $ref: '#/components/schemas/QuestEventActor'
+      anyOf:
+        - required:
+            - subjectRef
+        - required:
+            - actor
     QuestEventResult:
       type: object
       required:
