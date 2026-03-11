@@ -4,6 +4,13 @@ export const seed002EventTriggers: Seed = {
   id: '002_event_triggers',
   description: 'Seed quest event triggers (eventKey -> quest)',
   async run({ knex }) {
+    const hasQuestEventTriggersTable = await knex.schema.hasTable(
+      'quest_event_triggers',
+    );
+    if (!hasQuestEventTriggersTable) {
+      return;
+    }
+
     const quests = await knex('quests')
       .select(['id', 'title'])
       .whereIn('title', ['Merge a PR', 'Review PRs', 'Fix a failing build']);
