@@ -437,18 +437,7 @@ describe('QuestsService', () => {
   });
 
   describe('handleQuestEvent policy enforcement', () => {
-    const trigger = {
-      id: 'trigger-1',
-      event_key: 'github.pr_merged',
-      quest_id: 'quest-ot',
-      increment_by: 1,
-      enabled: true,
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-
     beforeEach(() => {
-      mockRepo.getTriggerByEvent.mockResolvedValue(trigger);
       mockRepo.tryInsertReceipt.mockResolvedValue(true);
     });
 
@@ -478,10 +467,8 @@ describe('QuestsService', () => {
       });
 
       const result = await service.handleQuestEvent({
-        eventId: 'evt-1',
-        eventKey: 'github.pr_merged',
-        actor: { entityRef: 'user:default/alice' },
-        callerSubject: 'plugin:github-listener',
+        questId: 'quest-ot',
+        subjectRef: 'user:default/alice',
         opts: { credentials: {} as any },
       });
 
@@ -510,10 +497,8 @@ describe('QuestsService', () => {
       mockRepo.getLastAwardedAt.mockResolvedValue(twoDaysAgo);
 
       const result = await service.handleQuestEvent({
-        eventId: 'evt-2',
-        eventKey: 'github.pr_merged',
-        actor: { entityRef: 'user:default/bob' },
-        callerSubject: 'plugin:github-listener',
+        questId: 'quest-ot',
+        subjectRef: 'user:default/bob',
         opts: { credentials: {} as any },
       });
 
@@ -547,10 +532,8 @@ describe('QuestsService', () => {
       });
 
       const result = await service.handleQuestEvent({
-        eventId: 'evt-3',
-        eventKey: 'github.pr_merged',
-        actor: { entityRef: 'user:default/carol' },
-        callerSubject: 'plugin:github-listener',
+        questId: 'quest-ot',
+        subjectRef: 'user:default/carol',
         opts: { credentials: {} as any },
       });
 
@@ -559,7 +542,7 @@ describe('QuestsService', () => {
       expect((result as any).completionCount).toBe(1);
     });
 
-    it('returns duplicate=true when receipt already exists', async () => {
+    it('increments progress on repeated requests (no event receipt dedupe)', async () => {
       mockRepo.getQuestById.mockResolvedValue({
         id: 'quest-ot',
         title: 'Daily Commit',
@@ -573,18 +556,23 @@ describe('QuestsService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       } as any);
-      mockRepo.tryInsertReceipt.mockResolvedValue(false); // duplicate
+      mockRepo.incrementQuestProgress.mockResolvedValue({
+        subject_ref: 'user:default/dave',
+        quest_id: 'quest-ot',
+        completion_count: 2,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
 
       const result = await service.handleQuestEvent({
-        eventId: 'evt-dup',
-        eventKey: 'github.pr_merged',
-        actor: { entityRef: 'user:default/dave' },
-        callerSubject: 'plugin:github-listener',
+        questId: 'quest-ot',
+        subjectRef: 'user:default/dave',
         opts: { credentials: {} as any },
       });
 
-      expect(result.duplicate).toBe(true);
-      expect(mockRepo.incrementQuestProgress).not.toHaveBeenCalled();
+      expect(result.duplicate).toBe(false);
+      expect((result as any).completionCount).toBe(2);
+      expect(mockRepo.incrementQuestProgress).toHaveBeenCalled();
     });
 
     it('uses the group entity ref as the subject for team quest events', async () => {
@@ -612,19 +600,11 @@ describe('QuestsService', () => {
       });
 
       const result = await service.handleQuestEvent({
-        eventId: 'evt-team',
-        eventKey: 'github.pr_merged',
-        actor: { entityRef: 'group:default/platform' },
-        callerSubject: 'plugin:github-listener',
+        questId: 'quest-team',
+        subjectRef: 'group:default/platform',
         opts: { credentials: {} as any },
       });
 
-      expect(mockRepo.tryInsertReceipt).toHaveBeenCalledWith({
-        event_id: 'evt-team',
-        event_key: 'github.pr_merged',
-        subject_ref: 'group:default/platform',
-        caller_subject: 'plugin:github-listener',
-      });
       expect(result.subjectRef).toBe('group:default/platform');
     });
   });

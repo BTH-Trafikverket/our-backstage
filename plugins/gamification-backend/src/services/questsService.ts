@@ -40,22 +40,6 @@ export class QuestsService {
     return subjectType ?? ('user' as const);
   }
 
-  private resolveTeamActorRef(actor: QuestEventActor): string {
-    if (!actor.entityRef) {
-      throw new InputError(
-        'team quest events must provide actor.entityRef as a group entity ref',
-      );
-    }
-
-    if (!actor.entityRef.startsWith('group:')) {
-      throw new InputError(
-        'team quest events must provide a group entity ref in actor.entityRef',
-      );
-    }
-
-    return actor.entityRef;
-  }
-
   async createQuest(data: QuestCreationInput, _opts: QuestServiceOpts) {
     const policy = data.completion_policy ?? 'REPEATABLE';
     const target_count = data.target_count;
@@ -177,6 +161,36 @@ export class QuestsService {
     }
   }
 
+  private ensureSubjectRefMatchesQuest(quest: QuestRow, subjectRef: string) {
+    if (quest.subject_type === 'team' && !subjectRef.startsWith('group:')) {
+      throw new InputError(
+        'subjectRef must be a group entity ref for team quests',
+      );
+    }
+
+    if (quest.subject_type === 'user' && !subjectRef.startsWith('user:')) {
+      throw new InputError(
+        'subjectRef must be a user entity ref for user quests',
+      );
+    }
+  }
+
+  private resolveTeamActorRef(actor: QuestEventActor): string {
+    if (!actor.entityRef) {
+      throw new InputError(
+        'team quest events must provide actor.entityRef as a group entity ref',
+      );
+    }
+
+    if (!actor.entityRef.startsWith('group:')) {
+      throw new InputError(
+        'team quest events must provide a group entity ref in actor.entityRef',
+      );
+    }
+
+    return actor.entityRef;
+  }
+
   async resolveActorToUserRef(params: {
     actor: QuestEventActor;
     credentials: QuestServiceOpts['credentials'];
@@ -265,76 +279,65 @@ export class QuestsService {
   }
 
   async handleQuestEvent(params: {
-    eventId: string;
-    eventKey: string;
-    actor: QuestEventActor;
-    callerSubject: string;
+    questId: string;
+    subjectRef?: string;
+    actor?: QuestEventActor;
     opts: QuestServiceOpts;
   }) {
-    const { eventId, eventKey, actor, callerSubject, opts } = params;
+    const { questId, subjectRef, actor, opts } = params;
 
-    const trigger = await this.questsRepo.getTriggerByEvent(eventKey);
-    if (!trigger) {
-      throw new NotFoundError(`No trigger found for eventKey '${eventKey}'`);
-    }
-
-    const quest = await this.questsRepo.getQuestById(trigger.quest_id);
+    const quest = await this.questsRepo.getQuestById(questId);
     if (!quest) {
-      throw new NotFoundError(`Quest '${trigger.quest_id}' not found`);
+      throw new NotFoundError(`Quest '${questId}' not found`);
     }
 
-    const subjectRef =
-      quest.subject_type === 'team'
-        ? this.resolveTeamActorRef(actor)
-        : await this.resolveActorToUserRef({
-            actor,
-            credentials: opts.credentials,
-          });
+    let resolvedSubjectRef: string;
+
+    if (subjectRef) {
+      resolvedSubjectRef = subjectRef;
+    } else if (actor) {
+      resolvedSubjectRef =
+        quest.subject_type === 'team'
+          ? this.resolveTeamActorRef(actor)
+          : await this.resolveActorToUserRef({
+              actor,
+              credentials: opts.credentials,
+            });
+    } else {
+      throw new InputError('Either subjectRef or actor is required');
+    }
+
+    this.ensureSubjectRefMatchesQuest(quest, resolvedSubjectRef);
 
     return this.questsRepo.withTransaction(async repo => {
-      await repo.lockSubjectQuest(subjectRef, trigger.quest_id);
-
-      const inserted = await repo.tryInsertReceipt({
-        event_id: eventId,
-        event_key: eventKey,
-        subject_ref: subjectRef,
-        caller_subject: callerSubject,
-      });
-
-      if (!inserted) {
-        return {
-          duplicate: true,
-          subjectRef,
-          questId: trigger.quest_id,
-        };
-      }
+      await repo.lockSubjectQuest(resolvedSubjectRef, questId);
 
       try {
-        await this.enforceCompletionPolicy(repo, quest, subjectRef);
+        await this.enforceCompletionPolicy(repo, quest, resolvedSubjectRef);
       } catch (err: any) {
         if (err instanceof ConflictError) {
           return {
             duplicate: false,
             blocked: true,
             reason: err.message,
-            subjectRef,
-            questId: trigger.quest_id,
+            subjectRef: resolvedSubjectRef,
+            questId,
           };
         }
         throw err;
       }
 
       const progress = await repo.incrementQuestProgress({
-        subject_ref: subjectRef,
-        quest_id: trigger.quest_id,
-        by: trigger.increment_by,
+        subject_ref: resolvedSubjectRef,
+        quest_id: questId,
+        by: 1,
       });
 
       return {
         duplicate: false,
         blocked: false,
-        subjectRef,
-        questId: trigger.quest_id,
+        subjectRef: resolvedSubjectRef,
+        questId,
         completionCount: progress.completion_count,
       };
     });

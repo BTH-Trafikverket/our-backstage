@@ -8,7 +8,128 @@ servers:
 tags:
   - name: XP
   - name: Quests
+  - name: Badges
 paths:
+  /badges:
+    get:
+      operationId: listBadges
+      tags:
+        - Badges
+      summary: List badges
+      responses:
+        '200':
+          description: Badge list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Badge'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createBadge
+      tags:
+        - Badges
+      summary: Create a badge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBadgeRequest'
+      responses:
+        '201':
+          description: Created badge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Badge'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /badges/{id}:
+    get:
+      operationId: getBadge
+      tags:
+        - Badges
+      summary: Get a badge
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Badge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Badge'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateBadge
+      tags:
+        - Badges
+      summary: Update a badge
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBadgeRequest'
+      responses:
+        '200':
+          description: Updated badge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Badge'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteBadge
+      tags:
+        - Badges
+      summary: Delete a badge
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Badge deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /xp:
     get:
       operationId: getXpStatus
@@ -183,16 +304,74 @@ components:
   responses:
     BadRequest:
       description: Invalid request
+    Forbidden:
+      description: Authenticated but not allowed to access this resource
     Unauthorized:
       description: Missing or invalid credentials
     NotFound:
       description: Resource not found
   schemas:
+    BadgeCriteria:
+      type: object
+      required:
+        - quest_id
+        - target_count
+      additionalProperties: false
+      properties:
+        quest_id:
+          type: string
+          minLength: 1
+        target_count:
+          type: integer
+          minimum: 1
+    Badge:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - criterias
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        criterias:
+          type: array
+          items:
+            $ref: '#/components/schemas/BadgeCriteria'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
     CompletionPolicy:
       type: string
       enum:
         - ONE_TIME
         - REPEATABLE
+    CreateBadgeRequest:
+      type: object
+      required:
+        - title
+        - description
+        - criterias
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        criterias:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/BadgeCriteria'
     Timestamp:
       type: string
       format: date-time
@@ -297,6 +476,22 @@ components:
           type: integer
           minimum: 1
           nullable: true
+    UpdateBadgeRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        criterias:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/BadgeCriteria'
     QuestEventActor:
       type: object
       additionalProperties: false
@@ -331,19 +526,22 @@ components:
     QuestEventRequest:
       type: object
       required:
-        - eventKey
-        - eventId
-        - actor
+        - questId
       additionalProperties: false
       properties:
-        eventKey:
+        questId:
           type: string
-          minLength: 1
-        eventId:
+          format: uuid
+        subjectRef:
           type: string
           minLength: 1
         actor:
           $ref: '#/components/schemas/QuestEventActor'
+      anyOf:
+        - required:
+            - subjectRef
+        - required:
+            - actor
     QuestEventResult:
       type: object
       required:
