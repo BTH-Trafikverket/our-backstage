@@ -302,41 +302,46 @@ export const seed003DemoEvents: Seed = {
       },
     ];
 
-    for (const ev of demoEvents) {
-      const trigger = await knex('quest_event_triggers')
-        .select(['quest_id', 'increment_by'])
-        .where({ event_key: ev.event_key, enabled: true })
-        .first();
+    const hasQuestEventTriggersTable = await knex.schema.hasTable(
+      'quest_event_triggers',
+    );
+    if (hasQuestEventTriggersTable) {
+      for (const ev of demoEvents) {
+        const trigger = await knex('quest_event_triggers')
+          .select(['quest_id', 'increment_by'])
+          .where({ event_key: ev.event_key, enabled: true })
+          .first();
 
-      if (!trigger) {
-        throw new Error(`No trigger found for event_key '${ev.event_key}'`);
+        if (!trigger) {
+          throw new Error(`No trigger found for event_key '${ev.event_key}'`);
+        }
+
+        const inserted = await knex('quest_event_receipts')
+          .insert({
+            event_id: ev.event_id,
+            event_key: ev.event_key,
+            subject_ref: ev.subject_ref,
+            caller_subject: ev.caller_subject,
+          })
+          .onConflict('event_id')
+          .ignore()
+          .returning(['event_id']);
+
+        if (!inserted || inserted.length === 0) continue;
+
+        await knex('quest_progress')
+          .insert({
+            subject_ref: ev.subject_ref,
+            quest_id: trigger.quest_id,
+            completion_count: trigger.increment_by,
+          })
+          .onConflict(['subject_ref', 'quest_id'])
+          .merge({
+            completion_count: knex.raw('quest_progress.completion_count + ?', [
+              trigger.increment_by,
+            ]),
+          });
       }
-
-      const inserted = await knex('quest_event_receipts')
-        .insert({
-          event_id: ev.event_id,
-          event_key: ev.event_key,
-          subject_ref: ev.subject_ref,
-          caller_subject: ev.caller_subject,
-        })
-        .onConflict('event_id')
-        .ignore()
-        .returning(['event_id']);
-
-      if (!inserted || inserted.length === 0) continue;
-
-      await knex('quest_progress')
-        .insert({
-          subject_ref: ev.subject_ref,
-          quest_id: trigger.quest_id,
-          completion_count: trigger.increment_by,
-        })
-        .onConflict(['subject_ref', 'quest_id'])
-        .merge({
-          completion_count: knex.raw('quest_progress.completion_count + ?', [
-            trigger.increment_by,
-          ]),
-        });
     }
 
     // Seed direct XP for the admin group so group entity pages show level

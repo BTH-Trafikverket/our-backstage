@@ -509,13 +509,14 @@ export const spec = {
       },
       QuestEventRequest: {
         type: 'object',
-        required: ['eventKey', 'eventId', 'actor'],
+        required: ['questId'],
         additionalProperties: false,
         properties: {
-          eventKey: { type: 'string', minLength: 1 },
-          eventId: { type: 'string', minLength: 1 },
+          questId: { type: 'string', format: 'uuid' },
+          subjectRef: { type: 'string', minLength: 1 },
           actor: { $ref: '#/components/schemas/QuestEventActor' },
         },
+        anyOf: [{ required: ['subjectRef'] }, { required: ['actor'] }],
       },
       QuestEventResult: {
         type: 'object',
