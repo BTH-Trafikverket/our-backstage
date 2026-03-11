@@ -9,8 +9,11 @@ import type { Knex } from 'knex';
 import express from 'express';
 import Router from 'express-promise-router';
 
+import { BadgesRouter } from './routes/badgesRouter';
 import { QuestsRouter } from './routes/questsRouter';
+import { BadgesRepository } from './repositories/badgesRepository';
 import { QuestsRepository } from './repositories/questsRepository';
+import { BadgesService } from './services/badgesService';
 import { QuestsService } from './services/questsService';
 
 import { XpRouter } from './routes/xpRouter';
@@ -37,13 +40,25 @@ export function createRouter({
   router.use(express.json());
 
   const questsRepo = new QuestsRepository(knex);
+  const badgesRepo = new BadgesRepository(knex);
 
   const catalogClient = new CatalogClient({ discoveryApi: discovery });
 
   const questsService = new QuestsService({ questsRepo, catalogClient, auth });
+  const badgesService = new BadgesService({ badgesRepo, questsRepo });
 
   const xpRepo = new XpRepository(knex);
   const xpService = new XpService(xpRepo, 100);
+
+  router.use(
+    '/badges',
+    BadgesRouter({
+      httpAuth,
+      userInfo,
+      badgesService,
+      config,
+    }),
+  );
 
   router.use(
     '/quests',
