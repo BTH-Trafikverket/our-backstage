@@ -528,12 +528,33 @@ export const QuestsAdminPage = ({
     };
   };
   const getQuestSubjectType = (quest: Quest) => quest.subject_type ?? 'user';
+  const formatSubjectName = (subjectRef?: string | null) => {
+    if (!subjectRef) {
+      return null;
+    }
+
+    const entityName = subjectRef.split('/').pop() ?? subjectRef;
+    return entityName
+      .split(/[-_]/)
+      .filter(Boolean)
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  };
+
   const renderSubject = (quest: Quest) => {
     const subjectType = getQuestSubjectType(quest);
+    const subjectName = formatSubjectName(quest.subject_ref);
+    let label = 'All users';
+
+    if (subjectType === 'team') {
+      label = subjectName ?? 'All teams';
+    } else if (subjectName) {
+      label = subjectName;
+    }
 
     return (
       <Chip
-        label={subjectType === 'team' ? 'Team quest' : 'User quest'}
+        label={label}
         size="small"
         color={subjectType === 'team' ? 'primary' : 'default'}
       />
