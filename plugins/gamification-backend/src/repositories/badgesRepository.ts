@@ -45,10 +45,14 @@ export class BadgesRepository {
     return rows[0];
   }
 
-  async getBadges(): Promise<BadgeRow[]> {
-    return this.db<BadgeRow>('badges')
-      .select('*')
-      .orderBy('created_at', 'desc');
+  async getBadges(searchTitle?: string): Promise<BadgeRow[]> {
+    let query = this.db<BadgeRow>('badges').select('*');
+
+    if (searchTitle) {
+      query = query.where('title', 'ilike', `%${searchTitle}%`);
+    }
+
+    return query.orderBy('created_at', 'desc');
   }
 
   async getBadgeById(id: string): Promise<BadgeRow | undefined> {
