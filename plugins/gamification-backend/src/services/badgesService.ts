@@ -18,6 +18,11 @@ export type BadgeResponse = BadgeRow & {
   criterias: BadgeCriteriaInput[];
 };
 
+export type EarnedBadgesResponse = {
+  subjectRef: string;
+  badges: BadgeResponse[];
+};
+
 export class BadgesService {
   private readonly badgesRepo: BadgesRepository;
   private readonly questsRepo: QuestsRepository;
@@ -92,6 +97,30 @@ export class BadgesService {
     return badges.map(badge =>
       this.buildBadge(badge, criteriaByBadgeId.get(badge.id) ?? []),
     );
+  }
+
+  async getEarnedBadges(
+    subjectRef: string,
+    _opts?: BadgeServiceOpts,
+  ): Promise<EarnedBadgesResponse> {
+    const badges = await this.badgesRepo.getEarnedBadges(subjectRef);
+    const criteriaRows = await this.badgesRepo.getCriteriaForBadges(
+      badges.map(badge => badge.id),
+    );
+
+    const criteriaByBadgeId = new Map<string, BadgeCriteriaInput[]>();
+    for (const row of criteriaRows) {
+      const entries = criteriaByBadgeId.get(row.badge_id) ?? [];
+      entries.push({ quest_id: row.quest_id, target_count: row.target_count });
+      criteriaByBadgeId.set(row.badge_id, entries);
+    }
+
+    return {
+      subjectRef,
+      badges: badges.map(badge =>
+        this.buildBadge(badge, criteriaByBadgeId.get(badge.id) ?? []),
+      ),
+    };
   }
 
   async getBadgeById(

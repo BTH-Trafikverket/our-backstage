@@ -61,6 +61,19 @@ describe('badges routes auth and errors', () => {
         created_at: new Date('2026-01-01T00:00:00Z'),
         updated_at: new Date('2026-01-01T00:00:00Z'),
       })),
+      getEarnedBadges: jest.fn(async (subjectRef: string) => ({
+        subjectRef,
+        badges: [
+          {
+            id: 'badge-1',
+            title: 'Contributor',
+            description: 'Awarded for shipping code',
+            criterias: [{ quest_id: 'quest-1', target_count: 3 }],
+            created_at: new Date('2026-01-01T00:00:00Z'),
+            updated_at: new Date('2026-01-01T00:00:00Z'),
+          },
+        ],
+      })),
       updateBadge: jest.fn(async (id: string, data: unknown) => ({
         id,
         title: 'Contributor',
@@ -134,6 +147,45 @@ describe('badges routes auth and errors', () => {
     expect(res.status).toBe(403);
     expect(res.body?.error?.name).toBe('NotAllowedError');
     expect(badgesService.createBadge).not.toHaveBeenCalled();
+  });
+
+  it('allows users to fetch earned badges for a subject without admin access', async () => {
+    const userRef = 'user:default/alice';
+    const { app, badgesService } = makeApp({
+      userInfo: mockServices.userInfo({
+        ownershipEntityRefs: [userRef, 'group:default/engineering'],
+      }),
+    });
+
+    const res = await request(app)
+      .get('/badges/earned')
+      .query({ subjectRef: 'group:default/engineering' })
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(badgesService.getEarnedBadges).toHaveBeenCalledWith(
+      'group:default/engineering',
+      {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'user',
+            userEntityRef: userRef,
+          }),
+        }),
+      },
+    );
+  });
+
+  it('requires subjectRef for service credentials on earned badges route', async () => {
+    const { app, badgesService } = makeApp();
+
+    const res = await request(app)
+      .get('/badges/earned')
+      .set('authorization', mockCredentials.service.header());
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.name).toBe('InputError');
+    expect(badgesService.getEarnedBadges).not.toHaveBeenCalled();
   });
 
   it('allows admin users to create badges', async () => {

@@ -30,6 +30,33 @@ export function BadgesRouter({
     deniedMessage: 'Only admin users can manage badges',
   });
 
+  router.get('/earned', async (req, res) => {
+    const credentials = await httpAuth.credentials(req, {
+      allow: ['user', 'service'],
+    });
+
+    const requested =
+      typeof req.query.subjectRef === 'string'
+        ? req.query.subjectRef.trim()
+        : '';
+
+    if (!requested && credentials.principal.type !== 'user') {
+      throw new InputError(
+        'subjectRef is required when using service credentials',
+      );
+    }
+
+    const subjectRef = requested
+      ? requested
+      : (await userInfo.getUserInfo(credentials)).userEntityRef;
+
+    const earned = await badgesService.getEarnedBadges(subjectRef, {
+      credentials,
+    });
+
+    res.status(200).json(earned);
+  });
+
   router.post('/', async (req, res) => {
     const parsed = badgeCreationSchema.safeParse(req.body);
     if (!parsed.success) {

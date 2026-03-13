@@ -57,7 +57,7 @@ import {
   EntityKubernetesContent,
   isKubernetesAvailable,
 } from '@backstage/plugin-kubernetes';
-import { EntityXpCard } from '@internal/gamification';
+import { EntityBadgesCard, EntityXpCard } from '@internal/gamification';
 
 const techdocsContent = (
   <EntityTechdocsContent>
@@ -318,6 +318,9 @@ const userPage = (
         <Grid item xs={12} md={6}>
           <EntityXpCard variant="gridItem" />
         </Grid>
+        <Grid item xs={12} md={6}>
+          <EntityBadgesCard variant="gridItem" />
+        </Grid>
       </Grid>
     </EntityLayout.Route>
   </EntityLayout>
@@ -336,6 +339,9 @@ const groupPage = (
         </Grid>
         <Grid item xs={12} md={6}>
           <EntityXpCard variant="gridItem" />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <EntityBadgesCard variant="gridItem" />
         </Grid>
         <Grid item xs={12} md={6}>
           <EntityMembersListCard />

@@ -134,6 +134,51 @@ describe('BadgesRepository Integration Tests', () => {
       await knex.destroy();
     });
 
+    it('returns only badges whose criteria are fully completed for a subject', async () => {
+      const knex = await initDb();
+      const repository = new BadgesRepository(knex);
+      const questA = await createQuest(knex, 'Quest Earned A');
+      const questB = await createQuest(knex, 'Quest Earned B');
+
+      const earnedBadge = await repository.createBadge({
+        title: 'Earned Badge',
+        description: 'Completed criteria',
+      });
+      await repository.insertBadgeCriteria(earnedBadge.id, [
+        { quest_id: questA.id, target_count: 2 },
+        { quest_id: questB.id, target_count: 1 },
+      ]);
+
+      const unearnedBadge = await repository.createBadge({
+        title: 'Unearned Badge',
+        description: 'Missing progress',
+      });
+      await repository.insertBadgeCriteria(unearnedBadge.id, [
+        { quest_id: questA.id, target_count: 3 },
+      ]);
+
+      await knex('quest_progress').insert([
+        {
+          subject_ref: 'group:default/platform',
+          quest_id: questA.id,
+          completion_count: 2,
+        },
+        {
+          subject_ref: 'group:default/platform',
+          quest_id: questB.id,
+          completion_count: 1,
+        },
+      ]);
+
+      const earnedBadges = await repository.getEarnedBadges(
+        'group:default/platform',
+      );
+
+      expect(earnedBadges.map(badge => badge.title)).toEqual(['Earned Badge']);
+
+      await knex.destroy();
+    });
+
     it('deletes a badge and cascades badge criteria', async () => {
       const knex = await initDb();
       const repository = new BadgesRepository(knex);
