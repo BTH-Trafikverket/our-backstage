@@ -124,6 +124,29 @@ describe('QuestsRepository Integration Tests', () => {
       await knex.destroy();
     });
 
+    it('should create global team quests without a quest-level subject_ref column', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const quest = await repository.createQuest({
+        title: 'Team Quest',
+        description: 'Shared by every team',
+        target_count: 3,
+        xp_reward: 50,
+        subject_type: 'team',
+      });
+
+      expect(quest.subject_type).toBe('team');
+      expect(await knex.schema.hasColumn('quests', 'subject_ref')).toBe(false);
+
+      const dbQuest = await knex('quests').where({ id: quest.id }).first();
+      expect(dbQuest).toBeDefined();
+      expect(dbQuest.subject_type).toBe('team');
+      expect(dbQuest).not.toHaveProperty('subject_ref');
+
+      await knex.destroy();
+    });
+
     it('should set created_at and updated_at timestamps automatically', async () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);

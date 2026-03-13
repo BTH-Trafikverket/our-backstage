@@ -108,6 +108,7 @@ export const BadgesAdminPage = ({
   const [quests, setQuests] = useState<QuestLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -473,6 +474,12 @@ export const BadgesAdminPage = ({
     });
   };
 
+  const filteredBadges = badges.filter(badge =>
+    badge.title
+      .toLocaleLowerCase('en-US')
+      .includes(search.trim().toLocaleLowerCase('en-US')),
+  );
+
   return (
     <>
       <Dialog open={createOpen} onClose={closeCreate} maxWidth="sm" fullWidth>
@@ -648,6 +655,16 @@ export const BadgesAdminPage = ({
               )}
             </ContentHeader>
 
+            <TextField
+              placeholder="Search badges..."
+              variant="outlined"
+              size="small"
+              fullWidth
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ marginBottom: 16 }}
+            />
+
             {loading && (
               <Box textAlign="center" p={2}>
                 <Typography>Laddar badges...</Typography>
@@ -660,11 +677,15 @@ export const BadgesAdminPage = ({
               </Alert>
             )}
 
-            {!loading && !error && badges.length === 0 && (
-              <Typography variant="body2">Inga badges hittades.</Typography>
+            {!loading && !error && filteredBadges.length === 0 && (
+              <Typography variant="body2">
+                {search.trim()
+                  ? 'No badges found. Try a different search.'
+                  : 'Inga badges hittades.'}
+              </Typography>
             )}
 
-            {!loading && !error && badges.length > 0 && (
+            {!loading && !error && filteredBadges.length > 0 && (
               <TableContainer component={Paper} style={{ marginTop: 16 }}>
                 <Table size="small">
                   <TableHead>
@@ -681,7 +702,7 @@ export const BadgesAdminPage = ({
                   </TableHead>
 
                   <TableBody>
-                    {badges.map(badge => (
+                    {filteredBadges.map(badge => (
                       <TableRow key={badge.id}>
                         <TableCell>{badge.title}</TableCell>
                         <TableCell>{badge.description}</TableCell>
