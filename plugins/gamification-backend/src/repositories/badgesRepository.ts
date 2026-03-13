@@ -55,6 +55,40 @@ export class BadgesRepository {
     return query.orderBy('created_at', 'desc');
   }
 
+  async getEarnedBadges(subjectRef: string): Promise<BadgeRow[]> {
+    const db = this.db;
+
+    return db<BadgeRow>('badges')
+      .join('badge_criteria', 'badges.id', 'badge_criteria.badge_id')
+      .leftJoin('quest_progress', function joinBadgeProgress() {
+        this.on(
+          'quest_progress.quest_id',
+          '=',
+          'badge_criteria.quest_id',
+        ).andOn('quest_progress.subject_ref', '=', db.raw('?', [subjectRef]));
+      })
+      .groupBy([
+        'badges.id',
+        'badges.title',
+        'badges.description',
+        'badges.created_at',
+        'badges.updated_at',
+      ])
+      .havingRaw(
+        `
+          COUNT(*) = SUM(
+            CASE
+              WHEN COALESCE(quest_progress.completion_count, 0) >= badge_criteria.target_count
+                THEN 1
+              ELSE 0
+            END
+          )
+        `,
+      )
+      .select('badges.*')
+      .orderBy('badges.created_at', 'desc');
+  }
+
   async getBadgeById(id: string): Promise<BadgeRow | undefined> {
     return this.db<BadgeRow>('badges').where({ id }).first();
   }

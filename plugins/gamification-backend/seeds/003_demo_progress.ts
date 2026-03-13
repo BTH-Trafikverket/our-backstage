@@ -344,49 +344,75 @@ export const seed003DemoEvents: Seed = {
       }
     }
 
-    // Seed direct XP for the admin group so group entity pages show level
-    // progress even when no team quest events have been replayed yet.
     const adminGroupQuests = await knex('quests')
-      .select(['id', 'title', 'xp_reward'])
-      .whereIn('title', ['Merge a PR', 'Review PRs', 'Fix a failing build']);
+      .select(['id', 'title'])
+      .whereIn('title', [
+        'Dependency Hygiene Sprint',
+        'Security Patch Sweep',
+        'Shared Release Readiness',
+        'Documentation Drive',
+        'Accessibility Audit',
+      ]);
 
     const adminQuestByTitle = new Map(
       adminGroupQuests.map((quest: any) => [quest.title, quest]),
     );
 
-    const mergeQuest = adminQuestByTitle.get('Merge a PR');
-    const reviewQuest = adminQuestByTitle.get('Review PRs');
-    const fixBuildQuest = adminQuestByTitle.get('Fix a failing build');
+    const dependencyHygieneQuest = adminQuestByTitle.get(
+      'Dependency Hygiene Sprint',
+    );
+    const securityPatchQuest = adminQuestByTitle.get('Security Patch Sweep');
+    const releaseReadinessQuest = adminQuestByTitle.get(
+      'Shared Release Readiness',
+    );
+    const documentationDriveQuest = adminQuestByTitle.get(
+      'Documentation Drive',
+    );
+    const accessibilityAuditQuest = adminQuestByTitle.get(
+      'Accessibility Audit',
+    );
 
-    if (!mergeQuest || !reviewQuest || !fixBuildQuest) {
-      throw new Error('Missing base quests required for admin group XP seed');
+    if (
+      !dependencyHygieneQuest ||
+      !securityPatchQuest ||
+      !releaseReadinessQuest ||
+      !documentationDriveQuest ||
+      !accessibilityAuditQuest
+    ) {
+      throw new Error('Missing team quests required for admin group demo seed');
     }
 
-    await knex('xp_ledger')
+    await knex('quest_progress')
       .insert([
         {
           subject_ref: adminGroup,
-          quest_id: mergeQuest.id,
-          awarded_on_completion_count: 1,
-          xp_amount: mergeQuest.xp_reward,
-          source: 'seed_admin_group',
+          quest_id: dependencyHygieneQuest.id,
+          completion_count: 2,
         },
         {
           subject_ref: adminGroup,
-          quest_id: reviewQuest.id,
-          awarded_on_completion_count: 3,
-          xp_amount: reviewQuest.xp_reward,
-          source: 'seed_admin_group',
+          quest_id: securityPatchQuest.id,
+          completion_count: 1,
         },
         {
           subject_ref: adminGroup,
-          quest_id: fixBuildQuest.id,
-          awarded_on_completion_count: 2,
-          xp_amount: fixBuildQuest.xp_reward,
-          source: 'seed_admin_group',
+          quest_id: releaseReadinessQuest.id,
+          completion_count: 3,
+        },
+        {
+          subject_ref: adminGroup,
+          quest_id: documentationDriveQuest.id,
+          completion_count: 5,
+        },
+        {
+          subject_ref: adminGroup,
+          quest_id: accessibilityAuditQuest.id,
+          completion_count: 2,
         },
       ])
-      .onConflict(['subject_ref', 'quest_id', 'awarded_on_completion_count'])
-      .ignore();
+      .onConflict(['subject_ref', 'quest_id'])
+      .merge({
+        completion_count: knex.raw('EXCLUDED.completion_count'),
+      });
   },
 };
