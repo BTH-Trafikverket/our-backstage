@@ -46,7 +46,9 @@ export function BadgesRouter({
 
   router.get('/', async (req, res) => {
     const credentials = await requireAdminCredentials(req);
-    const badges = await badgesService.getBadges({ credentials });
+    const search =
+      typeof req.query.search === 'string' ? req.query.search : undefined;
+    const badges = await badgesService.getBadges(search, { credentials });
 
     res.status(200).json(badges);
   });

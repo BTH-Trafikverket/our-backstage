@@ -73,8 +73,11 @@ export class BadgesService {
     });
   }
 
-  async getBadges(_opts?: BadgeServiceOpts): Promise<BadgeResponse[]> {
-    const badges = await this.badgesRepo.getBadges();
+  async getBadges(
+    searchTitle?: string,
+    _opts?: BadgeServiceOpts,
+  ): Promise<BadgeResponse[]> {
+    const badges = await this.badgesRepo.getBadges(searchTitle);
     const criteriaRows = await this.badgesRepo.getCriteriaForBadges(
       badges.map(badge => badge.id),
     );
