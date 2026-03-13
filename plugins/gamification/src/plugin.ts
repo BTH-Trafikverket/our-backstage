@@ -17,7 +17,7 @@ export const GamificationPage = gamificationPlugin.provide(
   createRoutableExtension({
     name: 'GamificationPage',
     component: () =>
-      import('./components/ExampleComponent').then(m => m.ExampleComponent),
+      import('./components/GamificationPage').then(m => m.GamificationPage),
     mountPoint: rootRouteRef,
   }),
 );

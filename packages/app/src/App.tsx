@@ -1,4 +1,4 @@
-import { Navigate, Route } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route } from 'react-router-dom';
 import { apiDocsPlugin, ApiExplorerPage } from '@backstage/plugin-api-docs';
 import {
   CatalogEntityPage,
@@ -64,6 +64,17 @@ const app = createApp({
     });
   },
   components: {
+    Router: ({ children, basename }) => (
+      <BrowserRouter
+        basename={basename}
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        {children}
+      </BrowserRouter>
+    ),
     SignInPage: props => (
       <SignInPage
         {...props}

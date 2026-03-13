@@ -12,7 +12,6 @@ export type QuestRow = {
   target_count: number;
   xp_reward: number;
   subject_type: QuestSubjectType;
-  subject_ref: string | null;
   completion_policy: CompletionPolicy;
   cooldown_days: number | null;
   created_at: Date;
