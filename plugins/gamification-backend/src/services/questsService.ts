@@ -16,6 +16,7 @@ import { AuthService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import type { QuestEventActor } from '../schemas/quests/questEventSchema';
+import { BadgesService } from './badgesService';
 
 type QuestServiceOpts = {
   credentials: any;
@@ -25,15 +26,18 @@ export class QuestsService {
   private readonly questsRepo: QuestsRepository;
   private readonly catalogClient: CatalogClient;
   private readonly auth: AuthService;
+  private readonly badgesService: BadgesService;
 
   constructor(opts: {
     questsRepo: QuestsRepository;
     catalogClient: CatalogClient;
     auth: AuthService;
+    badgesService: BadgesService;
   }) {
     this.questsRepo = opts.questsRepo;
     this.catalogClient = opts.catalogClient;
     this.auth = opts.auth;
+    this.badgesService = opts.badgesService;
   }
 
   private normalizeQuestSubjectType(subjectType: QuestSubjectType | undefined) {
@@ -103,23 +107,18 @@ export class QuestsService {
       await repo.lockSubjectQuest(subjectRef, questId);
       await this.enforceCompletionPolicy(repo, quest, subjectRef);
 
-      return repo.incrementQuestProgress({
+      const progress = await repo.incrementQuestProgress({
         quest_id: questId,
         subject_ref: subjectRef,
         by: 1,
       });
+
+      await this.badgesService.awardBadgesForSubject(subjectRef);
+
+      return progress;
     });
   }
 
-  /**
-   * Throws ConflictError when the quest's completion policy blocks the subject
-   * from making further progress.
-   *
-   *  - ONE_TIME:  blocks once completion_count has reached the target_count
-   *               (i.e. XP was already awarded).
-   *  - REPEATABLE with cooldown_days: blocks while the subject is still within
-   *               the cooldown window after the last XP award.
-   */
   private async enforceCompletionPolicy(
     questsRepo: QuestsRepository,
     quest: QuestRow,
@@ -332,6 +331,7 @@ export class QuestsService {
         quest_id: questId,
         by: 1,
       });
+      await this.badgesService.awardBadgesForSubject(resolvedSubjectRef);
 
       return {
         duplicate: false,

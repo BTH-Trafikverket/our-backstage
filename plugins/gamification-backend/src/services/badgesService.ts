@@ -164,4 +164,58 @@ export class BadgesService {
   async deleteBadge(id: string, _opts: BadgeServiceOpts): Promise<boolean> {
     return this.badgesRepo.deleteBadge(id);
   }
+
+  async awardBadgesForSubject(subjectRef: string): Promise<void> {
+    const badges = await this.badgesRepo.getBadges();
+    const criteriaRows = await this.badgesRepo.getCriteriaForBadges(
+      badges.map(badge => badge.id),
+    );
+
+    const criteriaByBadgeId = new Map<string, BadgeCriteriaInput[]>();
+
+    for (const row of criteriaRows) {
+      const current = criteriaByBadgeId.get(row.badge_id) ?? [];
+      current.push({
+        quest_id: row.quest_id,
+        target_count: row.target_count,
+      });
+      criteriaByBadgeId.set(row.badge_id, current);
+    }
+
+    for (const badge of badges) {
+      const alreadyEarned = await this.badgesRepo.getEarnedBadge(
+        subjectRef,
+        badge.id,
+      );
+
+      if (alreadyEarned) {
+        continue;
+      }
+
+      const criterias = criteriaByBadgeId.get(badge.id) ?? [];
+      if (criterias.length === 0) {
+        continue;
+      }
+
+      let allMet = true;
+
+      for (const criteria of criterias) {
+        const progress = await this.badgesRepo.getSubjectQuestProgress(
+          subjectRef,
+          criteria.quest_id,
+        );
+
+        const completionCount = progress?.completion_count ?? 0;
+
+        if (completionCount < criteria.target_count) {
+          allMet = false;
+          break;
+        }
+      }
+
+      if (allMet) {
+        await this.badgesRepo.insertEarnedBadge(subjectRef, badge.id);
+      }
+    }
+  }
 }
