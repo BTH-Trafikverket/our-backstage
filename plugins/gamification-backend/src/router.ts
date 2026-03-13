@@ -44,8 +44,14 @@ export function createRouter({
 
   const catalogClient = new CatalogClient({ discoveryApi: discovery });
 
-  const questsService = new QuestsService({ questsRepo, catalogClient, auth });
   const badgesService = new BadgesService({ badgesRepo, questsRepo });
+
+  const questsService = new QuestsService({
+    questsRepo,
+    catalogClient,
+    auth,
+    badgesService,
+  });
 
   const xpRepo = new XpRepository(knex);
   const xpService = new XpService(xpRepo, 100);
