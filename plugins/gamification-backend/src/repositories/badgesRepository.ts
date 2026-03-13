@@ -19,6 +19,13 @@ export type CreateBadgeRow = {
   description: string;
 };
 
+export type getEarnedBadge = {
+  badge_id: string;
+  subject_ref: string;
+  user_id: string;
+  earned_at: Date;
+};
+
 export type UpdateBadgeRow = Partial<CreateBadgeRow>;
 
 export class BadgesRepository {
@@ -76,6 +83,15 @@ export class BadgesRepository {
       ]);
   }
 
+  async getSubjectQuestProgress(subjectRef: string, questId: string) {
+    return this.db('quest_progress')
+      .where({
+        subject_ref: subjectRef,
+        quest_id: questId,
+      })
+      .first();
+  }
+
   async insertBadgeCriteria(
     badgeId: string,
     criterias: Array<{ quest_id: string; target_count: number }>,
@@ -91,6 +107,20 @@ export class BadgesRepository {
         target_count: criteria.target_count,
       })),
     );
+  }
+
+  async insertEarnedBadge(
+    subjectRef: string,
+    badgeId: string,
+  ): Promise<getEarnedBadge> {
+    const rows = await this.db<getEarnedBadge>('earned_badges')
+      .insert({
+        subject_ref: subjectRef,
+        badge_id: badgeId,
+      })
+      .returning('*');
+
+    return rows[0];
   }
 
   async replaceBadgeCriteria(
@@ -137,5 +167,17 @@ export class BadgesRepository {
   async deleteBadge(id: string): Promise<boolean> {
     const deletedCount = await this.db('badges').where({ id }).del();
     return deletedCount > 0;
+  }
+
+  async getEarnedBadge(
+    subjectRef: string,
+    badgeId: string,
+  ): Promise<getEarnedBadge | undefined> {
+    return this.db<getEarnedBadge>('earned_badges')
+      .where({
+        subject_ref: subjectRef,
+        badge_id: badgeId,
+      })
+      .first();
   }
 }
