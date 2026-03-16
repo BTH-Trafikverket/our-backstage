@@ -13,7 +13,7 @@ export const spec = {
       get: {
         operationId: 'listBadges',
         tags: ['Badges'],
-        summary: 'List badges',
+        summary: 'List all badges for admin management',
         responses: {
           '200': {
             description: 'Badge list',
@@ -54,6 +54,36 @@ export const spec = {
           '400': { $ref: '#/components/responses/BadRequest' },
           '401': { $ref: '#/components/responses/Unauthorized' },
           '403': { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+    '/badges/progress': {
+      get: {
+        operationId: 'getBadgeProgress',
+        tags: ['Badges'],
+        summary:
+          'Get badge progress for a subject or the authenticated user plus their teams',
+        parameters: [
+          {
+            in: 'query',
+            name: 'subjectRef',
+            required: false,
+            schema: { type: 'string' },
+            description:
+              'Optional Backstage subject ref. If omitted for user credentials, badge progress is resolved across the authenticated user and all teams in ownershipEntityRefs. Service credentials must provide subjectRef.',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Badge progress for the subject',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/BadgeProgressResponse' },
+              },
+            },
+          },
+          '400': { $ref: '#/components/responses/BadRequest' },
+          '401': { $ref: '#/components/responses/Unauthorized' },
         },
       },
     },
@@ -120,9 +150,9 @@ export const spec = {
         },
       },
       delete: {
-        operationId: 'deleteBadge',
+        operationId: 'archiveBadge',
         tags: ['Badges'],
-        summary: 'Delete a badge',
+        summary: 'Archive a badge',
         parameters: [
           {
             in: 'path',
@@ -132,7 +162,7 @@ export const spec = {
           },
         ],
         responses: {
-          '204': { description: 'Badge deleted' },
+          '204': { description: 'Badge archived' },
           '401': { $ref: '#/components/responses/Unauthorized' },
           '403': { $ref: '#/components/responses/Forbidden' },
           '404': { $ref: '#/components/responses/NotFound' },
@@ -364,6 +394,7 @@ export const spec = {
           'criterias',
           'created_at',
           'updated_at',
+          'archived_at',
         ],
         properties: {
           id: { type: 'string' },
@@ -375,6 +406,34 @@ export const spec = {
           },
           created_at: { $ref: '#/components/schemas/Timestamp' },
           updated_at: { $ref: '#/components/schemas/Timestamp' },
+          archived_at: { $ref: '#/components/schemas/NullableTimestamp' },
+        },
+      },
+      BadgeProgress: {
+        allOf: [
+          { $ref: '#/components/schemas/Badge' },
+          {
+            type: 'object',
+            required: ['isEarned', 'earnedAt'],
+            properties: {
+              isEarned: { type: 'boolean' },
+              earnedAt: { $ref: '#/components/schemas/NullableTimestamp' },
+            },
+          },
+        ],
+      },
+      BadgeProgressResponse: {
+        type: 'object',
+        required: ['subjectRefs', 'badges'],
+        properties: {
+          subjectRefs: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          badges: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/BadgeProgress' },
+          },
         },
       },
       CompletionPolicy: {
@@ -398,6 +457,11 @@ export const spec = {
       Timestamp: {
         type: 'string',
         format: 'date-time',
+      },
+      NullableTimestamp: {
+        type: 'string',
+        format: 'date-time',
+        nullable: true,
       },
       Quest: {
         type: 'object',

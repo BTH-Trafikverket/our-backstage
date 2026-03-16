@@ -71,7 +71,7 @@ describe('BadgesCard', () => {
 
     resolveResponse(
       new Response(
-        JSON.stringify({ subjectRef: 'group:default/platform', badges: [] }),
+        JSON.stringify({ subjectRefs: ['group:default/platform'], badges: [] }),
         {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -79,14 +79,17 @@ describe('BadgesCard', () => {
       ),
     );
 
-    await screen.findByText('No badges earned yet.');
+    await screen.findByText('No badge progress yet.');
   });
 
-  it('shows the empty state when no badges have been earned', async () => {
+  it('shows the empty state when no badge progress exists', async () => {
     renderCard(
       async () =>
         new Response(
-          JSON.stringify({ subjectRef: 'group:default/platform', badges: [] }),
+          JSON.stringify({
+            subjectRefs: ['group:default/platform'],
+            badges: [],
+          }),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -95,28 +98,42 @@ describe('BadgesCard', () => {
     );
 
     expect(
-      await screen.findByText('No badges earned yet.'),
+      await screen.findByText('No badge progress yet.'),
     ).toBeInTheDocument();
   });
 
-  it('renders the earned badges returned by the backend', async () => {
+  it('renders all badges returned by the badge progress endpoint, including archived earned badges', async () => {
     renderCard(
       async () =>
         new Response(
           JSON.stringify({
-            subjectRef: 'group:default/platform',
+            subjectRefs: ['group:default/platform'],
             badges: [
               {
                 id: 'badge-1',
                 title: 'Contributor',
                 description: 'Awarded for completing core work',
+                isEarned: true,
+                earnedAt: '2026-01-03T00:00:00Z',
                 criterias: [{ quest_id: 'quest-1', target_count: 1 }],
               },
               {
                 id: 'badge-2',
                 title: 'Reviewer',
                 description: 'Awarded for code review work',
+                isEarned: false,
+                earnedAt: null,
                 criterias: [{ quest_id: 'quest-2', target_count: 2 }],
+                archived_at: null,
+              },
+              {
+                id: 'badge-3',
+                title: 'Legacy Hero',
+                description: 'Archived badge you already earned',
+                isEarned: true,
+                earnedAt: '2026-01-01T00:00:00Z',
+                archived_at: '2026-02-01T00:00:00Z',
+                criterias: [{ quest_id: 'quest-3', target_count: 1 }],
               },
             ],
           }),
@@ -130,6 +147,7 @@ describe('BadgesCard', () => {
     await waitFor(() => {
       expect(screen.getByText('Contributor')).toBeInTheDocument();
       expect(screen.getByText('Reviewer')).toBeInTheDocument();
+      expect(screen.getByText('Legacy Hero')).toBeInTheDocument();
     });
   });
 });

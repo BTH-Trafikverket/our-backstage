@@ -39,6 +39,7 @@ describe('badges routes auth and errors', () => {
     const badgesService = {
       createBadge: jest.fn(async (data: unknown) => ({
         id: 'badge-1',
+        archived_at: null,
         created_at: new Date('2026-01-01T00:00:00Z'),
         updated_at: new Date('2026-01-01T00:00:00Z'),
         ...((data as object) ?? {}),
@@ -49,6 +50,7 @@ describe('badges routes auth and errors', () => {
           title: 'Contributor',
           description: 'Awarded for shipping code',
           criterias: [{ quest_id: 'quest-1', target_count: 3 }],
+          archived_at: null,
           created_at: new Date('2026-01-01T00:00:00Z'),
           updated_at: new Date('2026-01-01T00:00:00Z'),
         },
@@ -58,17 +60,21 @@ describe('badges routes auth and errors', () => {
         title: 'Contributor',
         description: 'Awarded for shipping code',
         criterias: [{ quest_id: 'quest-1', target_count: 3 }],
+        archived_at: null,
         created_at: new Date('2026-01-01T00:00:00Z'),
         updated_at: new Date('2026-01-01T00:00:00Z'),
       })),
-      getEarnedBadges: jest.fn(async (subjectRef: string) => ({
-        subjectRef,
+      getBadgeProgress: jest.fn(async (subjectRefs: string[]) => ({
+        subjectRefs,
         badges: [
           {
             id: 'badge-1',
             title: 'Contributor',
             description: 'Awarded for shipping code',
             criterias: [{ quest_id: 'quest-1', target_count: 3 }],
+            isEarned: true,
+            earnedAt: new Date('2026-01-03T00:00:00Z'),
+            archived_at: null,
             created_at: new Date('2026-01-01T00:00:00Z'),
             updated_at: new Date('2026-01-01T00:00:00Z'),
           },
@@ -79,6 +85,7 @@ describe('badges routes auth and errors', () => {
         title: 'Contributor',
         description: 'Awarded for shipping code',
         criterias: [{ quest_id: 'quest-1', target_count: 3 }],
+        archived_at: null,
         created_at: new Date('2026-01-01T00:00:00Z'),
         updated_at: new Date('2026-01-02T00:00:00Z'),
         ...((data as object) ?? {}),
@@ -149,7 +156,7 @@ describe('badges routes auth and errors', () => {
     expect(badgesService.createBadge).not.toHaveBeenCalled();
   });
 
-  it('allows users to fetch earned badges for a subject without admin access', async () => {
+  it('allows users to fetch badge progress for a subject without admin access', async () => {
     const userRef = 'user:default/alice';
     const { app, badgesService } = makeApp({
       userInfo: mockServices.userInfo({
@@ -158,13 +165,13 @@ describe('badges routes auth and errors', () => {
     });
 
     const res = await request(app)
-      .get('/badges/earned')
+      .get('/badges/progress')
       .query({ subjectRef: 'group:default/engineering' })
       .set('authorization', mockCredentials.user.header(userRef));
 
     expect(res.status).toBe(200);
-    expect(badgesService.getEarnedBadges).toHaveBeenCalledWith(
-      'group:default/engineering',
+    expect(badgesService.getBadgeProgress).toHaveBeenCalledWith(
+      ['group:default/engineering'],
       {
         credentials: expect.objectContaining({
           principal: expect.objectContaining({
@@ -176,16 +183,42 @@ describe('badges routes auth and errors', () => {
     );
   });
 
-  it('requires subjectRef for service credentials on earned badges route', async () => {
+  it('requires subjectRef for service credentials on badge progress route', async () => {
     const { app, badgesService } = makeApp();
 
     const res = await request(app)
-      .get('/badges/earned')
+      .get('/badges/progress')
       .set('authorization', mockCredentials.service.header());
 
     expect(res.status).toBe(400);
     expect(res.body?.error?.name).toBe('InputError');
-    expect(badgesService.getEarnedBadges).not.toHaveBeenCalled();
+    expect(badgesService.getBadgeProgress).not.toHaveBeenCalled();
+  });
+
+  it('uses the authenticated user when subjectRef is omitted on badge progress route', async () => {
+    const userRef = 'user:default/alice';
+    const { app, badgesService } = makeApp({
+      userInfo: mockServices.userInfo({
+        ownershipEntityRefs: [userRef, 'group:default/engineering'],
+      }),
+    });
+
+    const res = await request(app)
+      .get('/badges/progress')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(badgesService.getBadgeProgress).toHaveBeenCalledWith(
+      [userRef, 'group:default/engineering'],
+      {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'user',
+            userEntityRef: userRef,
+          }),
+        }),
+      },
+    );
   });
 
   it('allows admin users to create badges', async () => {
@@ -238,7 +271,7 @@ describe('badges routes auth and errors', () => {
     });
   });
 
-  it('allows admin users to update and delete badges', async () => {
+  it('allows admin users to update and archive badges', async () => {
     const userRef = 'user:default/alice';
     const userInfo = mockServices.userInfo({
       ownershipEntityRefs: [userRef, adminGroup],
@@ -249,12 +282,12 @@ describe('badges routes auth and errors', () => {
       .patch('/badges/badge-1')
       .set('authorization', mockCredentials.user.header(userRef))
       .send({ title: 'Updated Badge' });
-    const deleteRes = await request(app)
+    const archiveRes = await request(app)
       .delete('/badges/badge-1')
       .set('authorization', mockCredentials.user.header(userRef));
 
     expect(updateRes.status).toBe(200);
-    expect(deleteRes.status).toBe(204);
+    expect(archiveRes.status).toBe(204);
     expect(badgesService.updateBadge).toHaveBeenCalled();
     expect(badgesService.deleteBadge).toHaveBeenCalled();
   });

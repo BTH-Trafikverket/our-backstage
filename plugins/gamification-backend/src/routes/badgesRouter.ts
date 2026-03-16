@@ -30,7 +30,7 @@ export function BadgesRouter({
     deniedMessage: 'Only admin users can manage badges',
   });
 
-  router.get('/earned', async (req, res) => {
+  router.get('/progress', async (req, res) => {
     const credentials = await httpAuth.credentials(req, {
       allow: ['user', 'service'],
     });
@@ -46,15 +46,29 @@ export function BadgesRouter({
       );
     }
 
-    const subjectRef = requested
-      ? requested
-      : (await userInfo.getUserInfo(credentials)).userEntityRef;
+    let subjectRefs: string[];
 
-    const earned = await badgesService.getEarnedBadges(subjectRef, {
+    if (requested) {
+      subjectRefs = [requested];
+    } else {
+      const info = await userInfo.getUserInfo(credentials);
+      subjectRefs = [
+        ...new Set(
+          [
+            credentials.principal.type === 'user'
+              ? credentials.principal.userEntityRef
+              : '',
+            ...info.ownershipEntityRefs,
+          ].filter(Boolean),
+        ),
+      ];
+    }
+
+    const badgeProgress = await badgesService.getBadgeProgress(subjectRefs, {
       credentials,
     });
 
-    res.status(200).json(earned);
+    res.status(200).json(badgeProgress);
   });
 
   router.post('/', async (req, res) => {

@@ -607,18 +607,18 @@ export const BadgesAdminPage = ({
       </Dialog>
 
       <Dialog open={deleteOpen} onClose={closeDelete} maxWidth="sm" fullWidth>
-        <DialogTitle>Delete Badge?</DialogTitle>
+        <DialogTitle>Archive Badge?</DialogTitle>
 
         <DialogContent>
           <Typography>
-            Are you sure you want to delete "{badgeToDelete?.title}"?
+            Are you sure you want to archive "{badgeToDelete?.title}"?
           </Typography>
         </DialogContent>
 
         <DialogActions>
           <Button onClick={closeDelete}>Cancel</Button>
           <Button onClick={confirmDelete} color="secondary" variant="contained">
-            Delete
+            Archive
           </Button>
         </DialogActions>
       </Dialog>

@@ -15,6 +15,11 @@ export type BadgeCriteriaRow = {
   target_count: number;
 };
 
+export type BadgeProgressRow = BadgeRow & {
+  earned_at: Date | null;
+  is_earned: boolean;
+};
+
 export type CreateBadgeRow = {
   title: string;
   description: string;
@@ -46,10 +51,15 @@ export class BadgesRepository {
     return rows[0];
   }
 
-  async getBadges(searchTitle?: string): Promise<BadgeRow[]> {
-    let query = this.db<BadgeRow>('badges')
-      .select('*')
-      .whereNull('archived_at');
+  async getBadges(
+    searchTitle?: string,
+    options?: { includeArchived?: boolean },
+  ): Promise<BadgeRow[]> {
+    let query = this.db<BadgeRow>('badges').select('*');
+
+    if (!options?.includeArchived) {
+      query = query.whereNull('archived_at');
+    }
 
     if (searchTitle) {
       query = query.where('title', 'ilike', `%${searchTitle}%`);
@@ -58,16 +68,57 @@ export class BadgesRepository {
     return query.orderBy('created_at', 'desc');
   }
 
-  async getEarnedBadges(subjectRef: string): Promise<BadgeRow[]> {
-    return this.db<BadgeRow>('earned_badges')
-      .join('badges', 'earned_badges.badge_id', 'badges.id')
-      .select('badges.*')
-      .where('earned_badges.subject_ref', subjectRef)
-      .orderBy('earned_badges.earned_at', 'desc');
+  async getBadgeProgress(subjectRefs: string[]): Promise<BadgeProgressRow[]> {
+    const refs = [
+      ...new Set(subjectRefs.map(ref => ref.trim()).filter(Boolean)),
+    ];
+
+    if (refs.length === 0) {
+      return [];
+    }
+
+    const rows = await this.db<BadgeRow>('badges')
+      .leftJoin('earned_badges', function joinEarnedBadges() {
+        this.on('earned_badges.badge_id', '=', 'badges.id').onIn(
+          'earned_badges.subject_ref',
+          refs,
+        );
+      })
+      .select(
+        'badges.*',
+        this.db.raw(
+          'COALESCE(BOOL_OR(earned_badges.earned_at IS NOT NULL), FALSE) AS is_earned, MIN(earned_badges.earned_at) AS earned_at',
+        ),
+      )
+      .where(function whereVisibleBadges() {
+        this.whereNull('badges.archived_at').orWhereNotNull(
+          'earned_badges.earned_at',
+        );
+      })
+      .groupBy([
+        'badges.id',
+        'badges.title',
+        'badges.description',
+        'badges.created_at',
+        'badges.updated_at',
+        'badges.archived_at',
+      ])
+      .orderByRaw('earned_at DESC NULLS LAST, badges.created_at DESC');
+
+    return rows as BadgeProgressRow[];
   }
 
-  async getBadgeById(id: string): Promise<BadgeRow | undefined> {
-    return this.db<BadgeRow>('badges').where({ id }).first();
+  async getBadgeById(
+    id: string,
+    options?: { includeArchived?: boolean },
+  ): Promise<BadgeRow | undefined> {
+    let query = this.db<BadgeRow>('badges').where({ id });
+
+    if (!options?.includeArchived) {
+      query = query.whereNull('archived_at');
+    }
+
+    return query.first();
   }
 
   async getBadgeCriteria(badgeId: string): Promise<BadgeCriteriaRow[]> {
