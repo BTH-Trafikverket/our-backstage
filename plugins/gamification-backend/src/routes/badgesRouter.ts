@@ -23,6 +23,17 @@ export function BadgesRouter({
   config: RootConfigService;
 }): express.Router {
   const router = Router();
+  const parsePagination = (req: express.Request) => {
+    const pageQuery =
+      typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
+    const limitQuery =
+      typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 10;
+
+    return {
+      page: Number.isFinite(pageQuery) && pageQuery > 0 ? pageQuery : 1,
+      limit: Number.isFinite(limitQuery) && limitQuery > 0 ? limitQuery : 10,
+    };
+  };
   const requireAdminCredentials = createRequireAdminCredentials({
     httpAuth,
     userInfo,
@@ -64,8 +75,12 @@ export function BadgesRouter({
       ];
     }
 
+    const { page, limit } = parsePagination(req);
+
     const badgeProgress = await badgesService.getBadgeProgress(subjectRefs, {
       credentials,
+      page,
+      limit,
     });
 
     res.status(200).json(badgeProgress);
@@ -89,7 +104,12 @@ export function BadgesRouter({
     const credentials = await requireAdminCredentials(req);
     const search =
       typeof req.query.search === 'string' ? req.query.search : undefined;
-    const badges = await badgesService.getBadges(search, { credentials });
+    const { page, limit } = parsePagination(req);
+    const badges = await badgesService.getBadges(search, {
+      credentials,
+      page,
+      limit,
+    });
 
     res.status(200).json(badges);
   });

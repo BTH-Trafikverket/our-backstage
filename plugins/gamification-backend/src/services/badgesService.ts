@@ -1,6 +1,7 @@
 import { InputError, NotFoundError } from '@backstage/errors';
 import type {
   BadgesRepository,
+  BadgePagination,
   BadgeProgressRow,
   BadgeRow,
 } from '../repositories/badgesRepository';
@@ -19,6 +20,11 @@ export type BadgeResponse = BadgeRow & {
   criterias: BadgeCriteriaInput[];
 };
 
+export type PaginatedBadgeResponse = {
+  data: BadgeResponse[];
+  pagination: BadgePagination;
+};
+
 export type BadgeProgressResponse = {
   subjectRefs: string[];
   badges: Array<
@@ -27,6 +33,12 @@ export type BadgeProgressResponse = {
       earnedAt: Date | null;
     }
   >;
+  pagination: BadgePagination;
+};
+
+type BadgePaginationOpts = BadgeServiceOpts & {
+  page?: number;
+  limit?: number;
 };
 
 export class BadgesService {
@@ -102,13 +114,16 @@ export class BadgesService {
 
   async getBadges(
     searchTitle?: string,
-    _opts?: BadgeServiceOpts,
-  ): Promise<BadgeResponse[]> {
-    const badges = await this.badgesRepo.getBadges(searchTitle, {
+    opts?: BadgePaginationOpts,
+  ): Promise<PaginatedBadgeResponse> {
+    const paginated = await this.badgesRepo.getPaginatedBadges({
+      searchTitle,
       includeArchived: true,
+      page: opts?.page,
+      limit: opts?.limit,
     });
     const criteriaRows = await this.badgesRepo.getCriteriaForBadges(
-      badges.map(badge => badge.id),
+      paginated.data.map(badge => badge.id),
     );
 
     const criteriaByBadgeId = new Map<string, BadgeCriteriaInput[]>();
@@ -118,18 +133,27 @@ export class BadgesService {
       criteriaByBadgeId.set(row.badge_id, entries);
     }
 
-    return badges.map(badge =>
-      this.buildBadge(badge, criteriaByBadgeId.get(badge.id) ?? []),
-    );
+    return {
+      data: paginated.data.map(badge =>
+        this.buildBadge(badge, criteriaByBadgeId.get(badge.id) ?? []),
+      ),
+      pagination: paginated.pagination,
+    };
   }
 
   async getBadgeProgress(
     subjectRefs: string[],
-    _opts?: BadgeServiceOpts,
+    opts?: BadgePaginationOpts,
   ): Promise<BadgeProgressResponse> {
-    const badges = await this.badgesRepo.getBadgeProgress(subjectRefs);
+    const paginated = await this.badgesRepo.getPaginatedBadgeProgress(
+      subjectRefs,
+      {
+        page: opts?.page,
+        limit: opts?.limit,
+      },
+    );
     const criteriaRows = await this.badgesRepo.getCriteriaForBadges(
-      badges.map(badge => badge.id),
+      paginated.data.map(badge => badge.id),
     );
 
     const criteriaByBadgeId = new Map<string, BadgeCriteriaInput[]>();
@@ -141,9 +165,10 @@ export class BadgesService {
 
     return {
       subjectRefs,
-      badges: badges.map(badge =>
+      badges: paginated.data.map(badge =>
         this.buildBadgeProgress(badge, criteriaByBadgeId.get(badge.id) ?? []),
       ),
+      pagination: paginated.pagination,
     };
   }
 

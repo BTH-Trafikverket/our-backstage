@@ -44,17 +44,20 @@ describe('badges routes auth and errors', () => {
         updated_at: new Date('2026-01-01T00:00:00Z'),
         ...((data as object) ?? {}),
       })),
-      getBadges: jest.fn(async () => [
-        {
-          id: 'badge-1',
-          title: 'Contributor',
-          description: 'Awarded for shipping code',
-          criterias: [{ quest_id: 'quest-1', target_count: 3 }],
-          archived_at: null,
-          created_at: new Date('2026-01-01T00:00:00Z'),
-          updated_at: new Date('2026-01-01T00:00:00Z'),
-        },
-      ]),
+      getBadges: jest.fn(async () => ({
+        data: [
+          {
+            id: 'badge-1',
+            title: 'Contributor',
+            description: 'Awarded for shipping code',
+            criterias: [{ quest_id: 'quest-1', target_count: 3 }],
+            archived_at: null,
+            created_at: new Date('2026-01-01T00:00:00Z'),
+            updated_at: new Date('2026-01-01T00:00:00Z'),
+          },
+        ],
+        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      })),
       getBadgeById: jest.fn(async (id: string) => ({
         id,
         title: 'Contributor',
@@ -79,6 +82,7 @@ describe('badges routes auth and errors', () => {
             updated_at: new Date('2026-01-01T00:00:00Z'),
           },
         ],
+        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
       })),
       updateBadge: jest.fn(async (id: string, data: unknown) => ({
         id,
@@ -179,6 +183,8 @@ describe('badges routes auth and errors', () => {
             userEntityRef: userRef,
           }),
         }),
+        page: 1,
+        limit: 10,
       },
     );
   });
@@ -217,6 +223,8 @@ describe('badges routes auth and errors', () => {
             userEntityRef: userRef,
           }),
         }),
+        page: 1,
+        limit: 10,
       },
     );
   });
@@ -260,7 +268,16 @@ describe('badges routes auth and errors', () => {
 
     expect(listRes.status).toBe(200);
     expect(getRes.status).toBe(200);
-    expect(badgesService.getBadges).toHaveBeenCalled();
+    expect(badgesService.getBadges).toHaveBeenCalledWith(undefined, {
+      credentials: expect.objectContaining({
+        principal: expect.objectContaining({
+          type: 'user',
+          userEntityRef: userRef,
+        }),
+      }),
+      page: 1,
+      limit: 10,
+    });
     expect(badgesService.getBadgeById).toHaveBeenCalledWith('badge-1', {
       credentials: expect.objectContaining({
         principal: expect.objectContaining({
