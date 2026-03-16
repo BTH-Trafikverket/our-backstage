@@ -28,8 +28,8 @@ export async function runSeeds(knex: Knex, opts: { reset?: boolean } = {}) {
     for (const seed of [
       seed001Core,
       seed002EventTriggers,
-      seed003DemoEvents,
       seed004Badges,
+      seed003DemoEvents,
     ]) {
       await seed.run(ctx);
     }

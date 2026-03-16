@@ -14,21 +14,24 @@ import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { List, ListItem, ListItemText, Typography } from '@material-ui/core';
 
-export type EarnedBadge = {
+export type BadgeProgressBadge = {
   id: string;
   title: string;
   description: string;
+  isEarned: boolean;
+  earnedAt?: string | null;
   criterias: Array<{
     quest_id: string;
     target_count: number;
   }>;
   created_at?: string;
   updated_at?: string;
+  archived_at?: string | null;
 };
 
-type EarnedBadgesResponse = {
-  subjectRef: string;
-  badges: EarnedBadge[];
+type BadgeProgressResponse = {
+  subjectRefs: string[];
+  badges: BadgeProgressBadge[];
 };
 
 export type BadgesCardProps = {
@@ -42,9 +45,9 @@ export type EntityBadgesCardProps = Omit<BadgesCardProps, 'subjectRef'>;
 
 export const BadgesCard = ({
   subjectRef,
-  title = 'Earned badges',
+  title = 'Badge progress',
   variant = 'gridItem',
-  emptyMessage = 'No badges earned yet.',
+  emptyMessage = 'No badge progress yet.',
 }: BadgesCardProps) => {
   const discoveryApi = useApi(discoveryApiRef);
   const fetchApi = useApi(fetchApiRef);
@@ -52,7 +55,7 @@ export const BadgesCard = ({
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
-  const [data, setData] = useState<EarnedBadgesResponse | null>(null);
+  const [data, setData] = useState<BadgeProgressResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,7 +66,7 @@ export const BadgesCard = ({
         setError(undefined);
 
         const baseUrl = await discoveryApi.getBaseUrl('gamification');
-        const url = new URL(`${baseUrl}/badges/earned`);
+        const url = new URL(`${baseUrl}/badges/progress`);
         url.searchParams.set('subjectRef', subjectRef);
 
         const { token } = await identityApi.getCredentials();
@@ -76,7 +79,7 @@ export const BadgesCard = ({
           throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
         }
 
-        const json = (await resp.json()) as EarnedBadgesResponse;
+        const json = (await resp.json()) as BadgeProgressResponse;
         if (!cancelled) {
           setData(json);
         }
@@ -108,15 +111,23 @@ export const BadgesCard = ({
   } else {
     body = (
       <List disablePadding>
-        {data.badges.map((badge, index) => (
-          <ListItem
-            key={badge.id}
-            divider={index < data.badges.length - 1}
-            style={{ paddingLeft: 0, paddingRight: 0 }}
-          >
-            <ListItemText primary={badge.title} secondary={badge.description} />
-          </ListItem>
-        ))}
+        {data.badges.map((badge, index) => {
+          const state = badge.isEarned ? 'Earned' : 'In progress';
+          const archived = badge.archived_at ? ' archived' : '';
+
+          return (
+            <ListItem
+              key={badge.id}
+              divider={index < data.badges.length - 1}
+              style={{ paddingLeft: 0, paddingRight: 0 }}
+            >
+              <ListItemText
+                primary={badge.title}
+                secondary={`${badge.description} (${state}${archived})`}
+              />
+            </ListItem>
+          );
+        })}
       </List>
     );
   }

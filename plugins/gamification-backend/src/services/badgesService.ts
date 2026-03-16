@@ -1,6 +1,7 @@
 import { InputError, NotFoundError } from '@backstage/errors';
 import type {
   BadgesRepository,
+  BadgeProgressRow,
   BadgeRow,
 } from '../repositories/badgesRepository';
 import type { QuestsRepository } from '../repositories/questsRepository';
@@ -18,9 +19,14 @@ export type BadgeResponse = BadgeRow & {
   criterias: BadgeCriteriaInput[];
 };
 
-export type EarnedBadgesResponse = {
-  subjectRef: string;
-  badges: BadgeResponse[];
+export type BadgeProgressResponse = {
+  subjectRefs: string[];
+  badges: Array<
+    BadgeResponse & {
+      isEarned: boolean;
+      earnedAt: Date | null;
+    }
+  >;
 };
 
 export class BadgesService {
@@ -58,8 +64,24 @@ export class BadgesService {
     criterias: BadgeCriteriaInput[],
   ): BadgeResponse {
     return {
-      ...badge,
+      id: badge.id,
+      title: badge.title,
+      description: badge.description,
+      created_at: badge.created_at,
+      updated_at: badge.updated_at,
+      archived_at: badge.archived_at,
       criterias,
+    };
+  }
+
+  private buildBadgeProgress(
+    badge: BadgeProgressRow,
+    criterias: BadgeCriteriaInput[],
+  ): BadgeProgressResponse['badges'][number] {
+    return {
+      ...this.buildBadge(badge, criterias),
+      isEarned: badge.is_earned,
+      earnedAt: badge.earned_at,
     };
   }
 
@@ -82,7 +104,9 @@ export class BadgesService {
     searchTitle?: string,
     _opts?: BadgeServiceOpts,
   ): Promise<BadgeResponse[]> {
-    const badges = await this.badgesRepo.getBadges(searchTitle);
+    const badges = await this.badgesRepo.getBadges(searchTitle, {
+      includeArchived: true,
+    });
     const criteriaRows = await this.badgesRepo.getCriteriaForBadges(
       badges.map(badge => badge.id),
     );
@@ -99,11 +123,11 @@ export class BadgesService {
     );
   }
 
-  async getEarnedBadges(
-    subjectRef: string,
+  async getBadgeProgress(
+    subjectRefs: string[],
     _opts?: BadgeServiceOpts,
-  ): Promise<EarnedBadgesResponse> {
-    const badges = await this.badgesRepo.getEarnedBadges(subjectRef);
+  ): Promise<BadgeProgressResponse> {
+    const badges = await this.badgesRepo.getBadgeProgress(subjectRefs);
     const criteriaRows = await this.badgesRepo.getCriteriaForBadges(
       badges.map(badge => badge.id),
     );
@@ -116,9 +140,9 @@ export class BadgesService {
     }
 
     return {
-      subjectRef,
+      subjectRefs,
       badges: badges.map(badge =>
-        this.buildBadge(badge, criteriaByBadgeId.get(badge.id) ?? []),
+        this.buildBadgeProgress(badge, criteriaByBadgeId.get(badge.id) ?? []),
       ),
     };
   }
@@ -127,7 +151,9 @@ export class BadgesService {
     id: string,
     _opts: BadgeServiceOpts,
   ): Promise<BadgeResponse | undefined> {
-    const badge = await this.badgesRepo.getBadgeById(id);
+    const badge = await this.badgesRepo.getBadgeById(id, {
+      includeArchived: true,
+    });
     if (!badge) {
       return undefined;
     }
@@ -147,7 +173,9 @@ export class BadgesService {
     data: BadgeEditInput,
     _opts: BadgeServiceOpts,
   ): Promise<BadgeResponse | undefined> {
-    const currentBadge = await this.badgesRepo.getBadgeById(id);
+    const currentBadge = await this.badgesRepo.getBadgeById(id, {
+      includeArchived: true,
+    });
     if (!currentBadge) {
       return undefined;
     }

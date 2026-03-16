@@ -134,7 +134,7 @@ describe('BadgesRepository Integration Tests', () => {
       await knex.destroy();
     });
 
-    it('returns only badges whose criteria are fully completed for a subject', async () => {
+    it('returns all active badges with persisted earned state for a group subject', async () => {
       const knex = await initDb();
       const repository = new BadgesRepository(knex);
       const questA = await createQuest(knex, 'Quest Earned A');
@@ -218,50 +218,138 @@ describe('BadgesRepository Integration Tests', () => {
         },
       ]);
 
-      const earnedBadges = await repository.getEarnedBadges(
+      const badgeProgress = await repository.getBadgeProgress([
         'group:default/platform',
-      );
+      ]);
 
-      expect(earnedBadges.map(badge => badge.title)).toEqual(['Earned Badge']);
+      expect(
+        badgeProgress.map(badge => ({
+          title: badge.title,
+          isEarned: badge.is_earned,
+        })),
+      ).toEqual([
+        { title: 'Earned Badge', isEarned: true },
+        { title: 'Unearned Badge', isEarned: false },
+      ]);
 
       await knex.destroy();
     });
 
-    it('backfills earned badge state when criteria are added after progress exists', async () => {
+    it('awards each badge only once for a user subject even when progress keeps increasing', async () => {
       const knex = await initDb();
       const repository = new BadgesRepository(knex);
-      const quest = await createQuest(knex, 'Quest Seed Order');
+      const quest = await createQuest(knex, 'Quest Idempotent');
+
+      const badge = await repository.createBadge({
+        title: 'User Badge',
+        description: 'Awarded once',
+      });
+      await repository.insertBadgeCriteria(badge.id, [
+        { quest_id: quest.id, target_count: 2 },
+      ]);
+
+      await knex('quest_progress').insert({
+        subject_ref: 'user:default/alice',
+        quest_id: quest.id,
+        completion_count: 2,
+      });
+      await knex('quest_progress')
+        .where({
+          subject_ref: 'user:default/alice',
+          quest_id: quest.id,
+        })
+        .update({ completion_count: 5 });
+
+      const criteriaCompletion = await knex('badge_criteria_completion')
+        .where({
+          subject_ref: 'user:default/alice',
+          badge_id: badge.id,
+          quest_id: quest.id,
+        })
+        .select('*');
+      const earnedRows = await knex('earned_badges')
+        .where({
+          subject_ref: 'user:default/alice',
+          badge_id: badge.id,
+        })
+        .select('*');
+      const badgeProgress = await repository.getBadgeProgress([
+        'user:default/alice',
+      ]);
+
+      expect(criteriaCompletion).toHaveLength(1);
+      expect(earnedRows).toHaveLength(1);
+      expect(badgeProgress).toHaveLength(1);
+      expect(badgeProgress[0].is_earned).toBe(true);
+
+      await knex.destroy();
+    });
+
+    it('clears persisted runtime state when criteria are replaced', async () => {
+      const knex = await initDb();
+      const repository = new BadgesRepository(knex);
+      const questA = await createQuest(knex, 'Quest Replace Runtime A');
+      const questB = await createQuest(knex, 'Quest Replace Runtime B');
+
+      const badge = await repository.createBadge({
+        title: 'Replace Runtime Badge',
+        description: 'Runtime should be cleared on criteria replace',
+      });
+      await repository.insertBadgeCriteria(badge.id, [
+        { quest_id: questA.id, target_count: 1 },
+      ]);
+
+      await knex('quest_progress').insert({
+        subject_ref: 'group:default/platform',
+        quest_id: questA.id,
+        completion_count: 1,
+      });
+
+      await repository.replaceBadgeCriteria(badge.id, [
+        { quest_id: questB.id, target_count: 2 },
+      ]);
+
+      const criteriaCompletion = await knex('badge_criteria_completion')
+        .where({ badge_id: badge.id })
+        .select('*');
+      const earnedBadge = await knex('earned_badges')
+        .where({ badge_id: badge.id })
+        .select('*');
+
+      expect(criteriaCompletion).toEqual([]);
+      expect(earnedBadge).toEqual([]);
+
+      await knex.destroy();
+    });
+
+    it('aggregates earned badge state across user and team subject refs', async () => {
+      const knex = await initDb();
+      const repository = new BadgesRepository(knex);
+      const quest = await createQuest(knex, 'Quest Aggregate Subjects');
+
+      const badge = await repository.createBadge({
+        title: 'Team Earned Badge',
+        description: 'Earned by a team membership',
+      });
+      await repository.insertBadgeCriteria(badge.id, [
+        { quest_id: quest.id, target_count: 1 },
+      ]);
 
       await knex('quest_progress').insert({
         subject_ref: 'group:default/platform',
         quest_id: quest.id,
-        completion_count: 3,
+        completion_count: 1,
       });
 
-      const badge = await repository.createBadge({
-        title: 'Backfilled Badge',
-        description: 'Backfilled from existing progress',
-      });
-      await repository.insertBadgeCriteria(badge.id, [
-        { quest_id: quest.id, target_count: 3 },
+      const badgeProgress = await repository.getBadgeProgress([
+        'user:default/alice',
+        'group:default/platform',
       ]);
 
-      const criteriaCompletion = await knex('badge_criteria_completion')
-        .where({
-          subject_ref: 'group:default/platform',
-          badge_id: badge.id,
-          quest_id: quest.id,
-        })
-        .first();
-      const earnedBadge = await knex('earned_badges')
-        .where({
-          subject_ref: 'group:default/platform',
-          badge_id: badge.id,
-        })
-        .first();
-
-      expect(criteriaCompletion).toBeDefined();
-      expect(earnedBadge).toBeDefined();
+      expect(badgeProgress).toHaveLength(1);
+      expect(badgeProgress[0].title).toBe('Team Earned Badge');
+      expect(badgeProgress[0].is_earned).toBe(true);
+      expect(badgeProgress[0].earned_at).toBeTruthy();
 
       await knex.destroy();
     });
@@ -292,12 +380,19 @@ describe('BadgesRepository Integration Tests', () => {
       const earnedRows = await knex('earned_badges')
         .where({ badge_id: badge.id })
         .select('*');
+      const badgeProgress = await repository.getBadgeProgress([
+        'group:default/platform',
+      ]);
 
       expect(deleted).toBe(true);
       expect(activeBadge).toBeUndefined();
       expect(listedBadges).toEqual([]);
       expect(storedBadge?.archived_at).toBeTruthy();
-      expect(earnedRows).toEqual([]);
+      expect(earnedRows).toHaveLength(1);
+      expect(badgeProgress).toHaveLength(1);
+      expect(badgeProgress[0].title).toBe('Delete Badge');
+      expect(badgeProgress[0].archived_at).toBeTruthy();
+      expect(badgeProgress[0].is_earned).toBe(true);
 
       await knex.destroy();
     });

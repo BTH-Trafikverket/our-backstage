@@ -55,7 +55,6 @@ export async function up(knex: Knex): Promise<void> {
     CREATE OR REPLACE FUNCTION rebuild_badge_runtime_state(p_badge_id uuid)
     RETURNS void AS $$
     DECLARE
-      v_is_archived boolean;
       v_criteria_count integer;
     BEGIN
       DELETE FROM earned_badges
@@ -63,15 +62,6 @@ export async function up(knex: Knex): Promise<void> {
 
       DELETE FROM badge_criteria_completion
       WHERE badge_id = p_badge_id;
-
-      SELECT archived_at IS NOT NULL
-        INTO v_is_archived
-      FROM badges
-      WHERE id = p_badge_id;
-
-      IF NOT FOUND OR v_is_archived THEN
-        RETURN;
-      END IF;
 
       SELECT COUNT(*)
         INTO v_criteria_count
@@ -107,7 +97,7 @@ export async function up(knex: Knex): Promise<void> {
       SELECT
         bcc.subject_ref,
         p_badge_id,
-        MAX(bcc.completed_at) AS earned_at
+        now() AS earned_at
       FROM badge_criteria_completion bcc
       WHERE bcc.badge_id = p_badge_id
       GROUP BY bcc.subject_ref
@@ -126,19 +116,6 @@ export async function up(knex: Knex): Promise<void> {
       END IF;
 
       PERFORM rebuild_badge_runtime_state(NEW.badge_id);
-      RETURN NEW;
-    END;
-    $$ LANGUAGE plpgsql;
-  `);
-
-  await knex.raw(`
-    CREATE OR REPLACE FUNCTION badges_archive_sync_runtime()
-    RETURNS TRIGGER AS $$
-    BEGIN
-      IF NEW.archived_at IS DISTINCT FROM OLD.archived_at THEN
-        PERFORM rebuild_badge_runtime_state(NEW.id);
-      END IF;
-
       RETURN NEW;
     END;
     $$ LANGUAGE plpgsql;
@@ -183,7 +160,7 @@ export async function up(knex: Knex): Promise<void> {
       SELECT
         NEW.subject_ref,
         bc.badge_id,
-        MAX(bcc.completed_at) AS earned_at
+        now() AS earned_at
       FROM badge_criteria bc
       JOIN badges b
         ON b.id = bc.badge_id
@@ -214,13 +191,6 @@ export async function up(knex: Knex): Promise<void> {
   `);
 
   await knex.raw(`
-    CREATE TRIGGER trg_badges_archive_sync_runtime
-    AFTER UPDATE OF archived_at ON badges
-    FOR EACH ROW
-    EXECUTE FUNCTION badges_archive_sync_runtime();
-  `);
-
-  await knex.raw(`
     CREATE TRIGGER trg_quest_progress_sync_badges
     AFTER INSERT OR UPDATE OF completion_count ON quest_progress
     FOR EACH ROW
@@ -228,35 +198,62 @@ export async function up(knex: Knex): Promise<void> {
   `);
 
   await knex.raw(`
-    DO $$
-    DECLARE
-      v_badge_id uuid;
-    BEGIN
-      FOR v_badge_id IN
-        SELECT id FROM badges
-      LOOP
-        PERFORM rebuild_badge_runtime_state(v_badge_id);
-      END LOOP;
-    END;
-    $$;
+    INSERT INTO badge_criteria_completion (
+      subject_ref,
+      badge_id,
+      quest_id,
+      completed_at
+    )
+    SELECT
+      qp.subject_ref,
+      bc.badge_id,
+      bc.quest_id,
+      qp.updated_at
+    FROM badge_criteria bc
+    JOIN badges b
+      ON b.id = bc.badge_id
+    JOIN quest_progress qp
+      ON qp.quest_id = bc.quest_id
+     AND qp.completion_count >= bc.target_count
+    WHERE b.archived_at IS NULL
+    ON CONFLICT (subject_ref, badge_id, quest_id) DO NOTHING;
+  `);
+
+  await knex.raw(`
+    INSERT INTO earned_badges (
+      subject_ref,
+      badge_id,
+      earned_at
+    )
+      SELECT
+      bcc.subject_ref,
+      bcc.badge_id,
+      now() AS earned_at
+    FROM badge_criteria_completion bcc
+    JOIN badges b
+      ON b.id = bcc.badge_id
+    WHERE b.archived_at IS NULL
+    GROUP BY bcc.subject_ref, bcc.badge_id
+    HAVING COUNT(*) = (
+      SELECT COUNT(*)
+      FROM badge_criteria bc
+      WHERE bc.badge_id = bcc.badge_id
+    )
+    ON CONFLICT (subject_ref, badge_id) DO NOTHING;
   `);
 }
 
 export async function down(knex: Knex): Promise<void> {
   await knex.raw(`
-    DROP TRIGGER IF EXISTS trg_quest_progress_sync_badges ON quest_progress;
-  `);
-  await knex.raw(`
-    DROP TRIGGER IF EXISTS trg_badges_archive_sync_runtime ON badges;
-  `);
-  await knex.raw(`
     DROP TRIGGER IF EXISTS trg_badge_criteria_rebuild_runtime ON badge_criteria;
   `);
+  await knex.raw(`
+    DROP TRIGGER IF EXISTS trg_quest_progress_sync_badges ON quest_progress;
+  `);
 
-  await knex.raw(`DROP FUNCTION IF EXISTS quest_progress_sync_badges;`);
-  await knex.raw(`DROP FUNCTION IF EXISTS badges_archive_sync_runtime;`);
   await knex.raw(`DROP FUNCTION IF EXISTS badge_criteria_rebuild_runtime;`);
   await knex.raw(`DROP FUNCTION IF EXISTS rebuild_badge_runtime_state;`);
+  await knex.raw(`DROP FUNCTION IF EXISTS quest_progress_sync_badges;`);
 
   await knex.schema.dropTableIfExists('earned_badges');
   await knex.schema.dropTableIfExists('badge_criteria_completion');

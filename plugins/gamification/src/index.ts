@@ -15,5 +15,5 @@ export {
 export type {
   BadgesCardProps,
   EntityBadgesCardProps,
-  EarnedBadge,
+  BadgeProgressBadge,
 } from './components/EntityBadgesCard/EntityBadgesCard';
