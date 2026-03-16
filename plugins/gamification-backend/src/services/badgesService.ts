@@ -10,6 +10,7 @@ import type {
   BadgeCriteriaInput,
 } from '../schemas/badges/badgeCreationSchema';
 import type { BadgeEditInput } from '../schemas/badges/badgeEditSchema';
+import type { QuestSubjectType } from '../schemas/quests/questCreationSchema';
 
 type BadgeServiceOpts = {
   credentials: any;
@@ -41,11 +42,20 @@ export class BadgesService {
     this.questsRepo = options.questsRepo;
   }
 
-  private async validateCriterias(criterias: BadgeCriteriaInput[]) {
+  private async validateCriterias(
+    badgeSubjectType: QuestSubjectType,
+    criterias: BadgeCriteriaInput[],
+  ) {
     for (const criteria of criterias) {
       const quest = await this.questsRepo.getQuestById(criteria.quest_id);
       if (!quest) {
         throw new NotFoundError(`Quest '${criteria.quest_id}' not found`);
+      }
+
+      if (quest.subject_type !== badgeSubjectType) {
+        throw new InputError(
+          `Quest '${criteria.quest_id}' is a ${quest.subject_type} quest and cannot be used on a ${badgeSubjectType} badge`,
+        );
       }
 
       if (
@@ -67,6 +77,7 @@ export class BadgesService {
       id: badge.id,
       title: badge.title,
       description: badge.description,
+      subject_type: badge.subject_type,
       created_at: badge.created_at,
       updated_at: badge.updated_at,
       archived_at: badge.archived_at,
@@ -86,12 +97,13 @@ export class BadgesService {
   }
 
   async createBadge(data: BadgeCreationInput, _opts: BadgeServiceOpts) {
-    await this.validateCriterias(data.criterias);
+    await this.validateCriterias(data.subject_type, data.criterias);
 
     return this.badgesRepo.withTransaction(async repo => {
       const badge = await repo.createBadge({
         title: data.title,
         description: data.description,
+        subject_type: data.subject_type,
       });
 
       await repo.insertBadgeCriteria(badge.id, data.criterias);
@@ -180,17 +192,37 @@ export class BadgesService {
       return undefined;
     }
 
+    const nextSubjectType = data.subject_type ?? currentBadge.subject_type;
+
+    let nextCriterias: BadgeCriteriaInput[];
     if (data.criterias) {
-      await this.validateCriterias(data.criterias);
+      nextCriterias = data.criterias;
+    } else if (data.subject_type !== undefined) {
+      const currentCriteria = await this.badgesRepo.getBadgeCriteria(id);
+      nextCriterias = currentCriteria.map(row => ({
+        quest_id: row.quest_id,
+        target_count: row.target_count,
+      }));
+    } else {
+      nextCriterias = [];
+    }
+
+    if (nextCriterias.length > 0) {
+      await this.validateCriterias(nextSubjectType, nextCriterias);
     }
 
     return this.badgesRepo.withTransaction(async repo => {
       let badge = currentBadge;
 
-      if (data.title !== undefined || data.description !== undefined) {
+      if (
+        data.title !== undefined ||
+        data.description !== undefined ||
+        data.subject_type !== undefined
+      ) {
         const updated = await repo.updateBadge(id, {
           title: data.title,
           description: data.description,
+          subject_type: data.subject_type,
         });
 
         if (!updated) {

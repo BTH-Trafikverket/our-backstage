@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { questSubjectTypeSchema } from '../quests/questCreationSchema';
+
+export { questSubjectTypeSchema };
 
 export const badgeCriteriaSchema = z
   .object({
@@ -32,6 +35,7 @@ export const badgeCreationSchema = z
   .object({
     title: z.string().trim().min(1),
     description: z.string().trim().min(1),
+    subject_type: questSubjectTypeSchema,
     criterias: z.array(badgeCriteriaSchema).min(1),
   })
   .strict()

@@ -391,6 +391,7 @@ export const spec = {
           'id',
           'title',
           'description',
+          'subject_type',
           'criterias',
           'created_at',
           'updated_at',
@@ -400,6 +401,9 @@ export const spec = {
           id: { type: 'string' },
           title: { type: 'string' },
           description: { type: 'string' },
+          subject_type: {
+            $ref: '#/components/schemas/QuestSubjectType',
+          },
           criterias: {
             type: 'array',
             items: { $ref: '#/components/schemas/BadgeCriteria' },
@@ -442,11 +446,14 @@ export const spec = {
       },
       CreateBadgeRequest: {
         type: 'object',
-        required: ['title', 'description', 'criterias'],
+        required: ['title', 'description', 'subject_type', 'criterias'],
         additionalProperties: false,
         properties: {
           title: { type: 'string', minLength: 1 },
           description: { type: 'string', minLength: 1 },
+          subject_type: {
+            $ref: '#/components/schemas/QuestSubjectType',
+          },
           criterias: {
             type: 'array',
             minItems: 1,
@@ -471,6 +478,7 @@ export const spec = {
           'description',
           'interval',
           'xp_reward',
+          'subject_type',
           'completion_policy',
           'cooldown_days',
           'created_at',
@@ -482,6 +490,9 @@ export const spec = {
           description: { type: 'string' },
           interval: { type: 'integer' },
           xp_reward: { type: 'integer' },
+          subject_type: {
+            $ref: '#/components/schemas/QuestSubjectType',
+          },
           completion_policy: {
             $ref: '#/components/schemas/CompletionPolicy',
           },
@@ -518,6 +529,9 @@ export const spec = {
           description: { type: 'string' },
           interval: { type: 'integer', minimum: 1 },
           xp_reward: { type: 'integer', minimum: 1 },
+          subject_type: {
+            $ref: '#/components/schemas/QuestSubjectType',
+          },
           entityRef: { type: 'string' },
           completion_policy: {
             $ref: '#/components/schemas/CompletionPolicy',
@@ -534,11 +548,18 @@ export const spec = {
           description: { type: 'string', minLength: 1 },
           interval: { type: 'integer', minimum: 1 },
           xp_reward: { type: 'integer', minimum: 0 },
+          subject_type: {
+            $ref: '#/components/schemas/QuestSubjectType',
+          },
           completion_policy: {
             $ref: '#/components/schemas/CompletionPolicy',
           },
           cooldown_days: { type: 'integer', minimum: 1, nullable: true },
         },
+      },
+      QuestSubjectType: {
+        type: 'string',
+        enum: ['user', 'team'],
       },
       UpdateBadgeRequest: {
         type: 'object',
@@ -547,6 +568,9 @@ export const spec = {
         properties: {
           title: { type: 'string', minLength: 1 },
           description: { type: 'string', minLength: 1 },
+          subject_type: {
+            $ref: '#/components/schemas/QuestSubjectType',
+          },
           criterias: {
             type: 'array',
             minItems: 1,
