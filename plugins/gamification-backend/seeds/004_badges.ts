@@ -89,7 +89,10 @@ export const seed004Badges: Seed = {
         })),
       )
       .onConflict('title')
-      .merge(['description']);
+      .merge({
+        description: knex.ref('excluded.description'),
+        archived_at: null,
+      });
 
     const badges = await knex('badges')
       .select(['id', 'title'])
