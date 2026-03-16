@@ -10,7 +10,7 @@ type DemoEvent = {
 export const seed003DemoEvents: Seed = {
   id: '003_demo_events',
   description:
-    'Seed demo quest progress by replaying events (triggers + receipts)',
+    'Seed demo quest progress by replaying events (receipts + quest_progress)',
   async run({ knex }) {
     const adminGroup = 'group:default/admin';
     const alice = 'user:local/alice';
@@ -18,10 +18,15 @@ export const seed003DemoEvents: Seed = {
 
     const linus = 'user:default/linusandersson02';
     const zoe = 'user:default/zoebalowi';
-
     const mara = 'user:default/Maram277';
     const skz = 'user:default/skz911';
     const hahh = 'user:default/hahh24';
+
+    const questTitleByEventKey = {
+      'github.pull_request.merged': 'Merge a PR',
+      'github.pull_request.reviewed': 'Review PRs',
+      'github.ci.fixed': 'Fix a failing build',
+    } as const;
 
     const demoEvents: DemoEvent[] = [
       {
@@ -217,6 +222,30 @@ export const seed003DemoEvents: Seed = {
         caller_subject: 'seed',
       },
       {
+        event_id: 'seed:skz:merge:2',
+        event_key: 'github.pull_request.merged',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:merge:3',
+        event_key: 'github.pull_request.merged',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:merge:4',
+        event_key: 'github.pull_request.merged',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:merge:5',
+        event_key: 'github.pull_request.merged',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
         event_id: 'seed:skz:review:1',
         event_key: 'github.pull_request.reviewed',
         subject_ref: skz,
@@ -241,6 +270,36 @@ export const seed003DemoEvents: Seed = {
         caller_subject: 'seed',
       },
       {
+        event_id: 'seed:skz:review:5',
+        event_key: 'github.pull_request.reviewed',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:review:6',
+        event_key: 'github.pull_request.reviewed',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:review:7',
+        event_key: 'github.pull_request.reviewed',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:review:8',
+        event_key: 'github.pull_request.reviewed',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:review:9',
+        event_key: 'github.pull_request.reviewed',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
         event_id: 'seed:skz:ci:1',
         event_key: 'github.ci.fixed',
         subject_ref: skz,
@@ -248,6 +307,30 @@ export const seed003DemoEvents: Seed = {
       },
       {
         event_id: 'seed:skz:ci:2',
+        event_key: 'github.ci.fixed',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:ci:3',
+        event_key: 'github.ci.fixed',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:ci:4',
+        event_key: 'github.ci.fixed',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:ci:5',
+        event_key: 'github.ci.fixed',
+        subject_ref: skz,
+        caller_subject: 'seed',
+      },
+      {
+        event_id: 'seed:skz:ci:6',
         event_key: 'github.ci.fixed',
         subject_ref: skz,
         caller_subject: 'seed',
@@ -302,20 +385,39 @@ export const seed003DemoEvents: Seed = {
       },
     ];
 
-    const hasQuestEventTriggersTable = await knex.schema.hasTable(
-      'quest_event_triggers',
+    const eventQuestTitles = Object.values(questTitleByEventKey);
+    const eventQuests = await knex('quests')
+      .select(['id', 'title'])
+      .whereIn('title', eventQuestTitles);
+    const questIdByTitle = new Map(
+      eventQuests.map((quest: any) => [
+        quest.title as string,
+        quest.id as string,
+      ]),
     );
-    if (hasQuestEventTriggersTable) {
-      for (const ev of demoEvents) {
-        const trigger = await knex('quest_event_triggers')
-          .select(['quest_id', 'increment_by'])
-          .where({ event_key: ev.event_key, enabled: true })
-          .first();
 
-        if (!trigger) {
-          throw new Error(`No trigger found for event_key '${ev.event_key}'`);
-        }
+    for (const questTitle of eventQuestTitles) {
+      if (!questIdByTitle.has(questTitle)) {
+        throw new Error(
+          `Missing quest '${questTitle}' required for demo progress seed`,
+        );
+      }
+    }
 
+    const hasQuestEventReceiptsTable = await knex.schema.hasTable(
+      'quest_event_receipts',
+    );
+
+    for (const ev of demoEvents) {
+      const questTitle =
+        questTitleByEventKey[ev.event_key as keyof typeof questTitleByEventKey];
+      const questId = questIdByTitle.get(questTitle);
+
+      if (!questId) {
+        throw new Error(`No quest found for event_key '${ev.event_key}'`);
+      }
+
+      if (hasQuestEventReceiptsTable) {
         const inserted = await knex('quest_event_receipts')
           .insert({
             event_id: ev.event_id,
@@ -327,22 +429,60 @@ export const seed003DemoEvents: Seed = {
           .ignore()
           .returning(['event_id']);
 
-        if (!inserted || inserted.length === 0) continue;
+        if (!inserted || inserted.length === 0) {
+          continue;
+        }
+      }
 
-        await knex('quest_progress')
-          .insert({
-            subject_ref: ev.subject_ref,
-            quest_id: trigger.quest_id,
-            completion_count: trigger.increment_by,
-          })
-          .onConflict(['subject_ref', 'quest_id'])
-          .merge({
-            completion_count: knex.raw('quest_progress.completion_count + ?', [
-              trigger.increment_by,
-            ]),
-          });
+      await knex('quest_progress')
+        .insert({
+          subject_ref: ev.subject_ref,
+          quest_id: questId,
+          completion_count: 1,
+        })
+        .onConflict(['subject_ref', 'quest_id'])
+        .merge({
+          completion_count: knex.raw('quest_progress.completion_count + 1'),
+        });
+    }
+
+    const skzOneTimeQuestTitles = [
+      'Ship Your First Feature Flag',
+      'Lead a Production Rollout',
+      'Run a Knowledge Share',
+    ];
+    const skzOneTimeQuests = await knex('quests')
+      .select(['id', 'title'])
+      .whereIn('title', skzOneTimeQuestTitles);
+    const skzOneTimeQuestIdByTitle = new Map(
+      skzOneTimeQuests.map((quest: any) => [
+        quest.title as string,
+        quest.id as string,
+      ]),
+    );
+
+    for (const questTitle of skzOneTimeQuestTitles) {
+      if (!skzOneTimeQuestIdByTitle.has(questTitle)) {
+        throw new Error(
+          `Missing one-time quest '${questTitle}' required for skz demo seed`,
+        );
       }
     }
+
+    await knex('quest_progress')
+      .insert(
+        skzOneTimeQuestTitles.map(questTitle => ({
+          subject_ref: skz,
+          quest_id: skzOneTimeQuestIdByTitle.get(questTitle)!,
+          completion_count: 1,
+        })),
+      )
+      .onConflict(['subject_ref', 'quest_id'])
+      .merge({
+        completion_count: knex.raw(
+          'GREATEST(quest_progress.completion_count, 1)',
+        ),
+      });
 
     const adminGroupQuests = await knex('quests')
       .select(['id', 'title'])
