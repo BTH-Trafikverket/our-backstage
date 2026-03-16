@@ -549,11 +549,10 @@ export const BadgesAdminPage = ({
           : 'This quest is Repeatable';
       }
 
-      const completionPolicyValue = criteria.quest_id
-        ? isOneTime
-          ? 'One-time'
-          : 'Repeatable'
-        : '';
+      let completionPolicyValue = '';
+      if (criteria.quest_id) {
+        completionPolicyValue = isOneTime ? 'One-time' : 'Repeatable';
+      }
 
       return (
         <Box
