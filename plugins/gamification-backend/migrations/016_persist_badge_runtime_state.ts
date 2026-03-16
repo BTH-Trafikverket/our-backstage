@@ -97,7 +97,7 @@ export async function up(knex: Knex): Promise<void> {
       SELECT
         bcc.subject_ref,
         p_badge_id,
-        MAX(bcc.completed_at) AS earned_at
+        now() AS earned_at
       FROM badge_criteria_completion bcc
       WHERE bcc.badge_id = p_badge_id
       GROUP BY bcc.subject_ref
@@ -160,7 +160,7 @@ export async function up(knex: Knex): Promise<void> {
       SELECT
         NEW.subject_ref,
         bc.badge_id,
-        MAX(bcc.completed_at) AS earned_at
+        now() AS earned_at
       FROM badge_criteria bc
       JOIN badges b
         ON b.id = bc.badge_id
@@ -225,10 +225,10 @@ export async function up(knex: Knex): Promise<void> {
       badge_id,
       earned_at
     )
-    SELECT
+      SELECT
       bcc.subject_ref,
       bcc.badge_id,
-      MAX(bcc.completed_at) AS earned_at
+      now() AS earned_at
     FROM badge_criteria_completion bcc
     JOIN badges b
       ON b.id = bcc.badge_id

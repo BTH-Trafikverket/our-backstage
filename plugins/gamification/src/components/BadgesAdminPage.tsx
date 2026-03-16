@@ -1,4 +1,10 @@
-import { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import {
   Typography,
   Grid,
@@ -19,6 +25,7 @@ import {
   TextField,
   Box,
   MenuItem,
+  Chip,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import DeleteIcon from '@material-ui/icons/Delete';
@@ -28,6 +35,11 @@ import {
   InfoCard,
   SupportButton,
 } from '@backstage/core-components';
+import {
+  useApi,
+  fetchApiRef,
+  discoveryApiRef,
+} from '@backstage/core-plugin-api';
 import { Alert } from '@material-ui/lab';
 
 type QuestLite = {
@@ -46,6 +58,14 @@ type Badge = {
   title: string;
   description: string;
   criterias: BadgeCriteria[];
+  archived_at?: string | null;
+  isEarned?: boolean;
+  earnedAt?: string | null;
+};
+
+type BadgeProgressResponse = {
+  subjectRefs: string[];
+  badges: Badge[];
 };
 
 type BadgeFormCriteria = {
@@ -65,45 +85,56 @@ type BadgesAdminPageProps = {
   isDemoMode?: boolean;
 };
 
-const mockQuests: QuestLite[] = [
-  { id: '1', title: 'Documentation', completion_policy: 'REPEATABLE' },
-  { id: '2', title: 'Write New CI Tests', completion_policy: 'REPEATABLE' },
-  { id: '3', title: 'Code Contribution', completion_policy: 'REPEATABLE' },
-  { id: '4', title: 'Knowledge Sharing', completion_policy: 'ONE_TIME' },
-];
-
-const mockBadges: Badge[] = [
-  {
-    id: '1',
-    title: 'Developers',
-    description: 'Complete developer related quests',
-    criterias: [
-      { quest_id: '1', target_count: 3 },
-      { quest_id: '2', target_count: 1 },
-    ],
-  },
-  {
-    id: '2',
-    title: 'System Explorers',
-    description: 'Complete exploration and contribution quests',
-    criterias: [
-      { quest_id: '3', target_count: 2 },
-      { quest_id: '4', target_count: 1 },
-    ],
-  },
-];
-
 const createEmptyForm = (): BadgeFormData => ({
   title: '',
   description: '',
   criterias: [{ quest_id: '', target_count: '1' }],
 });
 
+async function readErrorMessage(response: Response): Promise<string> {
+  const body = await response.text();
+
+  if (!body) {
+    return `Error: ${response.status} ${response.statusText}`;
+  }
+
+  try {
+    const parsed = JSON.parse(body);
+    return parsed.error?.message ?? parsed.message ?? body;
+  } catch {
+    return body;
+  }
+}
+
 export const BadgesAdminPage = ({
   isAdmin,
   onToggleDemo,
   isDemoMode = false,
 }: BadgesAdminPageProps) => {
+  const fetchApi = useApi(fetchApiRef);
+  const discoveryApi = useApi(discoveryApiRef);
+  const pluginId = 'gamification';
+
+  const buildGamificationUrl = useCallback(
+    async (path: string, query?: Record<string, string>) => {
+      const baseUrl = await discoveryApi.getBaseUrl(pluginId);
+      const url = new URL(
+        `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`,
+      );
+
+      if (query) {
+        for (const [k, v] of Object.entries(query)) {
+          if (v !== undefined && v !== null && `${v}`.trim() !== '') {
+            url.searchParams.set(k, `${v}`);
+          }
+        }
+      }
+
+      return url.toString();
+    },
+    [discoveryApi],
+  );
+
   const [badges, setBadges] = useState<Badge[]>([]);
   const [quests, setQuests] = useState<QuestLite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,32 +142,94 @@ export const BadgesAdminPage = ({
   const [search, setSearch] = useState('');
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState<BadgeFormData>(
     createEmptyForm(),
   );
 
   const [editOpen, setEditOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
   const [editForm, setEditForm] = useState<BadgeFormData>(createEmptyForm());
 
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [badgeToDelete, setBadgeToDelete] = useState<Badge | null>(null);
 
-  useEffect(() => {
+  const fetchBadges = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      setQuests(mockQuests);
-      setBadges(mockBadges);
+      const url = await buildGamificationUrl(
+        isAdmin ? '/badges' : '/badges/progress',
+      );
+      const response = await fetchApi.fetch(url);
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      if (isAdmin) {
+        const result = (await response.json()) as Badge[];
+        setBadges(result);
+      } else {
+        const result = (await response.json()) as BadgeProgressResponse;
+        setBadges(result.badges ?? []);
+      }
     } catch (e: any) {
       setError(e?.message ?? 'An unknown error occurred');
+      setBadges([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [buildGamificationUrl, fetchApi, isAdmin]);
+
+  const fetchQuests = useCallback(async () => {
+    try {
+      const url = await buildGamificationUrl(
+        isAdmin ? '/quests' : '/quests/me',
+        isAdmin ? undefined : { audience: 'all', status: 'all', limit: '1000' },
+      );
+      const response = await fetchApi.fetch(url);
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      const result = await response.json();
+      const questRows = Array.isArray(result) ? result : result.data ?? [];
+      const byId = new Map<string, QuestLite>();
+
+      for (const quest of questRows) {
+        if (!quest?.id || !quest?.title || !quest?.completion_policy) {
+          continue;
+        }
+
+        byId.set(quest.id, {
+          id: quest.id,
+          title: quest.title,
+          completion_policy: quest.completion_policy,
+        });
+      }
+
+      setQuests(Array.from(byId.values()));
+    } catch (e: any) {
+      setQuests([]);
+      setError(prev => prev ?? e?.message ?? 'Failed to load quests');
+    }
+  }, [buildGamificationUrl, fetchApi, isAdmin]);
+
+  useEffect(() => {
+    fetchBadges();
+  }, [fetchBadges]);
+
+  useEffect(() => {
+    fetchQuests();
+  }, [fetchQuests]);
 
   const getQuestById = (questId: string) => {
     return quests.find(q => q.id === questId);
@@ -251,11 +344,15 @@ export const BadgesAdminPage = ({
   };
 
   const closeCreate = () => {
+    if (createLoading) {
+      return;
+    }
+
     setCreateOpen(false);
     setCreateError(null);
   };
 
-  const submitCreate = () => {
+  const submitCreate = async () => {
     const validation = validateBadgeForm(createForm);
 
     if (validation) {
@@ -263,19 +360,36 @@ export const BadgesAdminPage = ({
       return;
     }
 
-    const newBadge: Badge = {
-      id: String(Date.now()),
-      title: createForm.title.trim(),
-      description: createForm.description.trim(),
-      criterias: createForm.criterias.map(c => ({
-        quest_id: c.quest_id,
-        target_count: parseInt(c.target_count, 10),
-      })),
-    };
+    setCreateLoading(true);
+    setCreateError(null);
 
-    setBadges(prev => [newBadge, ...prev]);
-    setCreateOpen(false);
-    setCreateForm(createEmptyForm());
+    try {
+      const url = await buildGamificationUrl('/badges');
+      const response = await fetchApi.fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: createForm.title.trim(),
+          description: createForm.description.trim(),
+          criterias: createForm.criterias.map(c => ({
+            quest_id: c.quest_id,
+            target_count: parseInt(c.target_count, 10),
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      setCreateOpen(false);
+      setCreateForm(createEmptyForm());
+      await fetchBadges();
+    } catch (e: any) {
+      setCreateError(e?.message ?? 'An unknown error occurred');
+    } finally {
+      setCreateLoading(false);
+    }
   };
 
   const openEdit = (badge: Badge) => {
@@ -293,12 +407,16 @@ export const BadgesAdminPage = ({
   };
 
   const closeEdit = () => {
+    if (editLoading) {
+      return;
+    }
+
     setEditOpen(false);
     setSelectedBadge(null);
     setEditError(null);
   };
 
-  const submitEdit = () => {
+  const submitEdit = async () => {
     if (!selectedBadge) {
       return;
     }
@@ -310,49 +428,85 @@ export const BadgesAdminPage = ({
       return;
     }
 
-    const updatedBadge: Badge = {
-      ...selectedBadge,
-      title: editForm.title.trim(),
-      description: editForm.description.trim(),
-      criterias: editForm.criterias.map(c => ({
-        quest_id: c.quest_id,
-        target_count: parseInt(c.target_count, 10),
-      })),
-    };
+    setEditLoading(true);
+    setEditError(null);
 
-    setBadges(prev =>
-      prev.map(badge => (badge.id === selectedBadge.id ? updatedBadge : badge)),
-    );
+    try {
+      const url = await buildGamificationUrl(`/badges/${selectedBadge.id}`);
+      const response = await fetchApi.fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editForm.title.trim(),
+          description: editForm.description.trim(),
+          criterias: editForm.criterias.map(c => ({
+            quest_id: c.quest_id,
+            target_count: parseInt(c.target_count, 10),
+          })),
+        }),
+      });
 
-    setEditOpen(false);
-    setSelectedBadge(null);
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      setEditOpen(false);
+      setSelectedBadge(null);
+      await fetchBadges();
+    } catch (e: any) {
+      setEditError(e?.message ?? 'An unknown error occurred');
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const openDelete = (badge: Badge) => {
+    setDeleteError(null);
     setBadgeToDelete(badge);
     setDeleteOpen(true);
   };
 
   const closeDelete = () => {
+    if (deleteLoading) {
+      return;
+    }
+
     setDeleteOpen(false);
+    setDeleteError(null);
     setBadgeToDelete(null);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!badgeToDelete) {
       return;
     }
 
-    setBadges(prev => prev.filter(badge => badge.id !== badgeToDelete.id));
-    setDeleteOpen(false);
-    setBadgeToDelete(null);
+    setDeleteLoading(true);
+    setDeleteError(null);
+
+    try {
+      const url = await buildGamificationUrl(`/badges/${badgeToDelete.id}`);
+      const response = await fetchApi.fetch(url, { method: 'DELETE' });
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      setDeleteOpen(false);
+      setBadgeToDelete(null);
+      await fetchBadges();
+    } catch (e: any) {
+      setDeleteError(e?.message ?? 'An unknown error occurred');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const renderCriteriaSummary = (criterias: BadgeCriteria[]) => {
     if (!criterias.length) {
       return (
         <Typography variant="caption" color="textSecondary">
-          Inga kriterier
+          No criteria
         </Typography>
       );
     }
@@ -372,7 +526,7 @@ export const BadgesAdminPage = ({
               variant="caption"
               display="block"
             >
-              • {getQuestTitle(criteria.quest_id)} — {policyText}
+              {getQuestTitle(criteria.quest_id)} - {policyText}
             </Typography>
           );
         })}
@@ -390,21 +544,16 @@ export const BadgesAdminPage = ({
 
       let helperText = 'Choose a quest';
       if (criteria.quest_id) {
-        if (isOneTime) {
-          helperText = 'This quest is One-time';
-        } else {
-          helperText = 'This quest is Repeatable';
-        }
+        helperText = isOneTime
+          ? 'This quest is One-time'
+          : 'This quest is Repeatable';
       }
 
-      let completionPolicyValue = '';
-      if (criteria.quest_id) {
-        if (isOneTime) {
-          completionPolicyValue = 'One-time';
-        } else {
-          completionPolicyValue = 'Repeatable';
-        }
-      }
+      const completionPolicyValue = criteria.quest_id
+        ? isOneTime
+          ? 'One-time'
+          : 'Repeatable'
+        : '';
 
       return (
         <Box
@@ -434,7 +583,7 @@ export const BadgesAdminPage = ({
 
               return (
                 <MenuItem key={q.id} value={q.id}>
-                  {q.title} — {policyLabel}
+                  {q.title} - {policyLabel}
                 </MenuItem>
               );
             })}
@@ -474,11 +623,30 @@ export const BadgesAdminPage = ({
     });
   };
 
-  const filteredBadges = badges.filter(badge =>
-    badge.title
-      .toLocaleLowerCase('en-US')
-      .includes(search.trim().toLocaleLowerCase('en-US')),
-  );
+  const getBadgeStatusLabel = (badge: Badge) => {
+    if (isAdmin) {
+      return badge.archived_at ? 'Archived' : 'Active';
+    }
+
+    if (badge.isEarned) {
+      return badge.archived_at ? 'Earned, archived' : 'Earned';
+    }
+
+    return 'In progress';
+  };
+
+  const filteredBadges = badges.filter(badge => {
+    const query = search.trim().toLocaleLowerCase('en-US');
+
+    if (!query) {
+      return true;
+    }
+
+    return (
+      badge.title.toLocaleLowerCase('en-US').includes(query) ||
+      badge.description.toLocaleLowerCase('en-US').includes(query)
+    );
+  });
 
   return (
     <>
@@ -520,7 +688,7 @@ export const BadgesAdminPage = ({
           />
 
           <Box mt={3} mb={1}>
-            <Typography variant="subtitle1">Criterias</Typography>
+            <Typography variant="subtitle1">Criteria</Typography>
             <Typography variant="body2" color="textSecondary">
               Select a quest. One-time quests do not show a count.
             </Typography>
@@ -537,9 +705,16 @@ export const BadgesAdminPage = ({
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={closeCreate}>Cancel</Button>
-          <Button onClick={submitCreate} color="primary" variant="contained">
-            Create Badge
+          <Button onClick={closeCreate} disabled={createLoading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={submitCreate}
+            color="primary"
+            variant="contained"
+            disabled={createLoading}
+          >
+            {createLoading ? 'Creating...' : 'Create Badge'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -582,7 +757,7 @@ export const BadgesAdminPage = ({
           />
 
           <Box mt={3} mb={1}>
-            <Typography variant="subtitle1">Criterias</Typography>
+            <Typography variant="subtitle1">Criteria</Typography>
             <Typography variant="body2" color="textSecondary">
               Select a quest. One-time quests do not show a count.
             </Typography>
@@ -599,9 +774,16 @@ export const BadgesAdminPage = ({
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={closeEdit}>Cancel</Button>
-          <Button onClick={submitEdit} color="primary" variant="contained">
-            Save Changes
+          <Button onClick={closeEdit} disabled={editLoading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={submitEdit}
+            color="primary"
+            variant="contained"
+            disabled={editLoading}
+          >
+            {editLoading ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -610,15 +792,28 @@ export const BadgesAdminPage = ({
         <DialogTitle>Archive Badge?</DialogTitle>
 
         <DialogContent>
+          {deleteError && (
+            <Alert severity="error" style={{ marginBottom: 16 }}>
+              {deleteError}
+            </Alert>
+          )}
+
           <Typography>
             Are you sure you want to archive "{badgeToDelete?.title}"?
           </Typography>
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={closeDelete}>Cancel</Button>
-          <Button onClick={confirmDelete} color="secondary" variant="contained">
-            Archive
+          <Button onClick={closeDelete} disabled={deleteLoading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={confirmDelete}
+            color="secondary"
+            variant="contained"
+            disabled={deleteLoading}
+          >
+            {deleteLoading ? 'Archiving...' : 'Archive'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -628,7 +823,7 @@ export const BadgesAdminPage = ({
           <InfoCard>
             <ContentHeader title="Badges">
               <SupportButton>
-                Create and manage badges (admin) or view badges (user).
+                Create and manage badges (admin) or view badge progress (user).
               </SupportButton>
 
               {isAdmin && (
@@ -667,7 +862,7 @@ export const BadgesAdminPage = ({
 
             {loading && (
               <Box textAlign="center" p={2}>
-                <Typography>Laddar badges...</Typography>
+                <Typography>Loading badges...</Typography>
               </Box>
             )}
 
@@ -681,7 +876,7 @@ export const BadgesAdminPage = ({
               <Typography variant="body2">
                 {search.trim()
                   ? 'No badges found. Try a different search.'
-                  : 'Inga badges hittades.'}
+                  : 'No badges found.'}
               </Typography>
             )}
 
@@ -690,11 +885,12 @@ export const BadgesAdminPage = ({
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell style={{ width: '20%' }}>Title</TableCell>
-                      <TableCell style={{ width: '35%' }}>
+                      <TableCell style={{ width: '18%' }}>Title</TableCell>
+                      <TableCell style={{ width: '30%' }}>
                         Description
                       </TableCell>
-                      <TableCell style={{ width: '35%' }}>Criterias</TableCell>
+                      <TableCell style={{ width: '30%' }}>Criteria</TableCell>
+                      <TableCell style={{ width: '12%' }}>Status</TableCell>
                       <TableCell align="right" style={{ width: '10%' }}>
                         {isAdmin ? 'Actions' : ''}
                       </TableCell>
@@ -709,6 +905,13 @@ export const BadgesAdminPage = ({
                         <TableCell>
                           {renderCriteriaSummary(badge.criterias)}
                         </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={getBadgeStatusLabel(badge)}
+                            size="small"
+                            color={badge.isEarned ? 'primary' : 'default'}
+                          />
+                        </TableCell>
                         <TableCell align="right">
                           {isAdmin ? (
                             <>
@@ -722,7 +925,7 @@ export const BadgesAdminPage = ({
                                 </IconButton>
                               </Tooltip>
 
-                              <Tooltip title="Delete">
+                              <Tooltip title="Archive">
                                 <IconButton
                                   size="small"
                                   color="secondary"
