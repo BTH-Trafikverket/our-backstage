@@ -6,6 +6,7 @@ export type BadgeRow = {
   description: string;
   created_at: Date;
   updated_at: Date;
+  archived_at: Date | null;
 };
 
 export type BadgeCriteriaRow = {
@@ -46,7 +47,9 @@ export class BadgesRepository {
   }
 
   async getBadges(searchTitle?: string): Promise<BadgeRow[]> {
-    let query = this.db<BadgeRow>('badges').select('*');
+    let query = this.db<BadgeRow>('badges')
+      .select('*')
+      .whereNull('archived_at');
 
     if (searchTitle) {
       query = query.where('title', 'ilike', `%${searchTitle}%`);
@@ -56,37 +59,11 @@ export class BadgesRepository {
   }
 
   async getEarnedBadges(subjectRef: string): Promise<BadgeRow[]> {
-    const db = this.db;
-
-    return db<BadgeRow>('badges')
-      .join('badge_criteria', 'badges.id', 'badge_criteria.badge_id')
-      .leftJoin('quest_progress', function joinBadgeProgress() {
-        this.on(
-          'quest_progress.quest_id',
-          '=',
-          'badge_criteria.quest_id',
-        ).andOn('quest_progress.subject_ref', '=', db.raw('?', [subjectRef]));
-      })
-      .groupBy([
-        'badges.id',
-        'badges.title',
-        'badges.description',
-        'badges.created_at',
-        'badges.updated_at',
-      ])
-      .havingRaw(
-        `
-          COUNT(*) = SUM(
-            CASE
-              WHEN COALESCE(quest_progress.completion_count, 0) >= badge_criteria.target_count
-                THEN 1
-              ELSE 0
-            END
-          )
-        `,
-      )
+    return this.db<BadgeRow>('earned_badges')
+      .join('badges', 'earned_badges.badge_id', 'badges.id')
       .select('badges.*')
-      .orderBy('badges.created_at', 'desc');
+      .where('earned_badges.subject_ref', subjectRef)
+      .orderBy('earned_badges.earned_at', 'desc');
   }
 
   async getBadgeById(id: string): Promise<BadgeRow | undefined> {
@@ -173,7 +150,12 @@ export class BadgesRepository {
   }
 
   async deleteBadge(id: string): Promise<boolean> {
-    const deletedCount = await this.db('badges').where({ id }).del();
-    return deletedCount > 0;
+    const rows = await this.db<BadgeRow>('badges')
+      .where({ id })
+      .whereNull('archived_at')
+      .update({ archived_at: this.db.fn.now() })
+      .returning('id');
+
+    return rows.length > 0;
   }
 }
