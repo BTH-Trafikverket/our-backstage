@@ -2,6 +2,8 @@ import { InputError, NotFoundError } from '@backstage/errors';
 import type {
   BadgesRepository,
   BadgePagination,
+  BadgeProgressSortField,
+  BadgeSortOrder,
   BadgeRow,
   CriteriaProgressRow,
 } from '../repositories/badgesRepository';
@@ -66,6 +68,9 @@ export type BadgeProgressResponse = {
 };
 
 type BadgePaginationOpts = BadgeServiceOpts & {
+  searchTitle?: string;
+  sortBy?: BadgeProgressSortField;
+  order?: BadgeSortOrder;
   page?: number;
   limit?: number;
 };
@@ -320,6 +325,9 @@ export class BadgesService {
       ...new Set(subjectRefs.map(ref => ref.trim()).filter(Boolean)),
     ];
     const paginated = await this.badgesRepo.getPaginatedBadgeProgress(refs, {
+      searchTitle: opts?.searchTitle,
+      sortBy: opts?.sortBy,
+      order: opts?.order,
       page: opts?.page,
       limit: opts?.limit,
     });

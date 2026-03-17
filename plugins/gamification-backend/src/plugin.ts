@@ -41,10 +41,19 @@ export const gamificationBackendPlugin = createBackendPlugin({
           config.getOptionalBoolean('gamification.seed.enabled') ?? false;
         const seedReset =
           config.getOptionalBoolean('gamification.seed.reset') ?? false;
+        const isProduction = process.env.NODE_ENV === 'production';
+        const allowProductionSeeds =
+          process.env.GAMIFICATION_ALLOW_PRODUCTION_SEEDS === 'true';
 
         if (seedEnabled) {
-          await runSeeds(knex, { reset: seedReset });
-          logger.info(`gamification seeds applied (reset=${seedReset})`);
+          if (isProduction && !allowProductionSeeds) {
+            logger.warn(
+              'gamification seeds are enabled in config but were skipped in production; set GAMIFICATION_ALLOW_PRODUCTION_SEEDS=true to override',
+            );
+          } else {
+            await runSeeds(knex, { reset: seedReset });
+            logger.info(`gamification seeds applied (reset=${seedReset})`);
+          }
         }
 
         httpRouter.use(

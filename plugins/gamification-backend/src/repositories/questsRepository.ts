@@ -152,7 +152,7 @@ export class QuestsRepository {
       .select(this.db.raw('COUNT(*) OVER() as full_count'))
       .orderBy([
         { column: sortBy, order: sortOrder },
-        { column: 'id', order: 'asc' },
+        { column: 'id', order: sortOrder },
       ])
       .limit(safeLimit)
       .offset(offset);
@@ -376,8 +376,8 @@ export class QuestsRepository {
       .select(db.raw('COUNT(*) OVER() as full_count'))
       .orderBy([
         { column: sortColumn, order: sortOrder },
-        { column: 'quest_rows.subject_ref', order: 'asc' },
-        { column: 'quest_rows.id', order: 'asc' },
+        { column: 'quest_rows.subject_ref', order: sortOrder },
+        { column: 'quest_rows.id', order: sortOrder },
       ])
       .limit(safeLimit)
       .offset(offset);

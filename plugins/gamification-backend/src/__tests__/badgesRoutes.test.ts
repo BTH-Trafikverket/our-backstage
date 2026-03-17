@@ -210,6 +210,9 @@ describe('badges routes auth and errors', () => {
             userEntityRef: userRef,
           }),
         }),
+        searchTitle: undefined,
+        sortBy: 'earned_at',
+        order: 'desc',
         page: 1,
         limit: 10,
       },
@@ -250,6 +253,9 @@ describe('badges routes auth and errors', () => {
             userEntityRef: userRef,
           }),
         }),
+        searchTitle: undefined,
+        sortBy: 'earned_at',
+        order: 'desc',
         page: 1,
         limit: 10,
       },
@@ -281,6 +287,9 @@ describe('badges routes auth and errors', () => {
           userEntityRef: userRef,
         }),
       }),
+      searchTitle: undefined,
+      sortBy: 'earned_at',
+      order: 'desc',
       page: 1,
       limit: 10,
     });
@@ -314,6 +323,9 @@ describe('badges routes auth and errors', () => {
             userEntityRef: userRef,
           }),
         }),
+        searchTitle: undefined,
+        sortBy: 'earned_at',
+        order: 'desc',
         page: 1,
         limit: 10,
       },
@@ -348,8 +360,49 @@ describe('badges routes auth and errors', () => {
             userEntityRef: userRef,
           }),
         }),
+        searchTitle: undefined,
+        sortBy: 'earned_at',
+        order: 'desc',
         page: 1,
         limit: 10,
+      },
+    );
+  });
+
+  it('forwards badge progress search and sort parameters', async () => {
+    const userRef = 'user:default/alice';
+    const { app, badgesService } = makeApp({
+      userInfo: mockServices.userInfo({
+        ownershipEntityRefs: [userRef, 'group:default/platform'],
+      }),
+    });
+
+    const res = await request(app)
+      .get('/badges/progress')
+      .query({
+        search: 'review',
+        sortBy: 'xp_reward',
+        order: 'asc',
+        page: 2,
+        limit: 5,
+      })
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(badgesService.getBadgeProgress).toHaveBeenCalledWith(
+      [userRef, 'group:default/platform'],
+      {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'user',
+            userEntityRef: userRef,
+          }),
+        }),
+        searchTitle: 'review',
+        sortBy: 'xp_reward',
+        order: 'asc',
+        page: 2,
+        limit: 5,
       },
     );
   });
