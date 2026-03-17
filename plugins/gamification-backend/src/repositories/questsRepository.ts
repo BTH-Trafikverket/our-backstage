@@ -475,7 +475,7 @@ export class QuestsRepository {
   }
 
   /**
-   * Returns the timestamp of the last XP award for a user on a given quest,
+   * Returns the timestamp of the last XP award for a subject on a given quest,
    * or null if XP has never been awarded.
    * Used by the cooldown enforcement logic in the service layer.
    */
@@ -483,7 +483,7 @@ export class QuestsRepository {
     subjectRef: string,
     questId: string,
   ): Promise<Date | null> {
-    const row = await this.db('xp_ledger')
+    const row = await this.db('xp_awards')
       .where({ subject_ref: subjectRef, quest_id: questId })
       .max('created_at as last_awarded_at')
       .first();

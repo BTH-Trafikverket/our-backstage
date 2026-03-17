@@ -15,7 +15,7 @@ export async function runSeeds(knex: Knex, opts: { reset?: boolean } = {}) {
       if (hasQuestEventReceiptsTable) {
         await trx('quest_event_receipts').del();
       }
-      await trx('xp_ledger').del();
+      await trx('xp_awards').del();
       await trx('quest_progress').del();
       if (hasBadgesTable) {
         await trx('badges').del();

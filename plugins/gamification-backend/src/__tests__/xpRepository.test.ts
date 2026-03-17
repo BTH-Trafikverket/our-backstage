@@ -25,7 +25,7 @@ describePostgres18('XpRepository integration', () => {
     });
   }
 
-  async function createXpLedgerEntry(
+  async function createXpAwardEntry(
     knex: Knex,
     data: {
       userRef: string;
@@ -34,7 +34,7 @@ describePostgres18('XpRepository integration', () => {
       awardedOnCompletionCount?: number;
     },
   ): Promise<void> {
-    await knex('xp_ledger').insert({
+    await knex('xp_awards').insert({
       id: randomUUID(),
       subject_ref: data.userRef,
       quest_id: data.questId,
@@ -67,8 +67,8 @@ describePostgres18('XpRepository integration', () => {
       // Create quest first (required for foreign key)
       await createQuest(knex, questId);
 
-      // Create XP ledger entry
-      await createXpLedgerEntry(knex, {
+      // Create XP award entry
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 100,
@@ -79,7 +79,7 @@ describePostgres18('XpRepository integration', () => {
       expect(totalXp).toBe(100);
 
       // Verify the entry is actually in the database
-      const dbEntry = await knex('xp_ledger')
+      const dbEntry = await knex('xp_awards')
         .where({ subject_ref: userRef })
         .first();
       expect(dbEntry).toBeDefined();
@@ -103,19 +103,19 @@ describePostgres18('XpRepository integration', () => {
       await createQuest(knex, quest3Id, { title: 'Quest 3' });
 
       // Create multiple XP entries
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId: quest1Id,
         xpAmount: 50,
       });
 
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId: quest2Id,
         xpAmount: 75,
       });
 
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId: quest3Id,
         xpAmount: 125,
@@ -139,14 +139,14 @@ describePostgres18('XpRepository integration', () => {
       await createQuest(knex, questId);
 
       // Create XP for user1
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef: user1Ref,
         questId,
         xpAmount: 100,
       });
 
       // Create XP for user2
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef: user2Ref,
         questId,
         xpAmount: 200,
@@ -176,21 +176,21 @@ describePostgres18('XpRepository integration', () => {
       });
 
       // Simulate multiple completions of the same quest
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 50,
         awardedOnCompletionCount: 5,
       });
 
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 50,
         awardedOnCompletionCount: 10,
       });
 
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 50,
@@ -214,7 +214,7 @@ describePostgres18('XpRepository integration', () => {
       await createQuest(knex, questId);
 
       // The database has a check constraint xp_amount >= 0, so 0 should be valid
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 0,
@@ -237,13 +237,13 @@ describePostgres18('XpRepository integration', () => {
       await createQuest(knex, questId);
 
       // Create entries with large XP values
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 999999,
       });
 
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 1000000,
@@ -269,7 +269,7 @@ describePostgres18('XpRepository integration', () => {
       await createQuest(knex, quest2Id);
 
       // Create initial XP
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId: quest1Id,
         xpAmount: 100,
@@ -279,7 +279,7 @@ describePostgres18('XpRepository integration', () => {
       expect(totalXp).toBe(100);
 
       // Add more XP
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId: quest2Id,
         xpAmount: 50,
@@ -307,7 +307,7 @@ describePostgres18('XpRepository integration', () => {
 
       // Create XP for different entity reference formats
       for (let i = 0; i < userRefs.length; i++) {
-        await createXpLedgerEntry(knex, {
+        await createXpAwardEntry(knex, {
           userRef: userRefs[i],
           questId,
           xpAmount: (i + 1) * 10,
@@ -325,7 +325,7 @@ describePostgres18('XpRepository integration', () => {
   });
 
   describe('Database integrity and constraints', () => {
-    it('should verify foreign key constraint between xp_ledger and quests', async () => {
+    it('should verify foreign key constraint between xp_awards and quests', async () => {
       const knex = await initDb();
 
       const userRef = 'user:default/test';
@@ -333,7 +333,7 @@ describePostgres18('XpRepository integration', () => {
 
       // Attempting to create an XP entry without a valid quest should fail
       await expect(
-        knex('xp_ledger').insert({
+        knex('xp_awards').insert({
           id: randomUUID(),
           subject_ref: userRef,
           quest_id: nonExistentQuestId,
@@ -355,7 +355,7 @@ describePostgres18('XpRepository integration', () => {
       await createQuest(knex, questId);
 
       // Create first entry
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 50,
@@ -364,7 +364,7 @@ describePostgres18('XpRepository integration', () => {
 
       // Attempting to create a duplicate entry should fail
       await expect(
-        createXpLedgerEntry(knex, {
+        createXpAwardEntry(knex, {
           userRef,
           questId,
           xpAmount: 50,
@@ -385,21 +385,21 @@ describePostgres18('XpRepository integration', () => {
       await createQuest(knex, questId);
 
       // These should all succeed because completion_count differs
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 50,
         awardedOnCompletionCount: 1,
       });
 
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 50,
         awardedOnCompletionCount: 2,
       });
 
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 50,
@@ -421,7 +421,7 @@ describePostgres18('XpRepository integration', () => {
 
       await createQuest(knex, questId);
 
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId,
         xpAmount: 100,
@@ -430,10 +430,10 @@ describePostgres18('XpRepository integration', () => {
       let totalXp = await repository.getTotalXp(userRef);
       expect(totalXp).toBe(100);
 
-      // Delete the quest (should cascade to xp_ledger)
+      // Delete the quest (should cascade to xp_awards)
       await knex('quests').where({ id: questId }).del();
 
-      // XP should now be 0 because the ledger entry was cascade deleted
+      // XP should now be 0 because the award entry was cascade deleted
       totalXp = await repository.getTotalXp(userRef);
       expect(totalXp).toBe(0);
 
@@ -476,7 +476,7 @@ describePostgres18('XpRepository integration', () => {
       expect(totalXp).toBe(0);
 
       // User completes daily quest
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId: dailyQuestId,
         xpAmount: 10,
@@ -486,7 +486,7 @@ describePostgres18('XpRepository integration', () => {
       expect(totalXp).toBe(10);
 
       // User completes weekly quest
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId: weeklyQuestId,
         xpAmount: 100,
@@ -496,7 +496,7 @@ describePostgres18('XpRepository integration', () => {
       expect(totalXp).toBe(110);
 
       // User completes daily quest again
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId: dailyQuestId,
         xpAmount: 10,
@@ -507,7 +507,7 @@ describePostgres18('XpRepository integration', () => {
       expect(totalXp).toBe(120);
 
       // User completes monthly challenge
-      await createXpLedgerEntry(knex, {
+      await createXpAwardEntry(knex, {
         userRef,
         questId: monthlyQuestId,
         xpAmount: 1000,
@@ -537,7 +537,7 @@ describePostgres18('XpRepository integration', () => {
       // Create XP entries concurrently
       await Promise.all(
         users.map((userRef, index) =>
-          createXpLedgerEntry(knex, {
+          createXpAwardEntry(knex, {
             userRef,
             questId,
             xpAmount: (index + 1) * 100,

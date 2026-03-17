@@ -344,6 +344,7 @@ describePostgres18('BadgesRepository integration', () => {
     const badge = await repository.createBadge({
       title: 'User Badge',
       description: 'Awarded once',
+      xp_reward: 40,
       subject_type: 'user',
     });
     await repository.insertBadgeCriteria(badge.id, [
@@ -375,12 +376,26 @@ describePostgres18('BadgesRepository integration', () => {
         badge_id: badge.id,
       })
       .select('*');
+    const xpRows = await knex('xp_awards')
+      .where({
+        subject_ref: 'user:default/alice',
+        badge_id: badge.id,
+      })
+      .select(['badge_id', 'quest_id', 'xp_amount', 'source']);
     const badgeProgress = await repository.getBadgeProgress([
       'user:default/alice',
     ]);
 
     expect(criteriaCompletion).toHaveLength(1);
     expect(earnedRows).toHaveLength(1);
+    expect(xpRows).toEqual([
+      {
+        badge_id: badge.id,
+        quest_id: null,
+        xp_amount: 40,
+        source: 'badge_completion_trigger',
+      },
+    ]);
     expect(badgeProgress).toHaveLength(1);
     expect(badgeProgress[0].is_earned).toBe(true);
 
@@ -396,6 +411,7 @@ describePostgres18('BadgesRepository integration', () => {
     const badge = await repository.createBadge({
       title: 'Replace Runtime Badge',
       description: 'Runtime should be cleared on criteria replace',
+      xp_reward: 60,
       subject_type: 'team',
     });
     await repository.insertBadgeCriteria(badge.id, [
@@ -418,9 +434,23 @@ describePostgres18('BadgesRepository integration', () => {
     const earnedBadge = await knex('earned_badges')
       .where({ badge_id: badge.id })
       .select('*');
+    const xpAwardRows = await knex('xp_awards')
+      .where({
+        subject_ref: 'group:default/platform',
+        badge_id: badge.id,
+      })
+      .select(['badge_id', 'quest_id', 'xp_amount', 'source']);
 
     expect(criteriaCompletion).toEqual([]);
     expect(earnedBadge).toEqual([]);
+    expect(xpAwardRows).toEqual([
+      {
+        badge_id: badge.id,
+        quest_id: null,
+        xp_amount: 60,
+        source: 'badge_completion_trigger',
+      },
+    ]);
 
     await knex.destroy();
   });

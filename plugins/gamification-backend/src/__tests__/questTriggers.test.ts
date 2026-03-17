@@ -3,8 +3,8 @@ import { createPostgres18TestHarness } from '../../tests/helpers/postgres18TestH
 
 const { describePostgres18, initDb } = createPostgres18TestHarness(__dirname);
 
-describePostgres18('quest_progress trigger -> xp_ledger', () => {
-  it('inserts xp_ledger row when completion_count hits target_count multiple', async () => {
+describePostgres18('quest_progress trigger -> xp_awards', () => {
+  it('inserts xp_awards row when completion_count hits target_count multiple', async () => {
     const knex = await initDb();
 
     const questId = randomUUID();
@@ -24,13 +24,13 @@ describePostgres18('quest_progress trigger -> xp_ledger', () => {
       completion_count: 1,
     });
 
-    expect(await knex('xp_ledger').select('*')).toHaveLength(0);
+    expect(await knex('xp_awards').select('*')).toHaveLength(0);
 
     await knex('quest_progress')
       .where({ subject_ref: userRef, quest_id: questId })
       .update({ completion_count: 3 });
 
-    const rows = await knex('xp_ledger').select('*');
+    const rows = await knex('xp_awards').select('*');
     expect(rows).toHaveLength(1);
     expect(rows[0].subject_ref).toBe(userRef);
     expect(rows[0].quest_id).toBe(questId);
@@ -59,14 +59,14 @@ describePostgres18('quest_progress trigger -> xp_ledger', () => {
       completion_count: 2,
     });
 
-    expect(await knex('xp_ledger').select('*')).toHaveLength(1);
+    expect(await knex('xp_awards').select('*')).toHaveLength(1);
 
     // Update to same value => should not add another ledger row
     await knex('quest_progress')
       .where({ subject_ref: userRef, quest_id: questId })
       .update({ completion_count: 2 });
 
-    expect(await knex('xp_ledger').select('*')).toHaveLength(1);
+    expect(await knex('xp_awards').select('*')).toHaveLength(1);
   });
 
   it('failsafe: does not award when completion_count decreases', async () => {
@@ -89,13 +89,13 @@ describePostgres18('quest_progress trigger -> xp_ledger', () => {
       completion_count: 2,
     });
 
-    expect(await knex('xp_ledger').select('*')).toHaveLength(1);
+    expect(await knex('xp_awards').select('*')).toHaveLength(1);
 
     await knex('quest_progress')
       .where({ subject_ref: userRef, quest_id: questId })
       .update({ completion_count: 1 });
 
-    expect(await knex('xp_ledger').select('*')).toHaveLength(1);
+    expect(await knex('xp_awards').select('*')).toHaveLength(1);
   });
 
   it('writes XP ledger entries for team subject refs', async () => {
@@ -119,7 +119,7 @@ describePostgres18('quest_progress trigger -> xp_ledger', () => {
       completion_count: 2,
     });
 
-    const rows = await knex('xp_ledger').select('*');
+    const rows = await knex('xp_awards').select('*');
     expect(rows).toHaveLength(1);
     expect(rows[0].subject_ref).toBe(subjectRef);
     expect(rows[0].quest_id).toBe(questId);

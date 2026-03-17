@@ -160,7 +160,7 @@ describePostgres18('Completion policy integration', () => {
       await knex.destroy();
     });
 
-    it('getLastAwardedAt returns null when no xp_ledger rows exist', async () => {
+    it('getLastAwardedAt returns null when no xp_awards rows exist', async () => {
       const knex = await initDb();
       const repo = new QuestsRepository(knex);
 
@@ -193,7 +193,7 @@ describePostgres18('Completion policy integration', () => {
       const olderDate = new Date('2025-01-01T00:00:00Z');
       const newerDate = new Date('2025-06-01T00:00:00Z');
 
-      await knex('xp_ledger').insert([
+      await knex('xp_awards').insert([
         {
           id: randomUUID(),
           subject_ref: userRef,
@@ -237,7 +237,7 @@ describePostgres18('Completion policy integration', () => {
 
       // Simulate a previous XP award 3 days ago (within 14-day cooldown)
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-      await knex('xp_ledger').insert({
+      await knex('xp_awards').insert({
         id: randomUUID(),
         subject_ref: 'user:default/dave',
         quest_id: quest.id,
@@ -270,7 +270,7 @@ describePostgres18('Completion policy integration', () => {
 
       // Simulate a previous XP award 10 days ago (past 7-day cooldown)
       const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
-      await knex('xp_ledger').insert({
+      await knex('xp_awards').insert({
         id: randomUUID(),
         subject_ref: 'user:default/eve',
         quest_id: quest.id,
