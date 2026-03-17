@@ -44,6 +44,17 @@ export type CreateBadgeRow = {
 
 export type UpdateBadgeRow = Partial<CreateBadgeRow>;
 
+export type CriteriaProgressRow = {
+  badge_id: string;
+  quest_id: string;
+  target_count: number;
+  quest_title: string;
+  quest_target_count: number;
+  completion_policy: string;
+  subject_ref: string;
+  completion_count: number;
+};
+
 export class BadgesRepository {
   private readonly db: Knex | Knex.Transaction;
 
@@ -355,6 +366,55 @@ export class BadgesRepository {
       .returning('*');
 
     return rows[0];
+  }
+
+  async getCriteriaProgressForBadges(
+    badgeIds: string[],
+    subjectRefs: string[],
+  ): Promise<CriteriaProgressRow[]> {
+    const refs = [
+      ...new Set(subjectRefs.map(ref => ref.trim()).filter(Boolean)),
+    ];
+
+    if (badgeIds.length === 0 || refs.length === 0) {
+      return [];
+    }
+
+    return this.db('badge_criteria')
+      .joinRaw(
+        'CROSS JOIN unnest(?::text[]) as requested_subjects(subject_ref)',
+        [refs],
+      )
+      .join('quests', 'quests.id', 'badge_criteria.quest_id')
+      .leftJoin('quest_progress', function joinProgress() {
+        this.on(
+          'quest_progress.quest_id',
+          '=',
+          'badge_criteria.quest_id',
+        ).andOn(
+          'quest_progress.subject_ref',
+          '=',
+          'requested_subjects.subject_ref',
+        );
+      })
+      .whereIn('badge_criteria.badge_id', badgeIds)
+      .select(
+        'badge_criteria.badge_id',
+        'badge_criteria.quest_id',
+        'badge_criteria.target_count',
+        'quests.title as quest_title',
+        'quests.target_count as quest_target_count',
+        'quests.completion_policy',
+        'requested_subjects.subject_ref',
+        this.db.raw(
+          'COALESCE(quest_progress.completion_count, 0) as completion_count',
+        ),
+      )
+      .orderBy([
+        { column: 'badge_criteria.badge_id', order: 'asc' },
+        { column: 'requested_subjects.subject_ref', order: 'asc' },
+        { column: 'badge_criteria.quest_id', order: 'asc' },
+      ]);
   }
 
   async deleteBadge(id: string): Promise<boolean> {

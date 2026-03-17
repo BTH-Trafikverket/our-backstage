@@ -348,7 +348,7 @@ components:
         target_count:
           type: integer
           minimum: 1
-    Badge:
+    BadgeBase:
       type: object
       required:
         - id
@@ -356,7 +356,6 @@ components:
         - description
         - xp_reward
         - subject_type
-        - criterias
         - created_at
         - updated_at
         - archived_at
@@ -372,33 +371,93 @@ components:
           minimum: 0
         subject_type:
           $ref: '#/components/schemas/QuestSubjectType'
-        criterias:
-          type: array
-          items:
-            $ref: '#/components/schemas/BadgeCriteria'
         created_at:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
           $ref: '#/components/schemas/Timestamp'
         archived_at:
           $ref: '#/components/schemas/NullableTimestamp'
+    Badge:
+      allOf:
+        - $ref: '#/components/schemas/BadgeBase'
+        - type: object
+          required:
+            - criterias
+          properties:
+            criterias:
+              type: array
+              items:
+                $ref: '#/components/schemas/BadgeCriteria'
+    BadgeCriteriaProgress:
+      type: object
+      required:
+        - quest_id
+        - quest_title
+        - target_count
+        - completion_policy
+        - progress
+        - quest_progress
+      properties:
+        quest_id:
+          type: string
+        quest_title:
+          type: string
+        target_count:
+          type: integer
+          minimum: 1
+        completion_policy:
+          $ref: '#/components/schemas/CompletionPolicy'
+        progress:
+          $ref: '#/components/schemas/ProgressInfo'
+        quest_progress:
+          $ref: '#/components/schemas/ProgressInfo'
+    BadgeProgressSummary:
+      type: object
+      required:
+        - completedRequirements
+        - totalRequirements
+        - percent
+      properties:
+        completedRequirements:
+          type: integer
+          minimum: 0
+        totalRequirements:
+          type: integer
+          minimum: 0
+        percent:
+          type: integer
+          minimum: 0
+          maximum: 100
     BadgeProgress:
       allOf:
-        - $ref: '#/components/schemas/Badge'
+        - $ref: '#/components/schemas/BadgeBase'
         - type: object
           required:
             - isEarned
             - earnedAt
+            - progressSubjectRef
+            - progress
+            - criterias
           properties:
             isEarned:
               type: boolean
             earnedAt:
               $ref: '#/components/schemas/NullableTimestamp'
+            progressSubjectRef:
+              type: string
+              nullable: true
+            progress:
+              $ref: '#/components/schemas/BadgeProgressSummary'
+            criterias:
+              type: array
+              items:
+                $ref: '#/components/schemas/BadgeCriteriaProgress'
     BadgeProgressResponse:
       type: object
       required:
         - subjectRefs
         - badges
+        - pagination
       properties:
         subjectRefs:
           type: array
@@ -408,6 +467,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BadgeProgress'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
     CompletionPolicy:
       type: string
       enum:
@@ -467,6 +528,46 @@ components:
       type: string
       format: date-time
       nullable: true
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    ProgressInfo:
+      type: object
+      required:
+        - current
+        - target
+        - percent
+        - done
+      properties:
+        current:
+          type: integer
+          minimum: 0
+        target:
+          type: integer
+          minimum: 0
+        percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        done:
+          type: boolean
     Quest:
       type: object
       required:

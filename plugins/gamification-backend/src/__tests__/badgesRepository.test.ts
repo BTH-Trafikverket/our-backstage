@@ -458,6 +458,57 @@ describePostgres18('BadgesRepository integration', () => {
     await knex.destroy();
   });
 
+  it('returns criterion progress rows for each requested subject ref', async () => {
+    const knex = await initDb();
+    const repository = new BadgesRepository(knex);
+    const quest = await createQuest(knex, 'Quest Criteria Progress');
+
+    const badge = await repository.createBadge({
+      title: 'Progress Badge',
+      description: 'Badge with per-subject progress rows',
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(badge.id, [
+      { quest_id: quest.id, target_count: 3 },
+    ]);
+
+    await knex('quest_progress').insert({
+      subject_ref: 'user:default/alice',
+      quest_id: quest.id,
+      completion_count: 2,
+    });
+
+    const rows = await repository.getCriteriaProgressForBadges(
+      [badge.id],
+      ['user:default/alice', 'user:default/bob'],
+    );
+
+    expect(rows).toEqual([
+      {
+        badge_id: badge.id,
+        quest_id: quest.id,
+        target_count: 3,
+        quest_title: 'Quest Criteria Progress',
+        quest_target_count: 1,
+        completion_policy: 'REPEATABLE',
+        subject_ref: 'user:default/alice',
+        completion_count: 2,
+      },
+      {
+        badge_id: badge.id,
+        quest_id: quest.id,
+        target_count: 3,
+        quest_title: 'Quest Criteria Progress',
+        quest_target_count: 1,
+        completion_policy: 'REPEATABLE',
+        subject_ref: 'user:default/bob',
+        completion_count: 0,
+      },
+    ]);
+
+    await knex.destroy();
+  });
+
   it('limits active badge visibility to the subject types in the requested refs', async () => {
     const knex = await initDb();
     const repository = new BadgesRepository(knex);

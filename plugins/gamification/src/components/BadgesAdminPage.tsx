@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useState,
@@ -29,10 +30,14 @@ import {
   FormControl,
   InputLabel,
   Select,
+  LinearProgress,
+  Collapse,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import DeleteIcon from '@material-ui/icons/Delete';
 import AddIcon from '@material-ui/icons/Add';
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
+import ExpandLessIcon from '@material-ui/icons/ExpandLess';
 import {
   ContentHeader,
   InfoCard,
@@ -60,16 +65,40 @@ type BadgeCriteria = {
   target_count: number;
 };
 
+type ProgressInfo = {
+  current: number;
+  target: number;
+  percent: number;
+  done: boolean;
+};
+
+type CriteriaWithProgress = {
+  quest_id: string;
+  quest_title: string;
+  target_count: number;
+  completion_policy: string;
+  progress: ProgressInfo;
+  quest_progress: ProgressInfo;
+};
+
+type BadgeProgressSummary = {
+  completedRequirements: number;
+  totalRequirements: number;
+  percent: number;
+};
+
 type Badge = {
   id: string;
   title: string;
   description: string;
   xp_reward: number;
   subject_type: BadgeSubjectType;
-  criterias: BadgeCriteria[];
+  criterias: (BadgeCriteria | CriteriaWithProgress)[];
   archived_at?: string | null;
   isEarned?: boolean;
   earnedAt?: string | null;
+  progressSubjectRef?: string | null;
+  progress?: BadgeProgressSummary;
 };
 
 type BadgeProgressResponse = {
@@ -201,6 +230,20 @@ export const BadgesAdminPage = ({
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [badgeToDelete, setBadgeToDelete] = useState<Badge | null>(null);
+
+  const [expandedBadges, setExpandedBadges] = useState<Set<string>>(new Set());
+
+  const toggleBadgeExpand = (badgeId: string) => {
+    setExpandedBadges(prev => {
+      const next = new Set(prev);
+      if (next.has(badgeId)) {
+        next.delete(badgeId);
+      } else {
+        next.add(badgeId);
+      }
+      return next;
+    });
+  };
 
   const fetchBadges = useCallback(async () => {
     setLoading(true);
@@ -678,8 +721,9 @@ export const BadgesAdminPage = ({
     }
   };
 
-  const renderCriteriaSummary = (criterias: BadgeCriteria[]) => {
-    if (!criterias.length) {
+  const renderCriteriaSummary = (criterias: Badge['criterias']) => {
+    const safeCriterias = criterias ?? [];
+    if (!safeCriterias.length) {
       return (
         <Typography variant="caption" color="textSecondary">
           No criteria
@@ -689,10 +733,17 @@ export const BadgesAdminPage = ({
 
     return (
       <Box>
-        {criterias.map((criteria, idx) => {
+        {safeCriterias.map((criteria, idx) => {
+          const hasProgress = 'progress' in criteria;
+          const questTitle = hasProgress
+            ? (criteria as CriteriaWithProgress).quest_title
+            : getQuestTitle(criteria.quest_id);
           const quest = getQuestById(criteria.quest_id);
+          const policy = hasProgress
+            ? (criteria as CriteriaWithProgress).completion_policy
+            : quest?.completion_policy;
           const policyText =
-            quest?.completion_policy === 'ONE_TIME'
+            policy === 'ONE_TIME'
               ? 'One-time'
               : `Repeatable, ${criteria.target_count}x`;
 
@@ -702,10 +753,176 @@ export const BadgesAdminPage = ({
               variant="caption"
               display="block"
             >
-              {getQuestTitle(criteria.quest_id)} - {policyText}
+              {questTitle} - {policyText}
             </Typography>
           );
         })}
+      </Box>
+    );
+  };
+
+  const renderQuestProgressBar = (progress: ProgressInfo) => {
+    const percent = Math.min(100, Math.max(0, progress.percent));
+    const text = progress.done
+      ? '\u2713 Completed'
+      : `${progress.current}/${progress.target}`;
+
+    return (
+      <Box minWidth={120} textAlign="right" style={{ color: '#fff' }}>
+        <LinearProgress variant="determinate" value={percent} />
+        <Typography variant="caption">{text}</Typography>
+      </Box>
+    );
+  };
+
+  const renderBadgeDetail = (badge: Badge) => {
+    const detailBackground = '#424242';
+    const detailHeaderBackground = detailBackground;
+    const detailCellStyle = {
+      backgroundColor: detailBackground,
+      color: '#fff',
+    } as const;
+    const detailHeaderCellStyle = {
+      backgroundColor: detailHeaderBackground,
+      color: '#fff',
+      fontWeight: 600,
+    } as const;
+    const criterias = badge.criterias ?? [];
+    if (!criterias.length) {
+      return (
+        <Box
+          p={2}
+          style={{
+            backgroundColor: detailBackground,
+            borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+            color: '#fff',
+          }}
+        >
+          <Typography
+            variant="body2"
+            style={{ color: 'rgba(255, 255, 255, 0.85)' }}
+          >
+            No criteria defined.
+          </Typography>
+        </Box>
+      );
+    }
+
+    const badgeProgress = badge.progress
+      ? {
+          current: badge.progress.completedRequirements,
+          target: badge.progress.totalRequirements,
+          percent: badge.progress.percent,
+          done:
+            badge.progress.totalRequirements > 0 &&
+            badge.progress.completedRequirements >=
+              badge.progress.totalRequirements,
+        }
+      : null;
+
+    return (
+      <Box
+        style={{
+          backgroundColor: detailBackground,
+          borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+        }}
+      >
+        <Table size="small" style={{ backgroundColor: detailBackground }}>
+          <TableHead>
+            <TableRow style={{ backgroundColor: detailHeaderBackground }}>
+              <TableCell style={detailHeaderCellStyle}>Criteria</TableCell>
+              <TableCell align="right" style={detailHeaderCellStyle}>
+                Progress
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {badgeProgress ? (
+              <TableRow style={{ backgroundColor: detailBackground }}>
+                <TableCell style={detailCellStyle}>
+                  <Typography variant="body2" style={{ fontWeight: 500 }}>
+                    Badge progress
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    style={{ color: 'rgba(255, 255, 255, 0.72)' }}
+                  >
+                    {badge.progress?.completedRequirements}/
+                    {badge.progress?.totalRequirements} requirements completed
+                  </Typography>
+                </TableCell>
+                <TableCell align="right" style={detailCellStyle}>
+                  {renderQuestProgressBar(badgeProgress)}
+                </TableCell>
+              </TableRow>
+            ) : null}
+
+            {criterias.map((criteria, idx) => {
+              const cp =
+                'progress' in criteria
+                  ? (criteria as CriteriaWithProgress)
+                  : null;
+              const questTitle = cp
+                ? cp.quest_title
+                : getQuestTitle(criteria.quest_id);
+              const showQuestCycle = Boolean(
+                cp && cp.quest_progress.target > 1,
+              );
+              const requirementMeta =
+                cp?.completion_policy === 'ONE_TIME'
+                  ? 'One-time requirement'
+                  : `${criteria.target_count} completions required`;
+
+              return (
+                <Fragment key={`${criteria.quest_id}-${idx}`}>
+                  <TableRow style={{ backgroundColor: detailBackground }}>
+                    <TableCell style={detailCellStyle}>
+                      <Typography variant="body2" style={{ fontWeight: 500 }}>
+                        {questTitle}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        style={{ color: 'rgba(255, 255, 255, 0.72)' }}
+                      >
+                        {requirementMeta}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right" style={detailCellStyle}>
+                      {cp ? (
+                        renderQuestProgressBar(cp.progress)
+                      ) : (
+                        <Typography
+                          variant="caption"
+                          style={{ color: 'rgba(255, 255, 255, 0.72)' }}
+                        >
+                          Not available
+                        </Typography>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                  {showQuestCycle && cp && (
+                    <TableRow style={{ backgroundColor: detailBackground }}>
+                      <TableCell style={detailCellStyle}>
+                        <Typography variant="body2">
+                          Quest cycle progress
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          style={{ color: 'rgba(255, 255, 255, 0.72)' }}
+                        >
+                          Progress toward the next quest completion cycle
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right" style={detailCellStyle}>
+                        {renderQuestProgressBar(cp.quest_progress)}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })}
+          </TableBody>
+        </Table>
       </Box>
     );
   };
@@ -1222,63 +1439,124 @@ export const BadgesAdminPage = ({
                         </TableCell>
                         <TableCell style={{ width: '30%' }}>Criteria</TableCell>
                         <TableCell style={{ width: '10%' }}>Status</TableCell>
-                        <TableCell align="right" style={{ width: '6%' }}>
-                          {isAdmin ? 'Actions' : ''}
+                        <TableCell align="right" style={{ width: '10%' }}>
+                          {isAdmin ? 'Actions' : 'Details'}
                         </TableCell>
                       </TableRow>
                     </TableHead>
 
                     <TableBody>
-                      {filteredBadges.map(badge => (
-                        <TableRow key={badge.id}>
-                          <TableCell>{badge.title}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={getBadgeSubjectTypeLabel(
-                                badge.subject_type,
-                              )}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>{badge.xp_reward}</TableCell>
-                          <TableCell>{badge.description}</TableCell>
-                          <TableCell>
-                            {renderCriteriaSummary(badge.criterias)}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={getBadgeStatusLabel(badge)}
-                              size="small"
-                              color={badge.isEarned ? 'primary' : 'default'}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            {isAdmin ? (
-                              <>
-                                <Tooltip title="Edit">
-                                  <IconButton
-                                    size="small"
-                                    color="primary"
-                                    onClick={() => openEdit(badge)}
-                                  >
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
+                      {filteredBadges.map(badge => {
+                        const isExpanded =
+                          !isAdmin && expandedBadges.has(badge.id);
 
-                                <Tooltip title="Archive">
-                                  <IconButton
-                                    size="small"
-                                    color="secondary"
-                                    onClick={() => openDelete(badge)}
+                        return (
+                          <Fragment key={badge.id}>
+                            <TableRow>
+                              <TableCell>{badge.title}</TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={getBadgeSubjectTypeLabel(
+                                    badge.subject_type,
+                                  )}
+                                  size="small"
+                                />
+                              </TableCell>
+                              <TableCell>{badge.xp_reward}</TableCell>
+                              <TableCell>{badge.description}</TableCell>
+                              <TableCell>
+                                {renderCriteriaSummary(badge.criterias)}
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={getBadgeStatusLabel(badge)}
+                                  size="small"
+                                  color={badge.isEarned ? 'primary' : 'default'}
+                                />
+                              </TableCell>
+                              <TableCell align="right">
+                                {!isAdmin && (
+                                  <Tooltip
+                                    title={
+                                      isExpanded
+                                        ? 'Hide details'
+                                        : 'Show details'
+                                    }
                                   >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </>
-                            ) : null}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                                    <IconButton
+                                      size="small"
+                                      onClick={() =>
+                                        toggleBadgeExpand(badge.id)
+                                      }
+                                    >
+                                      {isExpanded ? (
+                                        <ExpandLessIcon fontSize="small" />
+                                      ) : (
+                                        <ExpandMoreIcon fontSize="small" />
+                                      )}
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                                {isAdmin ? (
+                                  <>
+                                    <Tooltip title="Edit">
+                                      <IconButton
+                                        size="small"
+                                        color="primary"
+                                        onClick={() => openEdit(badge)}
+                                      >
+                                        <EditIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+
+                                    <Tooltip title="Archive">
+                                      <IconButton
+                                        size="small"
+                                        color="secondary"
+                                        onClick={() => openDelete(badge)}
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </>
+                                ) : null}
+                              </TableCell>
+                            </TableRow>
+                            {!isAdmin && (
+                              <TableRow
+                                style={{
+                                  borderBottom: 'none',
+                                  backgroundColor: isExpanded
+                                    ? '#424242'
+                                    : undefined,
+                                }}
+                              >
+                                <TableCell
+                                  colSpan={7}
+                                  style={{
+                                    paddingTop: 0,
+                                    paddingBottom: 0,
+                                    paddingLeft: 0,
+                                    paddingRight: 0,
+                                    backgroundColor: '#424242',
+                                    borderBottom: isExpanded
+                                      ? undefined
+                                      : 'none',
+                                  }}
+                                >
+                                  <Collapse
+                                    in={isExpanded}
+                                    timeout="auto"
+                                    unmountOnExit
+                                  >
+                                    {renderBadgeDetail(badge)}
+                                  </Collapse>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </TableContainer>
