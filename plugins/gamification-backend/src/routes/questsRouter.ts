@@ -121,8 +121,41 @@ export function QuestsRouter({
 
     const search =
       typeof req.query.search === 'string' ? req.query.search : undefined;
+    const audienceQuery =
+      typeof req.query.audience === 'string' ? req.query.audience : undefined;
+    const sortByQuery =
+      typeof req.query.sortBy === 'string' ? req.query.sortBy : undefined;
+    const orderQuery =
+      typeof req.query.order === 'string' ? req.query.order : undefined;
+    const pageQuery =
+      typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
+    const limitQuery =
+      typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 10;
 
-    const quests = await questsService.getQuests(search, { credentials });
+    const audience =
+      audienceQuery === 'individual' || audienceQuery === 'team'
+        ? audienceQuery
+        : 'all';
+    const sortBy =
+      sortByQuery === 'title' || sortByQuery === 'xp_reward'
+        ? sortByQuery
+        : 'created_at';
+    const order = orderQuery === 'desc' ? 'desc' : 'asc';
+    const page = Number.isFinite(pageQuery) && pageQuery > 0 ? pageQuery : 1;
+    const limit =
+      Number.isFinite(limitQuery) && limitQuery > 0 ? limitQuery : 10;
+
+    const quests = await questsService.getQuests(
+      {
+        searchTitle: search,
+        audience,
+        sortBy,
+        order,
+        page,
+        limit,
+      },
+      { credentials },
+    );
 
     res.status(200).json(quests);
   });

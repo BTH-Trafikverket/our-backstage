@@ -56,8 +56,25 @@ export class QuestsService {
     });
   }
 
-  async getQuests(searchTitle?: string, _opts?: QuestServiceOpts) {
-    return this.questsRepo.getQuests(searchTitle);
+  async getQuests(
+    filters?: {
+      searchTitle?: string;
+      audience?: QuestAudienceFilter;
+      sortBy?: QuestSortField;
+      order?: SortOrder;
+      page?: number;
+      limit?: number;
+    },
+    _opts?: QuestServiceOpts,
+  ) {
+    return this.questsRepo.getQuests({
+      searchTitle: filters?.searchTitle,
+      audience: filters?.audience,
+      sortBy: filters?.sortBy,
+      order: filters?.order,
+      page: filters?.page,
+      limit: filters?.limit,
+    });
   }
 
   async getQuestById(id: string, _opts: QuestServiceOpts) {
