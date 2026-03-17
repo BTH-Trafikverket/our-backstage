@@ -10,21 +10,320 @@ tags:
   - name: Quests
   - name: Badges
 paths:
+  /xp:
+    get:
+      operationId: getXpStatus
+      tags:
+        - XP
+      summary: Get XP status for a subject
+      parameters:
+        - in: query
+          name: subjectRef
+          required: false
+          schema:
+            type: string
+          description: Optional Backstage subject ref. If omitted, the authenticated user is used. Service credentials must provide subjectRef.
+      responses:
+        '200':
+          description: XP status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XpStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /quests/admin-status:
+    get:
+      operationId: getQuestAdminStatus
+      tags:
+        - Quests
+      summary: Check whether the authenticated user has quest admin access
+      responses:
+        '200':
+          description: Admin access state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /quests:
+    get:
+      operationId: listQuests
+      tags:
+        - Quests
+      summary: List quests for admin management
+      parameters:
+        - in: query
+          name: search
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: audience
+          required: false
+          schema:
+            type: string
+            enum:
+              - all
+              - individual
+              - team
+        - in: query
+          name: sortBy
+          required: false
+          schema:
+            type: string
+            enum:
+              - created_at
+              - title
+              - xp_reward
+        - in: query
+          name: order
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Paginated quest list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedQuestList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createQuest
+      tags:
+        - Quests
+      summary: Create a quest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuestRequest'
+      responses:
+        '201':
+          description: Created quest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /quests/me:
+    get:
+      operationId: listMyQuests
+      tags:
+        - Quests
+      summary: List quests with the current user's progress
+      parameters:
+        - in: query
+          name: search
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: audience
+          required: false
+          schema:
+            type: string
+            enum:
+              - all
+              - individual
+              - team
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - completed
+              - all
+        - in: query
+          name: team
+          required: false
+          schema:
+            type: string
+          description: Optional team entity ref used when audience is team or all.
+        - in: query
+          name: sortBy
+          required: false
+          schema:
+            type: string
+            enum:
+              - created_at
+              - title
+              - xp_reward
+        - in: query
+          name: order
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Paginated quest list including progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedQuestProgressList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /quests/{id}:
+    patch:
+      operationId: updateQuest
+      tags:
+        - Quests
+      summary: Update a quest
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateQuestRequest'
+      responses:
+        '200':
+          description: Updated quest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteQuest
+      tags:
+        - Quests
+      summary: Delete a quest
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Quest deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /quests/events:
+    post:
+      operationId: handleQuestEvent
+      tags:
+        - Quests
+      summary: Trigger quest progress from an external event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestEventRequest'
+      responses:
+        '200':
+          description: Event handled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestEventResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /badges:
     get:
       operationId: listBadges
       tags:
         - Badges
-      summary: List all badges for admin management
+      summary: List badges for admin management
+      parameters:
+        - in: query
+          name: search
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
       responses:
         '200':
-          description: Badge list
+          description: Paginated badge list, including archived badges
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Badge'
+                $ref: '#/components/schemas/PaginatedBadgeList'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -65,10 +364,39 @@ paths:
           required: false
           schema:
             type: string
-          description: Optional Backstage subject ref. If omitted for user credentials, badge progress is resolved across the authenticated user and all teams in ownershipEntityRefs. Service credentials must provide subjectRef.
+          description: Optional Backstage subject ref. If omitted for user credentials, badge progress is resolved across the authenticated user and all owned teams. Service credentials must provide subjectRef.
+        - in: query
+          name: audience
+          required: false
+          schema:
+            type: string
+            enum:
+              - all
+              - individual
+              - team
+          description: Only used for user credentials when subjectRef is omitted.
+        - in: query
+          name: team
+          required: false
+          schema:
+            type: string
+          description: Optional team entity ref used to narrow team progress when subjectRef is omitted.
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
       responses:
         '200':
-          description: Badge progress for the subject
+          description: Paginated badge progress
           content:
             application/json:
               schema:
@@ -89,6 +417,7 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         '200':
           description: Badge
@@ -113,6 +442,7 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -145,6 +475,7 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         '204':
           description: Badge archived
@@ -152,176 +483,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /xp:
-    get:
-      operationId: getXpStatus
-      tags:
-        - XP
-      summary: Get XP status for a subject
-      parameters:
-        - in: query
-          name: subjectRef
-          required: false
-          schema:
-            type: string
-          description: Optional Backstage subject ref. If omitted, the authenticated user is used. Service credentials must provide subjectRef.
-      responses:
-        '200':
-          description: XP status
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XpStatus'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-  /quests:
-    get:
-      operationId: listQuests
-      tags:
-        - Quests
-      summary: List quests
-      parameters:
-        - in: query
-          name: search
-          required: false
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Quest list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Quest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-    post:
-      operationId: createQuest
-      tags:
-        - Quests
-      summary: Create a quest
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateQuestRequest'
-      responses:
-        '201':
-          description: Created quest
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Quest'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-  /quests/me:
-    get:
-      operationId: listMyQuests
-      tags:
-        - Quests
-      summary: List quests with the current user's progress
-      parameters:
-        - in: query
-          name: search
-          required: false
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Quest list including progress
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/QuestWithProgress'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-  /quests/{id}:
-    patch:
-      operationId: updateQuest
-      tags:
-        - Quests
-      summary: Update a quest
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateQuestRequest'
-      responses:
-        '200':
-          description: Updated quest
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Quest'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      operationId: deleteQuest
-      tags:
-        - Quests
-      summary: Delete a quest
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '204':
-          description: Quest deleted
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /quests/events:
-    post:
-      operationId: handleQuestEvent
-      tags:
-        - Quests
-      summary: Trigger quest progress from an external event
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/QuestEventRequest'
-      responses:
-        '200':
-          description: Event handled
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QuestEventResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
 components:
@@ -335,6 +496,270 @@ components:
     NotFound:
       description: Resource not found
   schemas:
+    AdminStatusResponse:
+      type: object
+      required:
+        - isAdmin
+      additionalProperties: false
+      properties:
+        isAdmin:
+          type: boolean
+    Timestamp:
+      type: string
+      format: date-time
+    NullableTimestamp:
+      type: string
+      format: date-time
+      nullable: true
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+      additionalProperties: false
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    CompletionPolicy:
+      type: string
+      enum:
+        - ONE_TIME
+        - REPEATABLE
+    QuestSubjectType:
+      type: string
+      enum:
+        - user
+        - team
+    Quest:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - target_count
+        - xp_reward
+        - subject_type
+        - completion_policy
+        - cooldown_days
+        - created_at
+        - updated_at
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        target_count:
+          type: integer
+          minimum: 1
+        xp_reward:
+          type: integer
+          minimum: 0
+        subject_type:
+          $ref: '#/components/schemas/QuestSubjectType'
+        completion_policy:
+          $ref: '#/components/schemas/CompletionPolicy'
+        cooldown_days:
+          type: integer
+          minimum: 1
+          nullable: true
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+    QuestWithProgress:
+      allOf:
+        - $ref: '#/components/schemas/Quest'
+        - type: object
+          required:
+            - subject_ref
+            - completion_count
+            - progress_toward_target
+            - next_milestone
+          additionalProperties: false
+          properties:
+            subject_ref:
+              type: string
+            completion_count:
+              type: integer
+              minimum: 0
+            progress_toward_target:
+              type: integer
+              minimum: 0
+            next_milestone:
+              type: integer
+              minimum: 0
+    PaginatedQuestList:
+      type: object
+      required:
+        - data
+        - pagination
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quest'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    PaginatedQuestProgressList:
+      type: object
+      required:
+        - data
+        - pagination
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestWithProgress'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    CreateQuestRequest:
+      type: object
+      required:
+        - title
+        - xp_reward
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          default: ''
+        target_count:
+          type: integer
+          minimum: 1
+          default: 1
+        xp_reward:
+          type: integer
+          minimum: 0
+        subject_type:
+          $ref: '#/components/schemas/QuestSubjectType'
+        completion_policy:
+          $ref: '#/components/schemas/CompletionPolicy'
+        cooldown_days:
+          type: integer
+          minimum: 1
+          nullable: true
+    UpdateQuestRequest:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        target_count:
+          type: integer
+          minimum: 1
+        xp_reward:
+          type: integer
+          minimum: 0
+        subject_type:
+          $ref: '#/components/schemas/QuestSubjectType'
+        completion_policy:
+          $ref: '#/components/schemas/CompletionPolicy'
+        cooldown_days:
+          type: integer
+          minimum: 1
+          nullable: true
+    QuestEventActor:
+      type: object
+      additionalProperties: false
+      properties:
+        entityRef:
+          type: string
+          minLength: 1
+        provider:
+          type: string
+          minLength: 1
+        id:
+          type: string
+          minLength: 1
+        login:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+      anyOf:
+        - required:
+            - entityRef
+        - required:
+            - provider
+            - id
+        - required:
+            - provider
+            - login
+        - required:
+            - provider
+            - email
+    QuestEventRequest:
+      type: object
+      required:
+        - eventId
+        - questId
+      additionalProperties: false
+      properties:
+        eventId:
+          type: string
+          minLength: 1
+        questId:
+          type: string
+          format: uuid
+        subjectRef:
+          type: string
+          minLength: 1
+        actor:
+          $ref: '#/components/schemas/QuestEventActor'
+      anyOf:
+        - required:
+            - subjectRef
+        - required:
+            - actor
+    QuestEventResult:
+      type: object
+      required:
+        - duplicate
+        - blocked
+        - subjectRef
+        - questId
+      additionalProperties: false
+      properties:
+        duplicate:
+          type: boolean
+        blocked:
+          type: boolean
+        subjectRef:
+          type: string
+        questId:
+          type: string
+          format: uuid
+        completionCount:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
     BadgeCriteria:
       type: object
       required:
@@ -359,9 +784,11 @@ components:
         - created_at
         - updated_at
         - archived_at
+      additionalProperties: false
       properties:
         id:
           type: string
+          format: uuid
         title:
           type: string
         description:
@@ -383,11 +810,46 @@ components:
         - type: object
           required:
             - criterias
+          additionalProperties: false
           properties:
             criterias:
               type: array
               items:
                 $ref: '#/components/schemas/BadgeCriteria'
+    PaginatedBadgeList:
+      type: object
+      required:
+        - data
+        - pagination
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Badge'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    ProgressInfo:
+      type: object
+      required:
+        - current
+        - target
+        - percent
+        - done
+      additionalProperties: false
+      properties:
+        current:
+          type: integer
+          minimum: 0
+        target:
+          type: integer
+          minimum: 0
+        percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        done:
+          type: boolean
     BadgeCriteriaProgress:
       type: object
       required:
@@ -397,6 +859,7 @@ components:
         - completion_policy
         - progress
         - quest_progress
+      additionalProperties: false
       properties:
         quest_id:
           type: string
@@ -417,6 +880,7 @@ components:
         - completedRequirements
         - totalRequirements
         - percent
+      additionalProperties: false
       properties:
         completedRequirements:
           type: integer
@@ -438,6 +902,7 @@ components:
             - progressSubjectRef
             - progress
             - criterias
+          additionalProperties: false
           properties:
             isEarned:
               type: boolean
@@ -458,6 +923,7 @@ components:
         - subjectRefs
         - badges
         - pagination
+      additionalProperties: false
       properties:
         subjectRefs:
           type: array
@@ -469,11 +935,6 @@ components:
             $ref: '#/components/schemas/BadgeProgress'
         pagination:
           $ref: '#/components/schemas/Pagination'
-    CompletionPolicy:
-      type: string
-      enum:
-        - ONE_TIME
-        - REPEATABLE
     CreateBadgeRequest:
       type: object
       required:
@@ -521,230 +982,6 @@ components:
           minItems: 1
           items:
             $ref: '#/components/schemas/BadgeCriteria'
-    Timestamp:
-      type: string
-      format: date-time
-    NullableTimestamp:
-      type: string
-      format: date-time
-      nullable: true
-    Pagination:
-      type: object
-      required:
-        - page
-        - limit
-        - total
-        - totalPages
-      properties:
-        page:
-          type: integer
-          minimum: 1
-        limit:
-          type: integer
-          minimum: 1
-        total:
-          type: integer
-          minimum: 0
-        totalPages:
-          type: integer
-          minimum: 0
-    ProgressInfo:
-      type: object
-      required:
-        - current
-        - target
-        - percent
-        - done
-      properties:
-        current:
-          type: integer
-          minimum: 0
-        target:
-          type: integer
-          minimum: 0
-        percent:
-          type: integer
-          minimum: 0
-          maximum: 100
-        done:
-          type: boolean
-    Quest:
-      type: object
-      required:
-        - id
-        - title
-        - description
-        - interval
-        - xp_reward
-        - subject_type
-        - completion_policy
-        - cooldown_days
-        - created_at
-        - updated_at
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        description:
-          type: string
-        interval:
-          type: integer
-        xp_reward:
-          type: integer
-        subject_type:
-          $ref: '#/components/schemas/QuestSubjectType'
-        completion_policy:
-          $ref: '#/components/schemas/CompletionPolicy'
-        cooldown_days:
-          type: integer
-          nullable: true
-        created_at:
-          $ref: '#/components/schemas/Timestamp'
-        updated_at:
-          $ref: '#/components/schemas/Timestamp'
-    QuestWithProgress:
-      allOf:
-        - $ref: '#/components/schemas/Quest'
-        - type: object
-          required:
-            - subject_ref
-            - completion_count
-            - progress_in_interval
-            - next_milestone
-          properties:
-            subject_ref:
-              type: string
-              nullable: true
-            completion_count:
-              type: integer
-            progress_in_interval:
-              type: integer
-            next_milestone:
-              type: integer
-    CreateQuestRequest:
-      type: object
-      required:
-        - title
-        - description
-        - interval
-        - xp_reward
-      properties:
-        title:
-          type: string
-          minLength: 1
-        description:
-          type: string
-        interval:
-          type: integer
-          minimum: 1
-        xp_reward:
-          type: integer
-          minimum: 0
-        subject_type:
-          $ref: '#/components/schemas/QuestSubjectType'
-        entityRef:
-          type: string
-        completion_policy:
-          $ref: '#/components/schemas/CompletionPolicy'
-        cooldown_days:
-          type: integer
-          minimum: 1
-          nullable: true
-    UpdateQuestRequest:
-      type: object
-      minProperties: 1
-      additionalProperties: false
-      properties:
-        title:
-          type: string
-          minLength: 1
-        description:
-          type: string
-        interval:
-          type: integer
-          minimum: 1
-        xp_reward:
-          type: integer
-          minimum: 0
-        subject_type:
-          $ref: '#/components/schemas/QuestSubjectType'
-        completion_policy:
-          $ref: '#/components/schemas/CompletionPolicy'
-        cooldown_days:
-          type: integer
-          minimum: 1
-          nullable: true
-    QuestSubjectType:
-      type: string
-      enum:
-        - user
-        - team
-    QuestEventActor:
-      type: object
-      additionalProperties: false
-      properties:
-        entityRef:
-          type: string
-          minLength: 1
-        provider:
-          type: string
-          minLength: 1
-        id:
-          type: string
-          minLength: 1
-        login:
-          type: string
-          minLength: 1
-        email:
-          type: string
-          format: email
-      anyOf:
-        - required:
-            - entityRef
-        - required:
-            - provider
-            - id
-        - required:
-            - provider
-            - login
-        - required:
-            - provider
-            - email
-    QuestEventRequest:
-      type: object
-      required:
-        - questId
-      additionalProperties: false
-      properties:
-        questId:
-          type: string
-          format: uuid
-        subjectRef:
-          type: string
-          minLength: 1
-        actor:
-          $ref: '#/components/schemas/QuestEventActor'
-      anyOf:
-        - required:
-            - subjectRef
-        - required:
-            - actor
-    QuestEventResult:
-      type: object
-      required:
-        - duplicate
-        - subjectRef
-        - questId
-      properties:
-        duplicate:
-          type: boolean
-        subjectRef:
-          type: string
-        questId:
-          type: string
-        completionCount:
-          type: integer
     XpStatus:
       type: object
       required:
@@ -756,21 +993,28 @@ components:
         - xpIntoLevel
         - xpToNextLevel
         - progress
+      additionalProperties: false
       properties:
         subjectRef:
           type: string
         totalXp:
           type: integer
+          minimum: 0
         level:
           type: integer
+          minimum: 1
         currentLevelXp:
           type: integer
+          minimum: 0
         nextLevelXp:
           type: integer
+          minimum: 0
         xpIntoLevel:
           type: integer
+          minimum: 0
         xpToNextLevel:
           type: integer
+          minimum: 0
         progress:
           type: number
           minimum: 0
