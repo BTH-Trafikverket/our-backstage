@@ -82,6 +82,24 @@ type QuestsAdminPageProps = {
   isDemoMode?: boolean;
 };
 
+const normalizeQuest = (quest: any): Quest => ({
+  id: quest.id,
+  title: quest.title,
+  description: quest.description ?? '',
+  target_count: quest.target_count ?? 0,
+  xp_reward: quest.xp_reward ?? 0,
+  subject_type: quest.subject_type === 'team' ? 'team' : 'user',
+  completion_policy:
+    quest.completion_policy === 'ONE_TIME' ? 'ONE_TIME' : 'REPEATABLE',
+  cooldown_days: quest.cooldown_days ?? null,
+  created_at: quest.created_at,
+  updated_at: quest.updated_at,
+  subject_ref: quest.subject_ref ?? null,
+  completion_count: quest.completion_count ?? 0,
+  progress_toward_target: quest.progress_toward_target ?? 0,
+  next_milestone: quest.next_milestone ?? quest.target_count ?? 0,
+});
+
 export const QuestsAdminPage = ({
   isAdmin,
   onToggleDemo,
@@ -172,18 +190,30 @@ export const QuestsAdminPage = ({
     setError(null);
 
     try {
-      const url = await buildGamificationUrl('/quests/me', {
-        ...(search.trim() ? { search: search.trim() } : {}),
-        audience: audienceFilter,
-        status: statusFilter,
-        ...(audienceFilter === 'team' && teamFilter
-          ? { team: teamFilter }
-          : {}),
-        sortBy,
-        order,
-        page: String(page),
-        limit: String(limit),
-      });
+      const url = await buildGamificationUrl(
+        isAdmin ? '/quests' : '/quests/me',
+        isAdmin
+          ? {
+              ...(search.trim() ? { search: search.trim() } : {}),
+              audience: audienceFilter,
+              sortBy,
+              order,
+              page: String(page),
+              limit: String(limit),
+            }
+          : {
+              ...(search.trim() ? { search: search.trim() } : {}),
+              audience: audienceFilter,
+              status: statusFilter,
+              ...(audienceFilter === 'team' && teamFilter
+                ? { team: teamFilter }
+                : {}),
+              sortBy,
+              order,
+              page: String(page),
+              limit: String(limit),
+            },
+      );
 
       const response = await fetchApi.fetch(url);
 
@@ -193,14 +223,12 @@ export const QuestsAdminPage = ({
 
       const result = await response.json();
 
-      // Handle paginated response
       if (result && result.data && result.pagination) {
-        setQuests(result.data || []);
+        setQuests((result.data || []).map(normalizeQuest));
         setTotal(result.pagination.total || 0);
         setTotalPages(result.pagination.totalPages || 1);
       } else if (Array.isArray(result)) {
-        // Fallback for non-paginated response
-        setQuests(result);
+        setQuests(result.map(normalizeQuest));
         setTotal(result.length);
         setTotalPages(1);
       } else {
@@ -228,6 +256,7 @@ export const QuestsAdminPage = ({
     page,
     limit,
     buildGamificationUrl,
+    isAdmin,
   ]);
 
   useEffect(() => {
@@ -240,6 +269,10 @@ export const QuestsAdminPage = ({
   }, [search, audienceFilter, statusFilter, teamFilter, sortBy, order]);
 
   useEffect(() => {
+    if (isAdmin) {
+      return undefined;
+    }
+
     let mounted = true;
 
     const loadTeams = async () => {
@@ -269,7 +302,7 @@ export const QuestsAdminPage = ({
     return () => {
       mounted = false;
     };
-  }, [identityApi, teamFilter]);
+  }, [identityApi, teamFilter, isAdmin]);
 
   const handleInputChange = (
     field: keyof CreateQuestFormData,
@@ -939,7 +972,7 @@ export const QuestsAdminPage = ({
                 style={{ minWidth: 180 }}
               >
                 <InputLabel id="audience-filter-label">
-                  Filter by audience
+                  {isAdmin ? 'Filter by scope' : 'Filter by audience'}
                 </InputLabel>
                 <Select
                   labelId="audience-filter-label"
@@ -957,7 +990,7 @@ export const QuestsAdminPage = ({
                 </Select>
               </FormControl>
 
-              {audienceFilter === 'team' && (
+              {!isAdmin && audienceFilter === 'team' && (
                 <FormControl
                   variant="outlined"
                   size="small"
@@ -980,27 +1013,29 @@ export const QuestsAdminPage = ({
                 </FormControl>
               )}
 
-              <FormControl
-                variant="outlined"
-                size="small"
-                style={{ minWidth: 180 }}
-              >
-                <InputLabel id="status-filter-label">Status</InputLabel>
-                <Select
-                  labelId="status-filter-label"
-                  value={statusFilter}
-                  onChange={e =>
-                    setStatusFilter(
-                      e.target.value as 'active' | 'completed' | 'all',
-                    )
-                  }
-                  label="Status"
+              {!isAdmin && (
+                <FormControl
+                  variant="outlined"
+                  size="small"
+                  style={{ minWidth: 180 }}
                 >
-                  <MenuItem value="active">Active</MenuItem>
-                  <MenuItem value="completed">Completed</MenuItem>
-                  <MenuItem value="all">All</MenuItem>
-                </Select>
-              </FormControl>
+                  <InputLabel id="status-filter-label">Status</InputLabel>
+                  <Select
+                    labelId="status-filter-label"
+                    value={statusFilter}
+                    onChange={e =>
+                      setStatusFilter(
+                        e.target.value as 'active' | 'completed' | 'all',
+                      )
+                    }
+                    label="Status"
+                  >
+                    <MenuItem value="active">Active</MenuItem>
+                    <MenuItem value="completed">Completed</MenuItem>
+                    <MenuItem value="all">All</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
 
               <FormControl
                 variant="outlined"
@@ -1074,7 +1109,7 @@ export const QuestsAdminPage = ({
                               Title
                             </TableCell>
                             <TableCell style={{ width: '14%' }}>
-                              Subject
+                              Scope
                             </TableCell>
                             <TableCell style={{ width: '12%' }}>Type</TableCell>
                             <TableCell style={{ width: '21%' }}>
@@ -1084,23 +1119,18 @@ export const QuestsAdminPage = ({
                               XP Reward
                             </TableCell>
                             <TableCell align="right" style={{ width: '15%' }}>
-                              Progress
-                            </TableCell>
-                            <TableCell align="right" style={{ width: '8%' }}>
                               Actions
                             </TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
                           {adminQuests.map(quest => {
-                            const progress = getQuestProgress(quest);
-                            const isCompleted =
-                              quest.completion_policy === 'ONE_TIME' &&
-                              quest.completion_count >= quest.target_count;
-                            const percent =
-                              (progress.current / progress.target) * 100;
                             return (
-                              <TableRow key={quest.id}>
+                              <TableRow
+                                key={`${quest.id}:${
+                                  quest.subject_ref ?? 'definition'
+                                }`}
+                              >
                                 <TableCell>{quest.title}</TableCell>
                                 <TableCell>{renderSubject(quest)}</TableCell>
                                 <TableCell>
@@ -1124,22 +1154,6 @@ export const QuestsAdminPage = ({
                                 <TableCell>{quest.description}</TableCell>
                                 <TableCell align="center">
                                   {quest.xp_reward}
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Box minWidth={120} textAlign="right">
-                                    <LinearProgress
-                                      variant="determinate"
-                                      value={Math.min(
-                                        100,
-                                        Math.max(0, percent),
-                                      )}
-                                    />
-                                    <Typography variant="caption">
-                                      {isCompleted
-                                        ? '\u2713 Completed'
-                                        : `${progress.current}/${progress.target}`}
-                                    </Typography>
-                                  </Box>
                                 </TableCell>
                                 <TableCell align="right">
                                   <Tooltip title="Edit">
@@ -1234,7 +1248,11 @@ export const QuestsAdminPage = ({
                             const percent =
                               (progress.current / progress.target) * 100;
                             return (
-                              <TableRow key={quest.id}>
+                              <TableRow
+                                key={`${quest.id}:${
+                                  quest.subject_ref ?? 'definition'
+                                }`}
+                              >
                                 <TableCell>{quest.title}</TableCell>
                                 <TableCell>{renderSubject(quest)}</TableCell>
                                 <TableCell>

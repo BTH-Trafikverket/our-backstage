@@ -7,7 +7,11 @@ import {
   InfoCard,
   Page,
 } from '@backstage/core-components';
-import { useApi, identityApiRef } from '@backstage/core-plugin-api';
+import {
+  configApiRef,
+  identityApiRef,
+  useApi,
+} from '@backstage/core-plugin-api';
 import { Link, Route, Routes } from 'react-router-dom';
 import { BadgesAdminPage } from './BadgesAdminPage';
 import { QuestsAdminPage } from './QuestsAdminPage';
@@ -16,14 +20,22 @@ export const GamificationPage = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const identityApi = useApi(identityApiRef);
+  const configApi = useApi(configApiRef);
 
   useEffect(() => {
     const checkAdminRole = async () => {
       try {
         const identity = await identityApi.getBackstageIdentity();
+        const adminGroups = new Set(
+          (
+            configApi.getOptionalStringArray('gamification.admin.groups') ?? []
+          ).map(ref => ref.toLocaleLowerCase('en-US')),
+        );
+
         setIsAdmin(
-          identity.ownershipEntityRefs?.includes('group:default/admin') ??
-            false,
+          identity.ownershipEntityRefs?.some(ref =>
+            adminGroups.has(ref.toLocaleLowerCase('en-US')),
+          ) ?? false,
         );
       } catch {
         setIsAdmin(false);
@@ -31,7 +43,7 @@ export const GamificationPage = () => {
     };
 
     checkAdminRole();
-  }, [identityApi]);
+  }, [configApi, identityApi]);
 
   const effectiveIsAdmin = demoMode ? !isAdmin : isAdmin;
 

@@ -116,7 +116,7 @@ describe('badge runtime persistence migration', () => {
         id: badgeId,
         archived_at: null,
       });
-      expect(criteriaCompletion).toEqual([
+      const expectedCriteriaCompletion = [
         {
           subject_ref: subjectRef,
           badge_id: badgeId,
@@ -127,7 +127,9 @@ describe('badge runtime persistence migration', () => {
           badge_id: badgeId,
           quest_id: questB,
         },
-      ]);
+      ].sort((a, b) => a.quest_id.localeCompare(b.quest_id));
+
+      expect(criteriaCompletion).toEqual(expectedCriteriaCompletion);
       expect(earnedBadges).toEqual([
         {
           subject_ref: subjectRef,

@@ -244,18 +244,41 @@ describe('BadgesRepository Integration Tests', () => {
         .select(['subject_ref', 'badge_id', 'quest_id', 'xp_amount', 'source'])
         .orderBy([{ column: 'subject_ref', order: 'asc' }]);
 
-      expect(criteriaCompletion).toEqual([
-        {
-          subject_ref: 'group:default/platform',
-          badge_id: earnedBadge.id,
-          quest_id: questA.id,
-        },
-        {
-          subject_ref: 'group:default/platform',
-          badge_id: earnedBadge.id,
-          quest_id: questB.id,
-        },
-      ]);
+      const sortCriteriaCompletion = (
+        rows: Array<{
+          subject_ref: string;
+          badge_id: string;
+          quest_id: string;
+        }>,
+      ) =>
+        [...rows].sort((a, b) => {
+          const bySubject = a.subject_ref.localeCompare(b.subject_ref);
+          if (bySubject !== 0) {
+            return bySubject;
+          }
+
+          const byBadge = a.badge_id.localeCompare(b.badge_id);
+          if (byBadge !== 0) {
+            return byBadge;
+          }
+
+          return a.quest_id.localeCompare(b.quest_id);
+        });
+
+      expect(sortCriteriaCompletion(criteriaCompletion)).toEqual(
+        sortCriteriaCompletion([
+          {
+            subject_ref: 'group:default/platform',
+            badge_id: earnedBadge.id,
+            quest_id: questA.id,
+          },
+          {
+            subject_ref: 'group:default/platform',
+            badge_id: earnedBadge.id,
+            quest_id: questB.id,
+          },
+        ]),
+      );
       expect(earnedRows).toEqual([
         {
           subject_ref: 'group:default/platform',
