@@ -37,6 +37,9 @@ yarn start
 Useful commands:
 
 ```sh
+# Sync the catalog API entity from the authoritative backend OpenAPI file
+yarn gamification:openapi:sync
+
 # Full local verification for the gamification plugin (same command used in CI and pre-push)
 yarn gamification:verify
 
