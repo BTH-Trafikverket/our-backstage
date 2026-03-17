@@ -56,6 +56,7 @@ describe('BadgesService', () => {
 
     questsRepo = {
       getQuestById: jest.fn(),
+      getQuestsByIds: jest.fn(),
     } as any;
 
     service = new BadgesService({
@@ -82,6 +83,7 @@ describe('BadgesService', () => {
       expect(badgesRepo.createBadge).toHaveBeenCalledWith({
         title: 'Reviewer',
         description: 'User badge',
+        xp_reward: 75,
         subject_type: 'user',
       });
       expect(badgesRepo.insertBadgeCriteria).toHaveBeenCalledWith('badge-1', [
@@ -144,6 +146,7 @@ describe('BadgesService', () => {
         ),
       ).rejects.toThrow(InputError);
     });
+    expect(questsRepo.getQuestsByIds).toHaveBeenCalledWith(['quest-1']);
   });
 
   describe('read models', () => {
@@ -358,5 +361,47 @@ describe('BadgesService', () => {
 
       expect(badgesRepo.deleteBadge).toHaveBeenCalledWith('badge-1');
     });
+  });
+
+  it('deduplicates repeated quest ids into a single batched lookup', async () => {
+    questsRepo.getQuestsByIds.mockResolvedValue([
+      {
+        id: 'quest-1',
+        title: 'Review PRs',
+        description: '',
+        target_count: 1,
+        xp_reward: 100,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any,
+    ]);
+    badgesRepo.createBadge.mockResolvedValue({
+      id: 'badge-1',
+      title: 'Reviewer',
+      description: 'User badge',
+      subject_type: 'user',
+      archived_at: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    } as any);
+
+    await service.createBadge(
+      {
+        title: 'Reviewer',
+        description: 'User badge',
+        subject_type: 'user',
+        criterias: [
+          { quest_id: 'quest-1', target_count: 1 },
+          { quest_id: 'quest-1', target_count: 2 },
+        ],
+      },
+      { credentials: {} as any },
+    );
+
+    expect(questsRepo.getQuestsByIds).toHaveBeenCalledWith(['quest-1']);
+    expect(questsRepo.getQuestsByIds).toHaveBeenCalledTimes(1);
   });
 });

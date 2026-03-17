@@ -142,7 +142,25 @@ describePostgres18('QuestsRepository integration', () => {
       await knex.destroy();
     });
 
-    it('should enforce database constraints (positive xp_reward)', async () => {
+    it('should allow zero xp_reward', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const zeroRewardQuest = {
+        title: 'Zero Reward Quest',
+        description: 'This should succeed',
+        target_count: 1,
+        xp_reward: 0,
+      };
+
+      const createdQuest = await repository.createQuest(zeroRewardQuest);
+
+      expect(createdQuest.xp_reward).toBe(0);
+
+      await knex.destroy();
+    });
+
+    it('should enforce database constraints (nonnegative xp_reward)', async () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
@@ -150,7 +168,7 @@ describePostgres18('QuestsRepository integration', () => {
         title: 'Invalid Quest',
         description: 'This should fail',
         target_count: 1,
-        xp_reward: 0,
+        xp_reward: -1,
       };
 
       await expect(repository.createQuest(invalidQuest)).rejects.toThrow();

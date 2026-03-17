@@ -16,6 +16,40 @@ export interface Config {
        */
       allowedCallers?: string[];
     };
+    actorResolution?: {
+      providers?: {
+        /**
+         * Provider-specific catalog lookup configuration for resolving event
+         * actors to Backstage users.
+         *
+         * Example:
+         * {
+         *   github: {
+         *     idAnnotations: ["metadata.annotations.github.com/user-id"],
+         *     loginAnnotations: ["metadata.annotations.github.com/user-login"]
+         *   },
+         *   "azure-devops": {
+         *     idAnnotations: ["metadata.annotations.example.com/azure-devops-user-id"],
+         *     loginAnnotations: ["metadata.annotations.example.com/azure-devops-username"]
+         *   }
+         * }
+         *
+         * @visibility backend
+         */
+        [provider: string]: {
+          /**
+           * Catalog annotation paths to try when resolving actor.id.
+           * @visibility backend
+           */
+          idAnnotations?: string[];
+          /**
+           * Catalog annotation paths to try when resolving actor.login.
+           * @visibility backend
+           */
+          loginAnnotations?: string[];
+        };
+      };
+    };
     seed?: {
       /**
        * Whether to apply bundled gamification seed data during plugin startup.

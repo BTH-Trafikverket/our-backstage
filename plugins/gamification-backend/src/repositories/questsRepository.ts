@@ -135,7 +135,7 @@ export class QuestsRepository {
       searchTitle,
       audience = 'all',
       sortBy = 'created_at',
-      order = 'asc',
+      order = 'desc',
       page = 1,
       limit = 10,
     } = params ?? {};
@@ -199,6 +199,14 @@ export class QuestsRepository {
     return this.db<QuestRow>('quests').where({ id }).first();
   }
 
+  async getQuestsByIds(ids: string[]): Promise<QuestRow[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.db<QuestRow>('quests').whereIn('id', ids).select('*');
+  }
+
   async getQuestsWithProgress(params: {
     user_ref: string;
     ownership_refs: string[];
@@ -219,7 +227,7 @@ export class QuestsRepository {
       status = 'active',
       team_ref,
       sortBy = 'created_at',
-      order = 'asc',
+      order = 'desc',
       page = 1,
       limit = 10,
     } = params;

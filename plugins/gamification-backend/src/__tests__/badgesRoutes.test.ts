@@ -13,6 +13,7 @@ describe('badges routes auth and errors', () => {
   const badgePayload = {
     title: 'Contributor',
     description: 'Awarded for shipping code',
+    xp_reward: 150,
     subject_type: 'user' as const,
     criterias: [{ quest_id: 'quest-1', target_count: 3 }],
   };
@@ -50,6 +51,7 @@ describe('badges routes auth and errors', () => {
           id: 'badge-1',
           title: 'Contributor',
           description: 'Awarded for shipping code',
+          xp_reward: 150,
           subject_type: 'user' as const,
           criterias: [{ quest_id: 'quest-1', target_count: 3 }],
           archived_at: null,
@@ -61,6 +63,7 @@ describe('badges routes auth and errors', () => {
         id,
         title: 'Contributor',
         description: 'Awarded for shipping code',
+        xp_reward: 150,
         subject_type: 'user' as const,
         criterias: [{ quest_id: 'quest-1', target_count: 3 }],
         archived_at: null,
@@ -74,6 +77,7 @@ describe('badges routes auth and errors', () => {
             id: 'badge-1',
             title: 'Contributor',
             description: 'Awarded for shipping code',
+            xp_reward: 150,
             subject_type: 'user' as const,
             criterias: [{ quest_id: 'quest-1', target_count: 3 }],
             isEarned: true,
@@ -83,11 +87,13 @@ describe('badges routes auth and errors', () => {
             updated_at: new Date('2026-01-01T00:00:00Z'),
           },
         ],
+        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
       })),
       updateBadge: jest.fn(async (id: string, data: unknown) => ({
         id,
         title: 'Contributor',
         description: 'Awarded for shipping code',
+        xp_reward: 150,
         subject_type: 'user' as const,
         criterias: [{ quest_id: 'quest-1', target_count: 3 }],
         archived_at: null,
@@ -184,6 +190,8 @@ describe('badges routes auth and errors', () => {
             userEntityRef: userRef,
           }),
         }),
+        page: 1,
+        limit: 10,
       },
     );
   });
@@ -222,6 +230,106 @@ describe('badges routes auth and errors', () => {
             userEntityRef: userRef,
           }),
         }),
+        page: 1,
+        limit: 10,
+      },
+    );
+  });
+
+  it('filters badge progress to individual audience using user_ref', async () => {
+    const userRef = 'user:default/alice';
+    const { app, badgesService } = makeApp({
+      userInfo: mockServices.userInfo({
+        ownershipEntityRefs: [
+          userRef,
+          'group:default/engineering',
+          'group:default/platform',
+        ],
+      }),
+    });
+
+    const res = await request(app)
+      .get('/badges/progress')
+      .query({ audience: 'individual' })
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(badgesService.getBadgeProgress).toHaveBeenCalledWith([userRef], {
+      credentials: expect.objectContaining({
+        principal: expect.objectContaining({
+          type: 'user',
+          userEntityRef: userRef,
+        }),
+      }),
+      page: 1,
+      limit: 10,
+    });
+  });
+
+  it('filters badge progress to team audience and selected team', async () => {
+    const userRef = 'user:default/alice';
+    const selectedTeam = 'group:default/platform';
+    const { app, badgesService } = makeApp({
+      userInfo: mockServices.userInfo({
+        ownershipEntityRefs: [
+          userRef,
+          'group:default/engineering',
+          selectedTeam,
+        ],
+      }),
+    });
+
+    const res = await request(app)
+      .get('/badges/progress')
+      .query({ audience: 'team', team: 'GROUP:default/PLATFORM' })
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(badgesService.getBadgeProgress).toHaveBeenCalledWith(
+      [selectedTeam],
+      {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'user',
+            userEntityRef: userRef,
+          }),
+        }),
+        page: 1,
+        limit: 10,
+      },
+    );
+  });
+
+  it('filters badge progress to all audience with selected team plus user_ref', async () => {
+    const userRef = 'user:default/alice';
+    const selectedTeam = 'group:default/platform';
+    const { app, badgesService } = makeApp({
+      userInfo: mockServices.userInfo({
+        ownershipEntityRefs: [
+          userRef,
+          'group:default/engineering',
+          selectedTeam,
+        ],
+      }),
+    });
+
+    const res = await request(app)
+      .get('/badges/progress')
+      .query({ audience: 'all', team: selectedTeam })
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(badgesService.getBadgeProgress).toHaveBeenCalledWith(
+      [userRef, selectedTeam],
+      {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'user',
+            userEntityRef: userRef,
+          }),
+        }),
+        page: 1,
+        limit: 10,
       },
     );
   });
@@ -265,7 +373,16 @@ describe('badges routes auth and errors', () => {
 
     expect(listRes.status).toBe(200);
     expect(getRes.status).toBe(200);
-    expect(badgesService.getBadges).toHaveBeenCalled();
+    expect(badgesService.getBadges).toHaveBeenCalledWith(undefined, {
+      credentials: expect.objectContaining({
+        principal: expect.objectContaining({
+          type: 'user',
+          userEntityRef: userRef,
+        }),
+      }),
+      page: 1,
+      limit: 10,
+    });
     expect(badgesService.getBadgeById).toHaveBeenCalledWith('badge-1', {
       credentials: expect.objectContaining({
         principal: expect.objectContaining({

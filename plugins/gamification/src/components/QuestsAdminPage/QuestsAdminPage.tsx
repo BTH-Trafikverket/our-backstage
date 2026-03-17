@@ -148,7 +148,7 @@ export const QuestsAdminPage = ({
   const [sortBy, setSortBy] = useState<'created_at' | 'title' | 'xp_reward'>(
     'created_at',
   );
-  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
 
   // Create quest dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -326,8 +326,11 @@ export const QuestsAdminPage = ({
       setCreateError('Target count must be at least 1');
       return;
     }
-    if (!formData.xp_reward || parseInt(formData.xp_reward, 10) < 1) {
-      setCreateError('XP Reward must be at least 1');
+    if (
+      formData.xp_reward.trim() === '' ||
+      parseInt(formData.xp_reward, 10) < 0
+    ) {
+      setCreateError('XP Reward must be 0 or greater');
       return;
     }
     setCreateLoading(true);
@@ -460,8 +463,11 @@ export const QuestsAdminPage = ({
       setEditError('Target count must be at least 1');
       return;
     }
-    if (!editFormData.xp_reward || parseInt(editFormData.xp_reward, 10) < 1) {
-      setEditError('XP Reward must be at least 1');
+    if (
+      editFormData.xp_reward.trim() === '' ||
+      parseInt(editFormData.xp_reward, 10) < 0
+    ) {
+      setEditError('XP Reward must be 0 or greater');
       return;
     }
     setEditLoading(true);
@@ -687,7 +693,7 @@ export const QuestsAdminPage = ({
             label="Target Count"
             margin="dense"
             type="number"
-            inputProps={{ min: 1 }}
+            inputProps={{ min: 0 }}
             value={formData.target_count}
             onChange={e => handleInputChange('target_count', e.target.value)}
             disabled={createLoading}
@@ -711,7 +717,7 @@ export const QuestsAdminPage = ({
             label="XP Reward"
             margin="dense"
             type="number"
-            inputProps={{ min: 1 }}
+            inputProps={{ min: 0 }}
             value={formData.xp_reward}
             onChange={e => handleInputChange('xp_reward', e.target.value)}
             disabled={createLoading}

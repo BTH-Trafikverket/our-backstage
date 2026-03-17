@@ -23,6 +23,17 @@ export function BadgesRouter({
   config: RootConfigService;
 }): express.Router {
   const router = Router();
+  const parsePagination = (req: express.Request) => {
+    const pageQuery =
+      typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
+    const limitQuery =
+      typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 10;
+
+    return {
+      page: Number.isFinite(pageQuery) && pageQuery > 0 ? pageQuery : 1,
+      limit: Number.isFinite(limitQuery) && limitQuery > 0 ? limitQuery : 10,
+    };
+  };
   const requireAdminCredentials = createRequireAdminCredentials({
     httpAuth,
     userInfo,
@@ -51,21 +62,50 @@ export function BadgesRouter({
     if (requested) {
       subjectRefs = [requested];
     } else {
+      const principal = credentials.principal;
+      if (principal.type !== 'user') {
+        throw new InputError('Only user credentials are allowed');
+      }
+
       const info = await userInfo.getUserInfo(credentials);
-      subjectRefs = [
-        ...new Set(
-          [
-            credentials.principal.type === 'user'
-              ? credentials.principal.userEntityRef
-              : '',
-            ...info.ownershipEntityRefs,
-          ].filter(Boolean),
-        ),
-      ];
+      const audienceQuery =
+        typeof req.query.audience === 'string' ? req.query.audience : undefined;
+      const teamQuery =
+        typeof req.query.team === 'string' ? req.query.team : undefined;
+      const audience =
+        audienceQuery === 'individual' || audienceQuery === 'team'
+          ? audienceQuery
+          : 'all';
+
+      const userRef = principal.userEntityRef;
+      const teamRefs = info.ownershipEntityRefs.filter(
+        ref => ref !== userRef && ref.startsWith('group:'),
+      );
+      const selectedTeamRefs = teamQuery
+        ? teamRefs.filter(
+            ref =>
+              ref.toLocaleLowerCase('en-US') ===
+              teamQuery.toLocaleLowerCase('en-US'),
+          )
+        : teamRefs;
+
+      if (audience === 'individual') {
+        subjectRefs = [userRef];
+      } else if (audience === 'team') {
+        subjectRefs = selectedTeamRefs;
+      } else {
+        subjectRefs = [userRef, ...selectedTeamRefs];
+      }
+
+      subjectRefs = [...new Set(subjectRefs.filter(Boolean))];
     }
+
+    const { page, limit } = parsePagination(req);
 
     const badgeProgress = await badgesService.getBadgeProgress(subjectRefs, {
       credentials,
+      page,
+      limit,
     });
 
     res.status(200).json(badgeProgress);
@@ -89,7 +129,12 @@ export function BadgesRouter({
     const credentials = await requireAdminCredentials(req);
     const search =
       typeof req.query.search === 'string' ? req.query.search : undefined;
-    const badges = await badgesService.getBadges(search, { credentials });
+    const { page, limit } = parsePagination(req);
+    const badges = await badgesService.getBadges(search, {
+      credentials,
+      page,
+      limit,
+    });
 
     res.status(200).json(badges);
   });

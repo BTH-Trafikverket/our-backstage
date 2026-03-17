@@ -250,7 +250,7 @@ describe('quests routes auth', () => {
         status: 'active',
         teamRef: undefined,
         sortBy: 'created_at',
-        order: 'asc',
+        order: 'desc',
         page: 1,
         limit: 10,
       },

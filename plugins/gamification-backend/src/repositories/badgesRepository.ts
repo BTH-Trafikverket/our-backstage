@@ -5,6 +5,7 @@ export type BadgeRow = {
   id: string;
   title: string;
   description: string;
+  xp_reward: number;
   subject_type: QuestSubjectType;
   created_at: Date;
   updated_at: Date;
@@ -22,9 +23,22 @@ export type BadgeProgressRow = BadgeRow & {
   is_earned: boolean;
 };
 
+export type BadgePagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+export type PaginatedBadgesResult<T> = {
+  data: T[];
+  pagination: BadgePagination;
+};
+
 export type CreateBadgeRow = {
   title: string;
   description: string;
+  xp_reward: number;
   subject_type: QuestSubjectType;
 };
 
@@ -48,6 +62,7 @@ export class BadgesRepository {
       .insert({
         title: data.title,
         description: data.description,
+        xp_reward: data.xp_reward,
         subject_type: data.subject_type,
       })
       .returning('*');
@@ -55,13 +70,26 @@ export class BadgesRepository {
     return rows[0];
   }
 
-  async getBadges(
-    searchTitle?: string,
-    options?: { includeArchived?: boolean },
-  ): Promise<BadgeRow[]> {
+  private getSafePagination(page = 1, limit = 10) {
+    const safePage = Math.max(1, Math.floor(page));
+    const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const offset = (safePage - 1) * safeLimit;
+
+    return { safePage, safeLimit, offset };
+  }
+
+  async getPaginatedBadges(params?: {
+    searchTitle?: string;
+    includeArchived?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedBadgesResult<BadgeRow>> {
+    const { searchTitle, includeArchived, page = 1, limit = 10 } = params ?? {};
+    const { safePage, safeLimit, offset } = this.getSafePagination(page, limit);
+
     let query = this.db<BadgeRow>('badges').select('*');
 
-    if (!options?.includeArchived) {
+    if (!includeArchived) {
       query = query.whereNull('archived_at');
     }
 
@@ -69,10 +97,60 @@ export class BadgesRepository {
       query = query.where('title', 'ilike', `%${searchTitle}%`);
     }
 
-    return query.orderBy('created_at', 'desc');
+    const results = await query
+      .clone()
+      .select(this.db.raw('COUNT(*) OVER() as full_count'))
+      .orderBy('created_at', 'desc')
+      .limit(safeLimit)
+      .offset(offset);
+
+    let total =
+      results.length > 0 ? Number((results[0] as any).full_count || 0) : 0;
+
+    if (results.length === 0 && safePage > 1) {
+      const countRow = await query
+        .clone()
+        .count<{ count: string }[]>({ count: '*' })
+        .first();
+
+      total = Number(countRow?.count ?? 0);
+    }
+
+    const totalPages = Math.ceil(total / safeLimit) || 0;
+    const data = results.map(row => {
+      const { full_count, ...rest } = row as any;
+      return rest as BadgeRow;
+    });
+
+    return {
+      data,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages,
+      },
+    };
   }
 
-  async getBadgeProgress(subjectRefs: string[]): Promise<BadgeProgressRow[]> {
+  async getBadges(
+    searchTitle?: string,
+    options?: { includeArchived?: boolean },
+  ): Promise<BadgeRow[]> {
+    const result = await this.getPaginatedBadges({
+      searchTitle,
+      includeArchived: options?.includeArchived,
+      page: 1,
+      limit: 1000,
+    });
+
+    return result.data;
+  }
+
+  async getPaginatedBadgeProgress(
+    subjectRefs: string[],
+    params?: { page?: number; limit?: number },
+  ): Promise<PaginatedBadgesResult<BadgeProgressRow>> {
     const refs = [
       ...new Set(subjectRefs.map(ref => ref.trim()).filter(Boolean)),
     ];
@@ -89,12 +167,22 @@ export class BadgesRepository {
         }),
       ),
     ];
+    const { page = 1, limit = 10 } = params ?? {};
+    const { safePage, safeLimit, offset } = this.getSafePagination(page, limit);
 
     if (refs.length === 0 || subjectTypes.length === 0) {
-      return [];
+      return {
+        data: [],
+        pagination: {
+          page: safePage,
+          limit: safeLimit,
+          total: 0,
+          totalPages: 0,
+        },
+      };
     }
 
-    const rows = await this.db<BadgeRow>('badges')
+    const baseQuery = this.db<BadgeRow>('badges')
       .leftJoin('earned_badges', function joinEarnedBadges() {
         this.on('earned_badges.badge_id', '=', 'badges.id').onIn(
           'earned_badges.subject_ref',
@@ -119,14 +207,56 @@ export class BadgesRepository {
         'badges.id',
         'badges.title',
         'badges.description',
+        'badges.xp_reward',
         'badges.subject_type',
         'badges.created_at',
         'badges.updated_at',
         'badges.archived_at',
-      ])
-      .orderByRaw('earned_at DESC NULLS LAST, badges.created_at DESC');
+      ]);
 
-    return rows as BadgeProgressRow[];
+    const results = await this.db
+      .from(baseQuery.as('badge_rows'))
+      .select('badge_rows.*', this.db.raw('COUNT(*) OVER() as full_count'))
+      .orderByRaw('earned_at DESC NULLS LAST, created_at DESC')
+      .limit(safeLimit)
+      .offset(offset);
+
+    let total =
+      results.length > 0 ? Number((results[0] as any).full_count || 0) : 0;
+
+    if (results.length === 0 && safePage > 1) {
+      const countRow = await this.db
+        .from(baseQuery.as('badge_rows'))
+        .count<{ count: string }[]>({ count: '*' })
+        .first();
+
+      total = Number(countRow?.count ?? 0);
+    }
+
+    const totalPages = Math.ceil(total / safeLimit) || 0;
+    const data = results.map(row => {
+      const { full_count, ...rest } = row as any;
+      return rest as BadgeProgressRow;
+    });
+
+    return {
+      data,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  async getBadgeProgress(subjectRefs: string[]): Promise<BadgeProgressRow[]> {
+    const result = await this.getPaginatedBadgeProgress(subjectRefs, {
+      page: 1,
+      limit: 1000,
+    });
+
+    return result.data;
   }
 
   async getBadgeById(
@@ -202,6 +332,9 @@ export class BadgesRepository {
     }
     if (data.description !== undefined) {
       updateData.description = data.description;
+    }
+    if (data.xp_reward !== undefined) {
+      updateData.xp_reward = data.xp_reward;
     }
     if (data.subject_type !== undefined) {
       updateData.subject_type = data.subject_type;

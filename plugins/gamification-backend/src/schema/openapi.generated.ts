@@ -528,7 +528,7 @@ export const spec = {
           title: { type: 'string', minLength: 1 },
           description: { type: 'string' },
           interval: { type: 'integer', minimum: 1 },
-          xp_reward: { type: 'integer', minimum: 1 },
+          xp_reward: { type: 'integer', minimum: 0 },
           subject_type: {
             $ref: '#/components/schemas/QuestSubjectType',
           },

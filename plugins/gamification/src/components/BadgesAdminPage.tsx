@@ -26,6 +26,9 @@ import {
   Box,
   MenuItem,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
 } from '@material-ui/core';
 import EditIcon from '@material-ui/icons/Edit';
 import DeleteIcon from '@material-ui/icons/Delete';
@@ -39,6 +42,7 @@ import {
   useApi,
   fetchApiRef,
   discoveryApiRef,
+  identityApiRef,
 } from '@backstage/core-plugin-api';
 import { Alert } from '@material-ui/lab';
 
@@ -60,6 +64,7 @@ type Badge = {
   id: string;
   title: string;
   description: string;
+  xp_reward: number;
   subject_type: BadgeSubjectType;
   criterias: BadgeCriteria[];
   archived_at?: string | null;
@@ -70,6 +75,22 @@ type Badge = {
 type BadgeProgressResponse = {
   subjectRefs: string[];
   badges: Badge[];
+  pagination?: {
+    page?: number;
+    limit?: number;
+    total?: number;
+    totalPages?: number;
+  };
+};
+
+type PaginatedBadgeResponse = {
+  data: Badge[];
+  pagination: {
+    page?: number;
+    limit?: number;
+    total?: number;
+    totalPages?: number;
+  };
 };
 
 type BadgeFormCriteria = {
@@ -80,6 +101,7 @@ type BadgeFormCriteria = {
 type BadgeFormData = {
   title: string;
   description: string;
+  xp_reward: string;
   subject_type: BadgeSubjectType;
   criterias: BadgeFormCriteria[];
 };
@@ -93,6 +115,7 @@ type BadgesAdminPageProps = {
 const createEmptyForm = (): BadgeFormData => ({
   title: '',
   description: '',
+  xp_reward: '0',
   subject_type: 'user',
   criterias: [{ quest_id: '', target_count: '1' }],
 });
@@ -119,6 +142,7 @@ export const BadgesAdminPage = ({
 }: BadgesAdminPageProps) => {
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
+  const identityApi = useApi(identityApiRef);
   const pluginId = 'gamification';
 
   const buildGamificationUrl = useCallback(
@@ -146,6 +170,19 @@ export const BadgesAdminPage = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [audienceFilter, setAudienceFilter] = useState<
+    'all' | 'individual' | 'team'
+  >('all');
+  const [teamFilter, setTeamFilter] = useState('');
+  const [teamOptions, setTeamOptions] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [sortBy, setSortBy] = useState<'created_at' | 'title' | 'xp_reward'>(
+    'created_at',
+  );
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -172,6 +209,17 @@ export const BadgesAdminPage = ({
     try {
       const url = await buildGamificationUrl(
         isAdmin ? '/badges' : '/badges/progress',
+        {
+          ...(search.trim() ? { search: search.trim() } : {}),
+          audience: audienceFilter,
+          ...(audienceFilter === 'team' && teamFilter
+            ? { team: teamFilter }
+            : {}),
+          sortBy,
+          order,
+          page: String(page),
+          limit: String(limit),
+        },
       );
       const response = await fetchApi.fetch(url);
 
@@ -179,20 +227,45 @@ export const BadgesAdminPage = ({
         throw new Error(await readErrorMessage(response));
       }
 
-      if (isAdmin) {
-        const result = (await response.json()) as Badge[];
-        setBadges(result);
+      const result = await response.json();
+
+      if (result && Array.isArray(result.data) && result.pagination) {
+        const paginated = result as PaginatedBadgeResponse;
+        setBadges(paginated.data ?? []);
+        setTotal(paginated.pagination.total ?? 0);
+        setTotalPages(paginated.pagination.totalPages ?? 1);
+      } else if (isAdmin && Array.isArray(result)) {
+        const rows = result as Badge[];
+        setBadges(rows);
+        setTotal(rows.length);
+        setTotalPages(1);
       } else {
-        const result = (await response.json()) as BadgeProgressResponse;
-        setBadges(result.badges ?? []);
+        const progress = result as BadgeProgressResponse;
+        const rows = progress.badges ?? [];
+        setBadges(rows);
+        setTotal(progress.pagination?.total ?? rows.length);
+        setTotalPages(progress.pagination?.totalPages ?? 1);
       }
     } catch (e: any) {
       setError(e?.message ?? 'An unknown error occurred');
       setBadges([]);
+      setTotal(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
-  }, [buildGamificationUrl, fetchApi, isAdmin]);
+  }, [
+    audienceFilter,
+    buildGamificationUrl,
+    fetchApi,
+    isAdmin,
+    limit,
+    order,
+    page,
+    search,
+    sortBy,
+    teamFilter,
+  ]);
 
   const fetchQuests = useCallback(async () => {
     try {
@@ -242,6 +315,45 @@ export const BadgesAdminPage = ({
   useEffect(() => {
     fetchQuests();
   }, [fetchQuests]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, audienceFilter, teamFilter, sortBy, order]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadTeams = async () => {
+      try {
+        const identity = await identityApi.getBackstageIdentity();
+        const refs = identity.ownershipEntityRefs ?? [];
+        const teams = refs.filter(ref =>
+          ref.toLocaleLowerCase('en-US').startsWith('group:'),
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        setTeamOptions(teams);
+        if (teams.length > 0 && !teamFilter) {
+          setTeamFilter(teams[0]);
+        }
+      } catch {
+        if (!mounted) {
+          return;
+        }
+
+        setTeamOptions([]);
+      }
+    };
+
+    loadTeams();
+
+    return () => {
+      mounted = false;
+    };
+  }, [identityApi, teamFilter]);
 
   const getQuestById = (questId: string) => {
     return quests.find(q => q.id === questId);
@@ -342,8 +454,14 @@ export const BadgesAdminPage = ({
   const validateBadgeForm = (form: BadgeFormData): string | null => {
     if (!form.title.trim()) return 'Title is required';
     if (!form.description.trim()) return 'Description is required';
+    if (form.xp_reward.trim() === '') return 'XP reward is required';
     if (!form.subject_type) return 'Badge type is required';
     if (!form.criterias.length) return 'At least one criterion is required';
+
+    const parsedXpReward = parseInt(form.xp_reward, 10);
+    if (Number.isNaN(parsedXpReward) || parsedXpReward < 0) {
+      return 'XP reward must be 0 or greater';
+    }
 
     const selectedIds = form.criterias
       .map(c => c.quest_id)
@@ -423,6 +541,7 @@ export const BadgesAdminPage = ({
         body: JSON.stringify({
           title: createForm.title.trim(),
           description: createForm.description.trim(),
+          xp_reward: parseInt(createForm.xp_reward, 10),
           subject_type: createForm.subject_type,
           criterias: createForm.criterias.map(c => ({
             quest_id: c.quest_id,
@@ -451,6 +570,7 @@ export const BadgesAdminPage = ({
     setEditForm({
       title: badge.title,
       description: badge.description,
+      xp_reward: String(badge.xp_reward),
       subject_type: badge.subject_type,
       criterias: badge.criterias.map(c => ({
         quest_id: c.quest_id,
@@ -493,6 +613,7 @@ export const BadgesAdminPage = ({
         body: JSON.stringify({
           title: editForm.title.trim(),
           description: editForm.description.trim(),
+          xp_reward: parseInt(editForm.xp_reward, 10),
           subject_type: editForm.subject_type,
           criterias: editForm.criterias.map(c => ({
             quest_id: c.quest_id,
@@ -697,18 +818,7 @@ export const BadgesAdminPage = ({
     return 'In progress';
   };
 
-  const filteredBadges = badges.filter(badge => {
-    const query = search.trim().toLocaleLowerCase('en-US');
-
-    if (!query) {
-      return true;
-    }
-
-    return (
-      badge.title.toLocaleLowerCase('en-US').includes(query) ||
-      badge.description.toLocaleLowerCase('en-US').includes(query)
-    );
-  });
+  const filteredBadges = badges;
 
   return (
     <>
@@ -766,6 +876,22 @@ export const BadgesAdminPage = ({
             <MenuItem value="user">User</MenuItem>
             <MenuItem value="team">Team</MenuItem>
           </TextField>
+
+          <TextField
+            fullWidth
+            label="XP Reward"
+            margin="dense"
+            type="number"
+            inputProps={{ min: 0 }}
+            value={createForm.xp_reward}
+            onChange={e => {
+              setCreateForm(prev => ({
+                ...prev,
+                xp_reward: e.target.value,
+              }));
+              setCreateError(null);
+            }}
+          />
 
           <Box mt={3} mb={1}>
             <Typography variant="subtitle1">Criteria</Typography>
@@ -853,6 +979,22 @@ export const BadgesAdminPage = ({
             <MenuItem value="user">User</MenuItem>
             <MenuItem value="team">Team</MenuItem>
           </TextField>
+
+          <TextField
+            fullWidth
+            label="XP Reward"
+            margin="dense"
+            type="number"
+            inputProps={{ min: 0 }}
+            value={editForm.xp_reward}
+            onChange={e => {
+              setEditForm(prev => ({
+                ...prev,
+                xp_reward: e.target.value,
+              }));
+              setEditError(null);
+            }}
+          />
 
           <Box mt={3} mb={1}>
             <Typography variant="subtitle1">Criteria</Typography>
@@ -958,6 +1100,94 @@ export const BadgesAdminPage = ({
               style={{ marginBottom: 16 }}
             />
 
+            <Box display="flex" style={{ marginBottom: 16 }}>
+              <FormControl
+                variant="outlined"
+                size="small"
+                style={{ minWidth: 180 }}
+              >
+                <InputLabel id="audience-filter-label">
+                  Filter by audience
+                </InputLabel>
+                <Select
+                  labelId="audience-filter-label"
+                  value={audienceFilter}
+                  onChange={e =>
+                    setAudienceFilter(
+                      e.target.value as 'all' | 'individual' | 'team',
+                    )
+                  }
+                  label="Filter by audience"
+                >
+                  <MenuItem value="all">All</MenuItem>
+                  <MenuItem value="individual">Individual</MenuItem>
+                  <MenuItem value="team">Team</MenuItem>
+                </Select>
+              </FormControl>
+
+              {audienceFilter === 'team' && (
+                <FormControl
+                  variant="outlined"
+                  size="small"
+                  style={{ minWidth: 260, marginLeft: 8 }}
+                  disabled={teamOptions.length === 0}
+                >
+                  <InputLabel id="team-filter-label">Team</InputLabel>
+                  <Select
+                    labelId="team-filter-label"
+                    value={teamFilter}
+                    onChange={e => setTeamFilter(e.target.value as string)}
+                    label="Team"
+                  >
+                    {teamOptions.map(team => (
+                      <MenuItem key={team} value={team}>
+                        {team}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
+              <FormControl
+                variant="outlined"
+                size="small"
+                style={{ minWidth: 180, marginLeft: 8 }}
+              >
+                <InputLabel id="sort-by-label">Sort by</InputLabel>
+                <Select
+                  labelId="sort-by-label"
+                  value={sortBy}
+                  onChange={e =>
+                    setSortBy(
+                      e.target.value as 'created_at' | 'title' | 'xp_reward',
+                    )
+                  }
+                  label="Sort by"
+                >
+                  <MenuItem value="created_at">Created</MenuItem>
+                  <MenuItem value="title">Title</MenuItem>
+                  <MenuItem value="xp_reward">XP Reward</MenuItem>
+                </Select>
+              </FormControl>
+
+              <FormControl
+                variant="outlined"
+                size="small"
+                style={{ minWidth: 140, marginLeft: 8 }}
+              >
+                <InputLabel id="order-label">Order</InputLabel>
+                <Select
+                  labelId="order-label"
+                  value={order}
+                  onChange={e => setOrder(e.target.value as 'asc' | 'desc')}
+                  label="Order"
+                >
+                  <MenuItem value="asc">Ascending</MenuItem>
+                  <MenuItem value="desc">Descending</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+
             {loading && (
               <Box textAlign="center" p={2}>
                 <Typography>Loading badges...</Typography>
@@ -970,7 +1200,7 @@ export const BadgesAdminPage = ({
               </Alert>
             )}
 
-            {!loading && !error && filteredBadges.length === 0 && (
+            {!loading && !error && badges.length === 0 && (
               <Typography variant="body2">
                 {search.trim()
                   ? 'No badges found. Try a different search.'
@@ -979,74 +1209,108 @@ export const BadgesAdminPage = ({
             )}
 
             {!loading && !error && filteredBadges.length > 0 && (
-              <TableContainer component={Paper} style={{ marginTop: 16 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell style={{ width: '16%' }}>Title</TableCell>
-                      <TableCell style={{ width: '10%' }}>Type</TableCell>
-                      <TableCell style={{ width: '26%' }}>
-                        Description
-                      </TableCell>
-                      <TableCell style={{ width: '28%' }}>Criteria</TableCell>
-                      <TableCell style={{ width: '12%' }}>Status</TableCell>
-                      <TableCell align="right" style={{ width: '8%' }}>
-                        {isAdmin ? 'Actions' : ''}
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-
-                  <TableBody>
-                    {filteredBadges.map(badge => (
-                      <TableRow key={badge.id}>
-                        <TableCell>{badge.title}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={getBadgeSubjectTypeLabel(badge.subject_type)}
-                            size="small"
-                          />
+              <>
+                <TableContainer component={Paper} style={{ marginTop: 16 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell style={{ width: '14%' }}>Title</TableCell>
+                        <TableCell style={{ width: '8%' }}>Type</TableCell>
+                        <TableCell style={{ width: '8%' }}>XP</TableCell>
+                        <TableCell style={{ width: '24%' }}>
+                          Description
                         </TableCell>
-                        <TableCell>{badge.description}</TableCell>
-                        <TableCell>
-                          {renderCriteriaSummary(badge.criterias)}
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={getBadgeStatusLabel(badge)}
-                            size="small"
-                            color={badge.isEarned ? 'primary' : 'default'}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          {isAdmin ? (
-                            <>
-                              <Tooltip title="Edit">
-                                <IconButton
-                                  size="small"
-                                  color="primary"
-                                  onClick={() => openEdit(badge)}
-                                >
-                                  <EditIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-
-                              <Tooltip title="Archive">
-                                <IconButton
-                                  size="small"
-                                  color="secondary"
-                                  onClick={() => openDelete(badge)}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </>
-                          ) : null}
+                        <TableCell style={{ width: '30%' }}>Criteria</TableCell>
+                        <TableCell style={{ width: '10%' }}>Status</TableCell>
+                        <TableCell align="right" style={{ width: '6%' }}>
+                          {isAdmin ? 'Actions' : ''}
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+
+                    <TableBody>
+                      {filteredBadges.map(badge => (
+                        <TableRow key={badge.id}>
+                          <TableCell>{badge.title}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={getBadgeSubjectTypeLabel(
+                                badge.subject_type,
+                              )}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>{badge.xp_reward}</TableCell>
+                          <TableCell>{badge.description}</TableCell>
+                          <TableCell>
+                            {renderCriteriaSummary(badge.criterias)}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={getBadgeStatusLabel(badge)}
+                              size="small"
+                              color={badge.isEarned ? 'primary' : 'default'}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            {isAdmin ? (
+                              <>
+                                <Tooltip title="Edit">
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => openEdit(badge)}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+
+                                <Tooltip title="Archive">
+                                  <IconButton
+                                    size="small"
+                                    color="secondary"
+                                    onClick={() => openDelete(badge)}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </>
+                            ) : null}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                <Box
+                  display="flex"
+                  justifyContent="center"
+                  alignItems="center"
+                  mt={2}
+                  style={{ gap: 16 }}
+                >
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    disabled={page === 1}
+                    onClick={() => setPage(p => p - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <Typography variant="body2">
+                    Page {page} of {Math.max(1, totalPages)} ({total} badges)
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    disabled={page >= Math.max(1, totalPages)}
+                    onClick={() => setPage(p => p + 1)}
+                  >
+                    Next
+                  </Button>
+                </Box>
+              </>
             )}
           </InfoCard>
         </Grid>
