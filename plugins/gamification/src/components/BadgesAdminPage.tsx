@@ -818,6 +818,8 @@ export const BadgesAdminPage = ({
     return 'In progress';
   };
 
+  const filteredBadges = badges;
+
   return (
     <>
       <Dialog open={createOpen} onClose={closeCreate} maxWidth="sm" fullWidth>
@@ -1207,56 +1209,27 @@ export const BadgesAdminPage = ({
             )}
 
             {!loading && !error && filteredBadges.length > 0 && (
-              <TableContainer component={Paper} style={{ marginTop: 16 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell style={{ width: '14%' }}>Title</TableCell>
-                      <TableCell style={{ width: '8%' }}>Type</TableCell>
-                      <TableCell style={{ width: '8%' }}>XP</TableCell>
-                      <TableCell style={{ width: '24%' }}>
-                        Description
-                      </TableCell>
-                      <TableCell style={{ width: '30%' }}>Criteria</TableCell>
-                      <TableCell style={{ width: '10%' }}>Status</TableCell>
-                      <TableCell align="right" style={{ width: '6%' }}>
-                        {isAdmin ? 'Actions' : ''}
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-
-                  <TableBody>
-                    {filteredBadges.map(badge => (
-                      <TableRow key={badge.id}>
-                        <TableCell>{badge.title}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={getBadgeSubjectTypeLabel(badge.subject_type)}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>{badge.xp_reward}</TableCell>
-                        <TableCell>{badge.description}</TableCell>
-                        <TableCell>
-                          {renderCriteriaSummary(badge.criterias)}
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={getBadgeStatusLabel(badge)}
-                            size="small"
-                            color={badge.isEarned ? 'primary' : 'default'}
-                          />
+              <>
+                <TableContainer component={Paper} style={{ marginTop: 16 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell style={{ width: '14%' }}>Title</TableCell>
+                        <TableCell style={{ width: '8%' }}>Type</TableCell>
+                        <TableCell style={{ width: '8%' }}>XP</TableCell>
+                        <TableCell style={{ width: '24%' }}>
+                          Description
                         </TableCell>
                         <TableCell style={{ width: '30%' }}>Criteria</TableCell>
-                        <TableCell style={{ width: '12%' }}>Status</TableCell>
-                        <TableCell align="right" style={{ width: '10%' }}>
+                        <TableCell style={{ width: '10%' }}>Status</TableCell>
+                        <TableCell align="right" style={{ width: '6%' }}>
                           {isAdmin ? 'Actions' : ''}
                         </TableCell>
                       </TableRow>
                     </TableHead>
 
                     <TableBody>
-                      {badges.map(badge => (
+                      {filteredBadges.map(badge => (
                         <TableRow key={badge.id}>
                           <TableCell>{badge.title}</TableCell>
                           <TableCell>
@@ -1267,6 +1240,7 @@ export const BadgesAdminPage = ({
                               size="small"
                             />
                           </TableCell>
+                          <TableCell>{badge.xp_reward}</TableCell>
                           <TableCell>{badge.description}</TableCell>
                           <TableCell>
                             {renderCriteriaSummary(badge.criterias)}
