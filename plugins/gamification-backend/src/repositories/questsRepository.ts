@@ -38,16 +38,6 @@ export type QuestProgressRow = {
   updated_at: Date;
 };
 
-export type QuestEventTriggerRow = {
-  id: string;
-  event_key: string;
-  quest_id: string;
-  increment_by: number;
-  enabled: boolean;
-  created_at: Date;
-  updated_at: Date;
-};
-
 export type QuestEventReceiptRow = {
   event_id: string;
   event_key: string;
@@ -100,7 +90,7 @@ export class QuestsRepository {
 
   async lockSubjectQuest(subjectRef: string, questId: string): Promise<void> {
     // Serialize writes per subject+quest so policy checks and progress updates
-    // observe a stable view before the trigger writes XP ledger rows.
+    // observe a stable view before XP award triggers run.
     await this.db.raw(
       'SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))',
       [subjectRef, questId],
@@ -512,15 +502,6 @@ export class QuestsRepository {
       .returning('*');
 
     return rows[0];
-  }
-
-  async getTriggerByEvent(
-    eventKey: string,
-  ): Promise<QuestEventTriggerRow | undefined> {
-    return await this.db<QuestEventTriggerRow>('quest_event_triggers')
-      .where({ event_key: eventKey, enabled: true })
-      .orderBy('created_at', 'asc')
-      .first();
   }
 
   async tryInsertReceipt(params: {

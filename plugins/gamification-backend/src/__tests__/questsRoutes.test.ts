@@ -324,15 +324,18 @@ describe('quests routes auth', () => {
         }),
       )
       .send({
+        eventId: 'evt-1',
         questId: '11111111-1111-4111-8111-111111111111',
         subjectRef: 'user:default/alice',
       });
 
     expect(res.status).toBe(200);
     expect(questsService.handleQuestEvent).toHaveBeenCalledWith({
+      eventId: 'evt-1',
       questId: '11111111-1111-4111-8111-111111111111',
       subjectRef: 'user:default/alice',
       actor: undefined,
+      callerSubject: 'external:test-service',
       opts: {
         credentials: expect.objectContaining({
           principal: expect.objectContaining({
@@ -356,6 +359,7 @@ describe('quests routes auth', () => {
         }),
       )
       .send({
+        eventId: 'evt-1',
         questId: '11111111-1111-4111-8111-111111111111',
         subjectRef: 'user:default/alice',
       });
@@ -384,5 +388,37 @@ describe('quests routes auth', () => {
     expect(res.status).toBe(400);
     expect(res.body?.error?.name).toBe('InputError');
     expect(questsService.handleQuestEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns duplicate quest event responses from the service', async () => {
+    const { app, questsService } = makeApp();
+    (questsService.handleQuestEvent as jest.Mock).mockResolvedValue({
+      duplicate: true,
+      blocked: false,
+      subjectRef: 'user:default/alice',
+      questId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    const res = await request(app)
+      .post('/quests/events')
+      .set(
+        'authorization',
+        mockCredentials.service.header({
+          onBehalfOf: mockCredentials.service('external:test-service'),
+        }),
+      )
+      .send({
+        eventId: 'evt-dup',
+        questId: '11111111-1111-4111-8111-111111111111',
+        subjectRef: 'user:default/alice',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      duplicate: true,
+      blocked: false,
+      subjectRef: 'user:default/alice',
+      questId: '11111111-1111-4111-8111-111111111111',
+    });
   });
 });

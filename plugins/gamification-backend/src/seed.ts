@@ -1,6 +1,5 @@
 import type { Knex } from 'knex';
 import { seed001Core } from '../seeds/001_core';
-import { seed002EventTriggers } from '../seeds/002_evet_triggers';
 import { seed003DemoEvents } from '../seeds/003_demo_progress';
 import { seed004Badges } from '../seeds/004_badges';
 
@@ -25,12 +24,7 @@ export async function runSeeds(knex: Knex, opts: { reset?: boolean } = {}) {
 
     const ctx = { knex: trx };
 
-    for (const seed of [
-      seed001Core,
-      seed002EventTriggers,
-      seed004Badges,
-      seed003DemoEvents,
-    ]) {
+    for (const seed of [seed001Core, seed004Badges, seed003DemoEvents]) {
       await seed.run(ctx);
     }
   });
