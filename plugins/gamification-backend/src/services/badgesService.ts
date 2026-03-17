@@ -142,11 +142,13 @@ export class BadgesService {
     const questDone =
       row.completion_policy === 'ONE_TIME' &&
       completionCount >= questTargetCount;
-    const questCurrent = questDone
-      ? questTargetCount
-      : questTargetCount > 0
-      ? completionCount % questTargetCount
-      : 0;
+    let questCurrent = 0;
+
+    if (questDone) {
+      questCurrent = questTargetCount;
+    } else if (questTargetCount > 0) {
+      questCurrent = completionCount % questTargetCount;
+    }
 
     return {
       quest_id: row.quest_id,
