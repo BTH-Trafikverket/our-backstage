@@ -41,7 +41,6 @@ import { githubAuthApiRef } from '@backstage/core-plugin-api';
 
 import {
   GamificationPage,
-  GamificationXpDebugPage,
 } from '@internal/gamification';
 
 const app = createApp({
@@ -134,7 +133,6 @@ const routes = (
     <Route path="/notifications" element={<NotificationsPage />} />
 
     <Route path="/gamification" element={<GamificationPage />} />
-    <Route path="/gamification/xp" element={<GamificationXpDebugPage />} />
   </FlatRoutes>
 );
 

@@ -3,13 +3,12 @@ import {
   createRoutableExtension,
 } from '@backstage/core-plugin-api';
 
-import { rootRouteRef, xpRouteRef } from './routes';
+import { rootRouteRef } from './routes';
 
 export const gamificationPlugin = createPlugin({
   id: 'gamification',
   routes: {
     root: rootRouteRef,
-    xp: xpRouteRef,
   },
 });
 
@@ -19,16 +18,5 @@ export const GamificationPage = gamificationPlugin.provide(
     component: () =>
       import('./components/GamificationPage').then(m => m.GamificationPage),
     mountPoint: rootRouteRef,
-  }),
-);
-
-export const GamificationXpDebugPage = gamificationPlugin.provide(
-  createRoutableExtension({
-    name: 'GamificationEntityXpCard',
-    component: () =>
-      import('./components/EntityXpCard/EntityXpCard').then(
-        m => m.EntityXpCard,
-      ),
-    mountPoint: xpRouteRef,
   }),
 );

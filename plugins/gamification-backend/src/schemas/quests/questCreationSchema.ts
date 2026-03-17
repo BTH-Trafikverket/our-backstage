@@ -5,10 +5,11 @@ export type CompletionPolicy = (typeof COMPLETION_POLICIES)[number];
 export const QUEST_SUBJECT_TYPES = ['user', 'team'] as const;
 export type QuestSubjectType = (typeof QUEST_SUBJECT_TYPES)[number];
 export const questSubjectTypeSchema = z.enum(QUEST_SUBJECT_TYPES);
+const nonEmptyTrimmedString = z.string().trim().min(1);
 
 export const questCreationSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().default(''),
+  title: nonEmptyTrimmedString,
+  description: nonEmptyTrimmedString,
   target_count: z.number().int().positive().default(1),
   xp_reward: z.number().int().nonnegative(),
   subject_type: questSubjectTypeSchema.default('user'),

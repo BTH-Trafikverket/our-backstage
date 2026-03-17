@@ -271,16 +271,11 @@ export const BadgesAdminPage = ({
 
       const result = await response.json();
 
-      if (result && Array.isArray(result.data) && result.pagination) {
+      if (isAdmin) {
         const paginated = result as PaginatedBadgeResponse;
         setBadges(paginated.data ?? []);
         setTotal(paginated.pagination.total ?? 0);
         setTotalPages(paginated.pagination.totalPages ?? 1);
-      } else if (isAdmin && Array.isArray(result)) {
-        const rows = result as Badge[];
-        setBadges(rows);
-        setTotal(rows.length);
-        setTotalPages(1);
       } else {
         const progress = result as BadgeProgressResponse;
         const rows = progress.badges ?? [];
@@ -322,7 +317,7 @@ export const BadgesAdminPage = ({
       }
 
       const result = await response.json();
-      const questRows = Array.isArray(result) ? result : result.data ?? [];
+      const questRows = Array.isArray(result.data) ? result.data : [];
       const byId = new Map<string, QuestLite>();
 
       for (const quest of questRows) {

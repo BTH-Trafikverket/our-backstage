@@ -151,20 +151,6 @@ export class BadgesRepository {
     };
   }
 
-  async getBadges(
-    searchTitle?: string,
-    options?: { includeArchived?: boolean },
-  ): Promise<BadgeRow[]> {
-    const result = await this.getPaginatedBadges({
-      searchTitle,
-      includeArchived: options?.includeArchived,
-      page: 1,
-      limit: 1000,
-    });
-
-    return result.data;
-  }
-
   async getPaginatedBadgeProgress(
     subjectRefs: string[],
     params?: {
@@ -298,15 +284,6 @@ export class BadgesRepository {
         totalPages,
       },
     };
-  }
-
-  async getBadgeProgress(subjectRefs: string[]): Promise<BadgeProgressRow[]> {
-    const result = await this.getPaginatedBadgeProgress(subjectRefs, {
-      page: 1,
-      limit: 1000,
-    });
-
-    return result.data;
   }
 
   async getBadgeById(

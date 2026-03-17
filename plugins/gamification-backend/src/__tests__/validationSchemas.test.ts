@@ -10,16 +10,31 @@ describe('validation schemas', () => {
       expect(
         questCreationSchema.parse({
           title: 'Review pull request',
+          description: 'Review and approve a pull request',
           xp_reward: 25,
         }),
       ).toEqual({
         title: 'Review pull request',
-        description: '',
+        description: 'Review and approve a pull request',
         target_count: 1,
         xp_reward: 25,
         subject_type: 'user',
         completion_policy: 'REPEATABLE',
       });
+    });
+
+    it('rejects whitespace-only title and description', () => {
+      const result = questCreationSchema.safeParse({
+        title: '   ',
+        description: '   ',
+        xp_reward: 25,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.path)).toEqual([
+        ['title'],
+        ['description'],
+      ]);
     });
   });
 
@@ -43,6 +58,19 @@ describe('validation schemas', () => {
         completion_policy: 'REPEATABLE',
         cooldown_days: null,
       });
+    });
+
+    it('rejects whitespace-only title and description updates', () => {
+      const result = questEditSchema.safeParse({
+        title: '   ',
+        description: '   ',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.path)).toEqual([
+        ['title'],
+        ['description'],
+      ]);
     });
   });
 

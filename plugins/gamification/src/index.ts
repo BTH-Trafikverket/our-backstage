@@ -1,10 +1,6 @@
-export {
-  gamificationPlugin,
-  GamificationPage,
-  GamificationXpDebugPage,
-} from './plugin';
+export { gamificationPlugin, GamificationPage } from './plugin';
 
-export { rootRouteRef, xpRouteRef } from './routes';
+export { rootRouteRef } from './routes';
 
 // optional, but useful to have:
 export { EntityXpCard } from './components/EntityXpCard/EntityXpCard';
