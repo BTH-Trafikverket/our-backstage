@@ -101,9 +101,26 @@ export function BadgesRouter({
     }
 
     const { page, limit } = parsePagination(req);
+    const search =
+      typeof req.query.search === 'string' ? req.query.search : undefined;
+    const sortByQuery =
+      typeof req.query.sortBy === 'string' ? req.query.sortBy : undefined;
+    const orderQuery =
+      typeof req.query.order === 'string' ? req.query.order : undefined;
+    const sortBy =
+      sortByQuery === 'created_at' ||
+      sortByQuery === 'title' ||
+      sortByQuery === 'xp_reward' ||
+      sortByQuery === 'earned_at'
+        ? sortByQuery
+        : 'earned_at';
+    const order = orderQuery === 'asc' ? 'asc' : 'desc';
 
     const badgeProgress = await badgesService.getBadgeProgress(subjectRefs, {
       credentials,
+      searchTitle: search,
+      sortBy,
+      order,
       page,
       limit,
     });

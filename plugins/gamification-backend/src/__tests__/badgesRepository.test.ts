@@ -580,6 +580,214 @@ describePostgres18('BadgesRepository integration', () => {
     await knex.destroy();
   });
 
+  it('supports search and deterministic sorting for badge progress', async () => {
+    const knex = await initDb();
+    const repository = new BadgesRepository(knex);
+    const quest = await createQuest(knex, 'Quest Progress Search', 'user');
+
+    const highXpBadge = await repository.createBadge({
+      title: 'Reviewer Elite',
+      description: 'High XP reviewer badge',
+      xp_reward: 200,
+      subject_type: 'user',
+    });
+    const lowXpBadge = await repository.createBadge({
+      title: 'Reviewer Starter',
+      description: 'Low XP reviewer badge',
+      xp_reward: 50,
+      subject_type: 'user',
+    });
+    const unmatchedBadge = await repository.createBadge({
+      title: 'Mentor Path',
+      description: 'Should not match search',
+      xp_reward: 100,
+      subject_type: 'user',
+    });
+
+    await repository.insertBadgeCriteria(highXpBadge.id, [
+      { quest_id: quest.id, target_count: 1 },
+    ]);
+    await repository.insertBadgeCriteria(lowXpBadge.id, [
+      { quest_id: quest.id, target_count: 1 },
+    ]);
+    await repository.insertBadgeCriteria(unmatchedBadge.id, [
+      { quest_id: quest.id, target_count: 1 },
+    ]);
+
+    await knex('badges')
+      .where({ id: highXpBadge.id })
+      .update({
+        created_at: new Date('2026-01-03T00:00:00Z'),
+        updated_at: new Date('2026-01-03T00:00:00Z'),
+      });
+    await knex('badges')
+      .where({ id: lowXpBadge.id })
+      .update({
+        created_at: new Date('2026-01-02T00:00:00Z'),
+        updated_at: new Date('2026-01-02T00:00:00Z'),
+      });
+    await knex('badges')
+      .where({ id: unmatchedBadge.id })
+      .update({
+        created_at: new Date('2026-01-01T00:00:00Z'),
+        updated_at: new Date('2026-01-01T00:00:00Z'),
+      });
+
+    const badgeProgress = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        searchTitle: 'reviewer',
+        sortBy: 'xp_reward',
+        order: 'asc',
+        page: 1,
+        limit: 10,
+      },
+    );
+
+    expect(badgeProgress.data.map(badge => badge.title)).toEqual([
+      'Reviewer Starter',
+      'Reviewer Elite',
+    ]);
+    expect(badgeProgress.pagination).toEqual({
+      page: 1,
+      limit: 10,
+      total: 2,
+      totalPages: 1,
+    });
+
+    const titleAsc = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'title',
+        order: 'asc',
+        page: 1,
+        limit: 10,
+      },
+    );
+    const titleDesc = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'title',
+        order: 'desc',
+        page: 1,
+        limit: 10,
+      },
+    );
+    const createdAsc = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'created_at',
+        order: 'asc',
+        page: 1,
+        limit: 10,
+      },
+    );
+    const createdDesc = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'created_at',
+        order: 'desc',
+        page: 1,
+        limit: 10,
+      },
+    );
+
+    expect(titleAsc.data.map(badge => badge.title)).toEqual([
+      'Mentor Path',
+      'Reviewer Elite',
+      'Reviewer Starter',
+    ]);
+    expect(titleDesc.data.map(badge => badge.title)).toEqual([
+      'Reviewer Starter',
+      'Reviewer Elite',
+      'Mentor Path',
+    ]);
+    expect(createdAsc.data.map(badge => badge.title)).toEqual([
+      'Mentor Path',
+      'Reviewer Starter',
+      'Reviewer Elite',
+    ]);
+    expect(createdDesc.data.map(badge => badge.title)).toEqual([
+      'Reviewer Elite',
+      'Reviewer Starter',
+      'Mentor Path',
+    ]);
+
+    await knex.destroy();
+  });
+
+  it('sorts earned badge progress consistently in both directions', async () => {
+    const knex = await initDb();
+    const repository = new BadgesRepository(knex);
+    const earnedQuest = await createQuest(knex, 'Quest Earned Sort', 'user');
+    const inProgressQuest = await createQuest(
+      knex,
+      'Quest In Progress Sort',
+      'user',
+    );
+
+    const earnedBadge = await repository.createBadge({
+      title: 'Earned Badge Sort',
+      description: 'Already earned',
+      xp_reward: 100,
+      subject_type: 'user',
+    });
+    const inProgressBadge = await repository.createBadge({
+      title: 'In Progress Badge Sort',
+      description: 'Not earned yet',
+      xp_reward: 100,
+      subject_type: 'user',
+    });
+
+    await repository.insertBadgeCriteria(earnedBadge.id, [
+      { quest_id: earnedQuest.id, target_count: 1 },
+    ]);
+    await repository.insertBadgeCriteria(inProgressBadge.id, [
+      { quest_id: inProgressQuest.id, target_count: 2 },
+    ]);
+
+    await knex('quest_progress').insert({
+      subject_ref: 'user:default/alice',
+      quest_id: earnedQuest.id,
+      completion_count: 1,
+    });
+    await knex('quest_progress').insert({
+      subject_ref: 'user:default/alice',
+      quest_id: inProgressQuest.id,
+      completion_count: 1,
+    });
+
+    const ascending = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'earned_at',
+        order: 'asc',
+        page: 1,
+        limit: 10,
+      },
+    );
+    const descending = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'earned_at',
+        order: 'desc',
+        page: 1,
+        limit: 10,
+      },
+    );
+
+    expect(ascending.data.map(badge => badge.title)).toEqual([
+      'In Progress Badge Sort',
+      'Earned Badge Sort',
+    ]);
+    expect(descending.data.map(badge => badge.title)).toEqual([
+      'Earned Badge Sort',
+      'In Progress Badge Sort',
+    ]);
+
+    await knex.destroy();
+  });
+
   it('archives a badge instead of deleting it', async () => {
     const knex = await initDb();
     const repository = new BadgesRepository(knex);

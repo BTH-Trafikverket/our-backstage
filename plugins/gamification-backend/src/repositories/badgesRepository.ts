@@ -23,6 +23,13 @@ export type BadgeProgressRow = BadgeRow & {
   is_earned: boolean;
 };
 
+export type BadgeProgressSortField =
+  | 'earned_at'
+  | 'created_at'
+  | 'title'
+  | 'xp_reward';
+export type BadgeSortOrder = 'asc' | 'desc';
+
 export type BadgePagination = {
   page: number;
   limit: number;
@@ -160,7 +167,13 @@ export class BadgesRepository {
 
   async getPaginatedBadgeProgress(
     subjectRefs: string[],
-    params?: { page?: number; limit?: number },
+    params?: {
+      searchTitle?: string;
+      sortBy?: BadgeProgressSortField;
+      order?: BadgeSortOrder;
+      page?: number;
+      limit?: number;
+    },
   ): Promise<PaginatedBadgesResult<BadgeProgressRow>> {
     const refs = [
       ...new Set(subjectRefs.map(ref => ref.trim()).filter(Boolean)),
@@ -178,7 +191,13 @@ export class BadgesRepository {
         }),
       ),
     ];
-    const { page = 1, limit = 10 } = params ?? {};
+    const {
+      searchTitle,
+      sortBy = 'earned_at',
+      order = 'desc',
+      page = 1,
+      limit = 10,
+    } = params ?? {};
     const { safePage, safeLimit, offset } = this.getSafePagination(page, limit);
 
     if (refs.length === 0 || subjectTypes.length === 0) {
@@ -199,6 +218,11 @@ export class BadgesRepository {
           'earned_badges.subject_ref',
           refs,
         );
+      })
+      .modify(query => {
+        if (searchTitle) {
+          query.where('badges.title', 'ilike', `%${searchTitle}%`);
+        }
       })
       .select(
         'badges.*',
@@ -225,12 +249,27 @@ export class BadgesRepository {
         'badges.archived_at',
       ]);
 
-    const results = await this.db
+    const resultsQuery = this.db
       .from(baseQuery.as('badge_rows'))
-      .select('badge_rows.*', this.db.raw('COUNT(*) OVER() as full_count'))
-      .orderByRaw('earned_at DESC NULLS LAST, created_at DESC')
-      .limit(safeLimit)
-      .offset(offset);
+      .select('badge_rows.*', this.db.raw('COUNT(*) OVER() as full_count'));
+
+    if (sortBy === 'earned_at') {
+      resultsQuery.orderByRaw(
+        `badge_rows.earned_at ${
+          order === 'asc' ? 'ASC NULLS FIRST' : 'DESC NULLS LAST'
+        }`,
+      );
+      resultsQuery.orderBy('badge_rows.created_at', order);
+      resultsQuery.orderBy('badge_rows.id', order);
+    } else {
+      resultsQuery.orderBy(`badge_rows.${sortBy}`, order);
+      if (sortBy !== 'created_at') {
+        resultsQuery.orderBy('badge_rows.created_at', order);
+      }
+      resultsQuery.orderBy('badge_rows.id', order);
+    }
+
+    const results = await resultsQuery.limit(safeLimit).offset(offset);
 
     let total =
       results.length > 0 ? Number((results[0] as any).full_count || 0) : 0;

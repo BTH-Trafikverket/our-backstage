@@ -377,6 +377,12 @@ spec:
                 type: string
               description: Optional Backstage subject ref. If omitted for user credentials, badge progress is resolved across the authenticated user and all owned teams. Service credentials must provide subjectRef.
             - in: query
+              name: search
+              required: false
+              schema:
+                type: string
+              description: Optional title search applied to visible badges.
+            - in: query
               name: audience
               required: false
               schema:
@@ -392,6 +398,24 @@ spec:
               schema:
                 type: string
               description: Optional team entity ref used to narrow team progress when subjectRef is omitted.
+            - in: query
+              name: sortBy
+              required: false
+              schema:
+                type: string
+                enum:
+                  - earned_at
+                  - created_at
+                  - title
+                  - xp_reward
+            - in: query
+              name: order
+              required: false
+              schema:
+                type: string
+                enum:
+                  - asc
+                  - desc
             - in: query
               name: page
               required: false

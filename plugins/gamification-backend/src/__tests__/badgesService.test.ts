@@ -261,6 +261,44 @@ describe('BadgesService', () => {
         ],
         pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
       });
+      expect(badgesRepo.getPaginatedBadgeProgress).toHaveBeenCalledWith(
+        ['group:default/platform'],
+        {
+          searchTitle: undefined,
+          sortBy: undefined,
+          order: undefined,
+          page: undefined,
+          limit: undefined,
+        },
+      );
+    });
+
+    it('forwards badge progress search and sort options to the repository', async () => {
+      badgesRepo.getPaginatedBadgeProgress.mockResolvedValue({
+        data: [],
+        pagination: { page: 2, limit: 5, total: 0, totalPages: 0 },
+      } as any);
+      badgesRepo.getCriteriaProgressForBadges.mockResolvedValue([]);
+
+      await service.getBadgeProgress(['user:default/alice'], {
+        credentials: {} as any,
+        searchTitle: 'review',
+        sortBy: 'xp_reward',
+        order: 'asc',
+        page: 2,
+        limit: 5,
+      });
+
+      expect(badgesRepo.getPaginatedBadgeProgress).toHaveBeenCalledWith(
+        ['user:default/alice'],
+        {
+          searchTitle: 'review',
+          sortBy: 'xp_reward',
+          order: 'asc',
+          page: 2,
+          limit: 5,
+        },
+      );
     });
 
     it('returns undefined when a requested badge does not exist', async () => {

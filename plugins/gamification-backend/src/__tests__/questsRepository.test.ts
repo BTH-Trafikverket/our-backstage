@@ -423,6 +423,110 @@ describePostgres18('QuestsRepository integration', () => {
 
       await knex.destroy();
     });
+
+    it('respects order for every exposed quest sort field', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const alpha = await repository.createQuest({
+        title: 'Alpha Quest',
+        description: 'Alpha',
+        target_count: 1,
+        xp_reward: 100,
+        subject_type: 'user',
+      });
+      const bravo = await repository.createQuest({
+        title: 'Bravo Quest',
+        description: 'Bravo',
+        target_count: 1,
+        xp_reward: 50,
+        subject_type: 'user',
+      });
+      const charlie = await repository.createQuest({
+        title: 'Charlie Quest',
+        description: 'Charlie',
+        target_count: 1,
+        xp_reward: 200,
+        subject_type: 'user',
+      });
+
+      await knex('quests')
+        .where({ id: alpha.id })
+        .update({
+          created_at: new Date('2026-01-01T00:00:00Z'),
+          updated_at: new Date('2026-01-01T00:00:00Z'),
+        });
+      await knex('quests')
+        .where({ id: bravo.id })
+        .update({
+          created_at: new Date('2026-01-02T00:00:00Z'),
+          updated_at: new Date('2026-01-02T00:00:00Z'),
+        });
+      await knex('quests')
+        .where({ id: charlie.id })
+        .update({
+          created_at: new Date('2026-01-03T00:00:00Z'),
+          updated_at: new Date('2026-01-03T00:00:00Z'),
+        });
+
+      const titleAsc = await repository.getQuests({
+        sortBy: 'title',
+        order: 'asc',
+      });
+      const titleDesc = await repository.getQuests({
+        sortBy: 'title',
+        order: 'desc',
+      });
+      const xpAsc = await repository.getQuests({
+        sortBy: 'xp_reward',
+        order: 'asc',
+      });
+      const xpDesc = await repository.getQuests({
+        sortBy: 'xp_reward',
+        order: 'desc',
+      });
+      const createdAsc = await repository.getQuests({
+        sortBy: 'created_at',
+        order: 'asc',
+      });
+      const createdDesc = await repository.getQuests({
+        sortBy: 'created_at',
+        order: 'desc',
+      });
+
+      expect(titleAsc.data.map(quest => quest.title)).toEqual([
+        'Alpha Quest',
+        'Bravo Quest',
+        'Charlie Quest',
+      ]);
+      expect(titleDesc.data.map(quest => quest.title)).toEqual([
+        'Charlie Quest',
+        'Bravo Quest',
+        'Alpha Quest',
+      ]);
+      expect(xpAsc.data.map(quest => quest.title)).toEqual([
+        'Bravo Quest',
+        'Alpha Quest',
+        'Charlie Quest',
+      ]);
+      expect(xpDesc.data.map(quest => quest.title)).toEqual([
+        'Charlie Quest',
+        'Alpha Quest',
+        'Bravo Quest',
+      ]);
+      expect(createdAsc.data.map(quest => quest.title)).toEqual([
+        'Alpha Quest',
+        'Bravo Quest',
+        'Charlie Quest',
+      ]);
+      expect(createdDesc.data.map(quest => quest.title)).toEqual([
+        'Charlie Quest',
+        'Bravo Quest',
+        'Alpha Quest',
+      ]);
+
+      await knex.destroy();
+    });
   });
 
   describe('getQuestsWithProgress', () => {
@@ -626,6 +730,121 @@ describePostgres18('QuestsRepository integration', () => {
           totalPages: 1,
         },
       });
+
+      await knex.destroy();
+    });
+
+    it('respects order for every exposed progress sort field', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const alpha = await repository.createQuest({
+        title: 'Alpha Progress Quest',
+        description: 'Alpha',
+        target_count: 1,
+        xp_reward: 100,
+        subject_type: 'user',
+      });
+      const bravo = await repository.createQuest({
+        title: 'Bravo Progress Quest',
+        description: 'Bravo',
+        target_count: 1,
+        xp_reward: 50,
+        subject_type: 'user',
+      });
+      const charlie = await repository.createQuest({
+        title: 'Charlie Progress Quest',
+        description: 'Charlie',
+        target_count: 1,
+        xp_reward: 200,
+        subject_type: 'user',
+      });
+
+      await knex('quests')
+        .where({ id: alpha.id })
+        .update({
+          created_at: new Date('2026-01-01T00:00:00Z'),
+          updated_at: new Date('2026-01-01T00:00:00Z'),
+        });
+      await knex('quests')
+        .where({ id: bravo.id })
+        .update({
+          created_at: new Date('2026-01-02T00:00:00Z'),
+          updated_at: new Date('2026-01-02T00:00:00Z'),
+        });
+      await knex('quests')
+        .where({ id: charlie.id })
+        .update({
+          created_at: new Date('2026-01-03T00:00:00Z'),
+          updated_at: new Date('2026-01-03T00:00:00Z'),
+        });
+
+      const baseParams = {
+        user_ref: 'user:default/alice',
+        ownership_refs: ['user:default/alice'],
+      };
+
+      const titleAsc = await repository.getQuestsWithProgress({
+        ...baseParams,
+        sortBy: 'title',
+        order: 'asc',
+      });
+      const titleDesc = await repository.getQuestsWithProgress({
+        ...baseParams,
+        sortBy: 'title',
+        order: 'desc',
+      });
+      const xpAsc = await repository.getQuestsWithProgress({
+        ...baseParams,
+        sortBy: 'xp_reward',
+        order: 'asc',
+      });
+      const xpDesc = await repository.getQuestsWithProgress({
+        ...baseParams,
+        sortBy: 'xp_reward',
+        order: 'desc',
+      });
+      const createdAsc = await repository.getQuestsWithProgress({
+        ...baseParams,
+        sortBy: 'created_at',
+        order: 'asc',
+      });
+      const createdDesc = await repository.getQuestsWithProgress({
+        ...baseParams,
+        sortBy: 'created_at',
+        order: 'desc',
+      });
+
+      expect(titleAsc.data.map(quest => quest.title)).toEqual([
+        'Alpha Progress Quest',
+        'Bravo Progress Quest',
+        'Charlie Progress Quest',
+      ]);
+      expect(titleDesc.data.map(quest => quest.title)).toEqual([
+        'Charlie Progress Quest',
+        'Bravo Progress Quest',
+        'Alpha Progress Quest',
+      ]);
+      expect(xpAsc.data.map(quest => quest.title)).toEqual([
+        'Bravo Progress Quest',
+        'Alpha Progress Quest',
+        'Charlie Progress Quest',
+      ]);
+      expect(xpDesc.data.map(quest => quest.title)).toEqual([
+        'Charlie Progress Quest',
+        'Alpha Progress Quest',
+        'Bravo Progress Quest',
+      ]);
+      expect(createdAsc.data.map(quest => quest.title)).toEqual([
+        'Alpha Progress Quest',
+        'Bravo Progress Quest',
+        'Charlie Progress Quest',
+      ]);
+      expect(createdDesc.data.map(quest => quest.title)).toEqual([
+        'Charlie Progress Quest',
+        'Bravo Progress Quest',
+        'Alpha Progress Quest',
+      ]);
 
       await knex.destroy();
     });

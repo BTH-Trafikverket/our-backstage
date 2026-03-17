@@ -208,9 +208,9 @@ export const BadgesAdminPage = ({
   const [limit] = useState(10);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [sortBy, setSortBy] = useState<'created_at' | 'title' | 'xp_reward'>(
-    'created_at',
-  );
+  const [sortBy, setSortBy] = useState<
+    'earned_at' | 'created_at' | 'title' | 'xp_reward'
+  >('earned_at');
   const [order, setOrder] = useState<'asc' | 'desc'>('desc');
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -254,12 +254,11 @@ export const BadgesAdminPage = ({
         isAdmin ? '/badges' : '/badges/progress',
         {
           ...(search.trim() ? { search: search.trim() } : {}),
-          audience: audienceFilter,
-          ...(audienceFilter === 'team' && teamFilter
+          ...(!isAdmin ? { audience: audienceFilter } : {}),
+          ...(!isAdmin && audienceFilter === 'team' && teamFilter
             ? { team: teamFilter }
             : {}),
-          sortBy,
-          order,
+          ...(!isAdmin ? { sortBy, order } : {}),
           page: String(page),
           limit: String(limit),
         },
@@ -361,7 +360,7 @@ export const BadgesAdminPage = ({
 
   useEffect(() => {
     setPage(1);
-  }, [search, audienceFilter, teamFilter, sortBy, order]);
+  }, [isAdmin, search, audienceFilter, teamFilter, sortBy, order]);
 
   useEffect(() => {
     let mounted = true;
@@ -1317,93 +1316,100 @@ export const BadgesAdminPage = ({
               style={{ marginBottom: 16 }}
             />
 
-            <Box display="flex" style={{ marginBottom: 16 }}>
-              <FormControl
-                variant="outlined"
-                size="small"
-                style={{ minWidth: 180 }}
-              >
-                <InputLabel id="audience-filter-label">
-                  Filter by audience
-                </InputLabel>
-                <Select
-                  labelId="audience-filter-label"
-                  value={audienceFilter}
-                  onChange={e =>
-                    setAudienceFilter(
-                      e.target.value as 'all' | 'individual' | 'team',
-                    )
-                  }
-                  label="Filter by audience"
-                >
-                  <MenuItem value="all">All</MenuItem>
-                  <MenuItem value="individual">Individual</MenuItem>
-                  <MenuItem value="team">Team</MenuItem>
-                </Select>
-              </FormControl>
-
-              {audienceFilter === 'team' && (
+            {!isAdmin && (
+              <Box display="flex" style={{ marginBottom: 16 }}>
                 <FormControl
                   variant="outlined"
                   size="small"
-                  style={{ minWidth: 260, marginLeft: 8 }}
-                  disabled={teamOptions.length === 0}
+                  style={{ minWidth: 180 }}
                 >
-                  <InputLabel id="team-filter-label">Team</InputLabel>
+                  <InputLabel id="audience-filter-label">
+                    Filter by audience
+                  </InputLabel>
                   <Select
-                    labelId="team-filter-label"
-                    value={teamFilter}
-                    onChange={e => setTeamFilter(e.target.value as string)}
-                    label="Team"
+                    labelId="audience-filter-label"
+                    value={audienceFilter}
+                    onChange={e =>
+                      setAudienceFilter(
+                        e.target.value as 'all' | 'individual' | 'team',
+                      )
+                    }
+                    label="Filter by audience"
                   >
-                    {teamOptions.map(team => (
-                      <MenuItem key={team} value={team}>
-                        {team}
-                      </MenuItem>
-                    ))}
+                    <MenuItem value="all">All</MenuItem>
+                    <MenuItem value="individual">Individual</MenuItem>
+                    <MenuItem value="team">Team</MenuItem>
                   </Select>
                 </FormControl>
-              )}
 
-              <FormControl
-                variant="outlined"
-                size="small"
-                style={{ minWidth: 180, marginLeft: 8 }}
-              >
-                <InputLabel id="sort-by-label">Sort by</InputLabel>
-                <Select
-                  labelId="sort-by-label"
-                  value={sortBy}
-                  onChange={e =>
-                    setSortBy(
-                      e.target.value as 'created_at' | 'title' | 'xp_reward',
-                    )
-                  }
-                  label="Sort by"
-                >
-                  <MenuItem value="created_at">Created</MenuItem>
-                  <MenuItem value="title">Title</MenuItem>
-                  <MenuItem value="xp_reward">XP Reward</MenuItem>
-                </Select>
-              </FormControl>
+                {audienceFilter === 'team' && (
+                  <FormControl
+                    variant="outlined"
+                    size="small"
+                    style={{ minWidth: 260, marginLeft: 8 }}
+                    disabled={teamOptions.length === 0}
+                  >
+                    <InputLabel id="team-filter-label">Team</InputLabel>
+                    <Select
+                      labelId="team-filter-label"
+                      value={teamFilter}
+                      onChange={e => setTeamFilter(e.target.value as string)}
+                      label="Team"
+                    >
+                      {teamOptions.map(team => (
+                        <MenuItem key={team} value={team}>
+                          {team}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
 
-              <FormControl
-                variant="outlined"
-                size="small"
-                style={{ minWidth: 140, marginLeft: 8 }}
-              >
-                <InputLabel id="order-label">Order</InputLabel>
-                <Select
-                  labelId="order-label"
-                  value={order}
-                  onChange={e => setOrder(e.target.value as 'asc' | 'desc')}
-                  label="Order"
+                <FormControl
+                  variant="outlined"
+                  size="small"
+                  style={{ minWidth: 180, marginLeft: 8 }}
                 >
-                  <MenuItem value="asc">Ascending</MenuItem>
-                  <MenuItem value="desc">Descending</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
+                  <InputLabel id="sort-by-label">Sort by</InputLabel>
+                  <Select
+                    labelId="sort-by-label"
+                    value={sortBy}
+                    onChange={e =>
+                      setSortBy(
+                        e.target.value as
+                          | 'earned_at'
+                          | 'created_at'
+                          | 'title'
+                          | 'xp_reward',
+                      )
+                    }
+                    label="Sort by"
+                  >
+                    <MenuItem value="earned_at">Earned</MenuItem>
+                    <MenuItem value="created_at">Created</MenuItem>
+                    <MenuItem value="title">Title</MenuItem>
+                    <MenuItem value="xp_reward">XP Reward</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <FormControl
+                  variant="outlined"
+                  size="small"
+                  style={{ minWidth: 140, marginLeft: 8 }}
+                >
+                  <InputLabel id="order-label">Order</InputLabel>
+                  <Select
+                    labelId="order-label"
+                    value={order}
+                    onChange={e => setOrder(e.target.value as 'asc' | 'desc')}
+                    label="Order"
+                  >
+                    <MenuItem value="asc">Ascending</MenuItem>
+                    <MenuItem value="desc">Descending</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            )}
 
             {loading && (
               <Box textAlign="center" p={2}>
@@ -1419,7 +1425,7 @@ export const BadgesAdminPage = ({
 
             {!loading && !error && badges.length === 0 && (
               <Typography variant="body2">
-                {search.trim()
+                {isAdmin && search.trim()
                   ? 'No badges found. Try a different search.'
                   : 'No badges found.'}
               </Typography>
