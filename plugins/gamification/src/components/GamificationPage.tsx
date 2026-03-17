@@ -8,8 +8,8 @@ import {
   Page,
 } from '@backstage/core-components';
 import {
-  configApiRef,
-  identityApiRef,
+  discoveryApiRef,
+  fetchApiRef,
   useApi,
 } from '@backstage/core-plugin-api';
 import { Link, Route, Routes } from 'react-router-dom';
@@ -19,31 +19,28 @@ import { QuestsAdminPage } from './QuestsAdminPage';
 export const GamificationPage = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
-  const identityApi = useApi(identityApiRef);
-  const configApi = useApi(configApiRef);
+  const discoveryApi = useApi(discoveryApiRef);
+  const fetchApi = useApi(fetchApiRef);
 
   useEffect(() => {
     const checkAdminRole = async () => {
       try {
-        const identity = await identityApi.getBackstageIdentity();
-        const adminGroups = new Set(
-          (
-            configApi.getOptionalStringArray('gamification.admin.groups') ?? []
-          ).map(ref => ref.toLocaleLowerCase('en-US')),
-        );
+        const baseUrl = await discoveryApi.getBaseUrl('gamification');
+        const response = await fetchApi.fetch(`${baseUrl}/quests/admin-status`);
 
-        setIsAdmin(
-          identity.ownershipEntityRefs?.some(ref =>
-            adminGroups.has(ref.toLocaleLowerCase('en-US')),
-          ) ?? false,
-        );
+        if (!response.ok) {
+          throw new Error(response.statusText);
+        }
+
+        const result = await response.json();
+        setIsAdmin(Boolean(result?.isAdmin));
       } catch {
         setIsAdmin(false);
       }
     };
 
     checkAdminRole();
-  }, [configApi, identityApi]);
+  }, [discoveryApi, fetchApi]);
 
   const effectiveIsAdmin = demoMode ? !isAdmin : isAdmin;
 

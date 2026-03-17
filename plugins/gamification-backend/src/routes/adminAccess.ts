@@ -39,3 +39,32 @@ export function createRequireAdminCredentials(options: {
     return credentials;
   };
 }
+
+export function createReadAdminAccess(options: {
+  httpAuth: HttpAuthService;
+  userInfo: UserInfoService;
+  config: RootConfigService;
+}) {
+  const adminGroups = new Set(
+    (
+      options.config.getOptionalStringArray('gamification.admin.groups') ?? []
+    ).map(ref => ref.toLocaleLowerCase('en-US')),
+  );
+
+  return async (req: express.Request) => {
+    const credentials = await options.httpAuth.credentials(req, {
+      allow: ['user', 'service'],
+    });
+
+    if (credentials.principal.type !== 'user') {
+      return { credentials, isAdmin: false };
+    }
+
+    const info = await options.userInfo.getUserInfo(credentials);
+    const isAdmin = info.ownershipEntityRefs.some(ref =>
+      adminGroups.has(ref.toLocaleLowerCase('en-US')),
+    );
+
+    return { credentials, isAdmin };
+  };
+}
