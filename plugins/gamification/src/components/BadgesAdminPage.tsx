@@ -46,9 +46,12 @@ import {
 } from '@backstage/core-plugin-api';
 import { Alert } from '@material-ui/lab';
 
+type BadgeSubjectType = 'user' | 'team';
+
 type QuestLite = {
   id: string;
   title: string;
+  subject_type: BadgeSubjectType;
   completion_policy: 'ONE_TIME' | 'REPEATABLE';
 };
 
@@ -61,6 +64,7 @@ type Badge = {
   id: string;
   title: string;
   description: string;
+  subject_type: BadgeSubjectType;
   criterias: BadgeCriteria[];
   archived_at?: string | null;
   isEarned?: boolean;
@@ -96,6 +100,7 @@ type BadgeFormCriteria = {
 type BadgeFormData = {
   title: string;
   description: string;
+  subject_type: BadgeSubjectType;
   criterias: BadgeFormCriteria[];
 };
 
@@ -108,6 +113,7 @@ type BadgesAdminPageProps = {
 const createEmptyForm = (): BadgeFormData => ({
   title: '',
   description: '',
+  subject_type: 'user',
   criterias: [{ quest_id: '', target_count: '1' }],
 });
 
@@ -275,13 +281,19 @@ export const BadgesAdminPage = ({
       const byId = new Map<string, QuestLite>();
 
       for (const quest of questRows) {
-        if (!quest?.id || !quest?.title || !quest?.completion_policy) {
+        if (
+          !quest?.id ||
+          !quest?.title ||
+          !quest?.completion_policy ||
+          !quest?.subject_type
+        ) {
           continue;
         }
 
         byId.set(quest.id, {
           id: quest.id,
           title: quest.title,
+          subject_type: quest.subject_type === 'team' ? 'team' : 'user',
           completion_policy: quest.completion_policy,
         });
       }
@@ -349,6 +361,35 @@ export const BadgesAdminPage = ({
     return quest ? quest.title : questId;
   };
 
+  const getBadgeSubjectTypeLabel = (subjectType: BadgeSubjectType) =>
+    subjectType === 'team' ? 'Team' : 'User';
+
+  const getCompatibleQuests = (subjectType: BadgeSubjectType) =>
+    quests.filter(quest => quest.subject_type === subjectType);
+
+  const updateBadgeSubjectType = (
+    setter: Dispatch<SetStateAction<BadgeFormData>>,
+    subjectType: BadgeSubjectType,
+  ) => {
+    setter(prev => ({
+      ...prev,
+      subject_type: subjectType,
+      criterias: prev.criterias.map(criteria => {
+        const selectedQuest = getQuestById(criteria.quest_id);
+
+        if (selectedQuest && selectedQuest.subject_type !== subjectType) {
+          return { quest_id: '', target_count: '1' };
+        }
+
+        if (selectedQuest?.completion_policy === 'ONE_TIME') {
+          return { ...criteria, target_count: '1' };
+        }
+
+        return criteria;
+      }),
+    }));
+  };
+
   const addCriteriaRow = (setter: Dispatch<SetStateAction<BadgeFormData>>) => {
     setter(prev => ({
       ...prev,
@@ -410,6 +451,7 @@ export const BadgesAdminPage = ({
   const validateBadgeForm = (form: BadgeFormData): string | null => {
     if (!form.title.trim()) return 'Title is required';
     if (!form.description.trim()) return 'Description is required';
+    if (!form.subject_type) return 'Badge type is required';
     if (!form.criterias.length) return 'At least one criterion is required';
 
     const selectedIds = form.criterias
@@ -428,6 +470,16 @@ export const BadgesAdminPage = ({
       }
 
       const quest = getQuestById(criteria.quest_id);
+      if (!quest) {
+        return `Criterion ${i + 1}: Selected quest could not be found`;
+      }
+      if (quest.subject_type !== form.subject_type) {
+        return `Criterion ${i + 1}: ${getBadgeSubjectTypeLabel(
+          form.subject_type,
+        )} badges can only use ${getBadgeSubjectTypeLabel(
+          form.subject_type,
+        ).toLocaleLowerCase('en-US')} quests`;
+      }
       const parsedCount = parseInt(criteria.target_count, 10);
 
       if (quest?.completion_policy === 'ONE_TIME') {
@@ -480,6 +532,7 @@ export const BadgesAdminPage = ({
         body: JSON.stringify({
           title: createForm.title.trim(),
           description: createForm.description.trim(),
+          subject_type: createForm.subject_type,
           criterias: createForm.criterias.map(c => ({
             quest_id: c.quest_id,
             target_count: parseInt(c.target_count, 10),
@@ -507,6 +560,7 @@ export const BadgesAdminPage = ({
     setEditForm({
       title: badge.title,
       description: badge.description,
+      subject_type: badge.subject_type,
       criterias: badge.criterias.map(c => ({
         quest_id: c.quest_id,
         target_count: String(c.target_count),
@@ -548,6 +602,7 @@ export const BadgesAdminPage = ({
         body: JSON.stringify({
           title: editForm.title.trim(),
           description: editForm.description.trim(),
+          subject_type: editForm.subject_type,
           criterias: editForm.criterias.map(c => ({
             quest_id: c.quest_id,
             target_count: parseInt(c.target_count, 10),
@@ -647,15 +702,23 @@ export const BadgesAdminPage = ({
     form: BadgeFormData,
     setter: Dispatch<SetStateAction<BadgeFormData>>,
   ) => {
+    const compatibleQuests = getCompatibleQuests(form.subject_type);
+
     return form.criterias.map((criteria, idx) => {
       const selectedQuest = quests.find(q => q.id === criteria.quest_id);
       const isOneTime = selectedQuest?.completion_policy === 'ONE_TIME';
 
-      let helperText = 'Choose a quest';
+      let helperText = `Choose a ${getBadgeSubjectTypeLabel(
+        form.subject_type,
+      ).toLocaleLowerCase('en-US')} quest`;
       if (criteria.quest_id) {
         helperText = isOneTime
           ? 'This quest is One-time'
           : 'This quest is Repeatable';
+      } else if (compatibleQuests.length === 0) {
+        helperText = `No ${getBadgeSubjectTypeLabel(
+          form.subject_type,
+        ).toLocaleLowerCase('en-US')} quests are available`;
       }
 
       let completionPolicyValue = '';
@@ -685,7 +748,7 @@ export const BadgesAdminPage = ({
             <MenuItem value="">
               <em>Select a quest</em>
             </MenuItem>
-            {quests.map(q => {
+            {compatibleQuests.map(q => {
               const policyLabel =
                 q.completion_policy === 'ONE_TIME' ? 'One-time' : 'Repeatable';
 
@@ -782,10 +845,28 @@ export const BadgesAdminPage = ({
             }}
           />
 
+          <TextField
+            select
+            fullWidth
+            label="Badge Type"
+            margin="dense"
+            value={createForm.subject_type}
+            onChange={e => {
+              updateBadgeSubjectType(
+                setCreateForm,
+                e.target.value as BadgeSubjectType,
+              );
+              setCreateError(null);
+            }}
+          >
+            <MenuItem value="user">User</MenuItem>
+            <MenuItem value="team">Team</MenuItem>
+          </TextField>
+
           <Box mt={3} mb={1}>
             <Typography variant="subtitle1">Criteria</Typography>
             <Typography variant="body2" color="textSecondary">
-              Select a quest. One-time quests do not show a count.
+              Select a matching quest type. One-time quests do not show a count.
             </Typography>
           </Box>
 
@@ -851,10 +932,28 @@ export const BadgesAdminPage = ({
             }}
           />
 
+          <TextField
+            select
+            fullWidth
+            label="Badge Type"
+            margin="dense"
+            value={editForm.subject_type}
+            onChange={e => {
+              updateBadgeSubjectType(
+                setEditForm,
+                e.target.value as BadgeSubjectType,
+              );
+              setEditError(null);
+            }}
+          >
+            <MenuItem value="user">User</MenuItem>
+            <MenuItem value="team">Team</MenuItem>
+          </TextField>
+
           <Box mt={3} mb={1}>
             <Typography variant="subtitle1">Criteria</Typography>
             <Typography variant="body2" color="textSecondary">
-              Select a quest. One-time quests do not show a count.
+              Select a matching quest type. One-time quests do not show a count.
             </Typography>
           </Box>
 
@@ -1069,8 +1168,9 @@ export const BadgesAdminPage = ({
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell style={{ width: '18%' }}>Title</TableCell>
-                        <TableCell style={{ width: '30%' }}>
+                        <TableCell style={{ width: '16%' }}>Title</TableCell>
+                        <TableCell style={{ width: '10%' }}>Type</TableCell>
+                        <TableCell style={{ width: '26%' }}>
                           Description
                         </TableCell>
                         <TableCell style={{ width: '30%' }}>Criteria</TableCell>
@@ -1085,6 +1185,14 @@ export const BadgesAdminPage = ({
                       {badges.map(badge => (
                         <TableRow key={badge.id}>
                           <TableCell>{badge.title}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={getBadgeSubjectTypeLabel(
+                                badge.subject_type,
+                              )}
+                              size="small"
+                            />
+                          </TableCell>
                           <TableCell>{badge.description}</TableCell>
                           <TableCell>
                             {renderCriteriaSummary(badge.criterias)}

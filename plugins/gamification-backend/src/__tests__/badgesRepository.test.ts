@@ -3,6 +3,7 @@ import { TestDatabases } from '@backstage/backend-test-utils';
 import type { Knex } from 'knex';
 import { BadgesRepository } from '../repositories/badgesRepository';
 import { QuestsRepository } from '../repositories/questsRepository';
+import type { QuestSubjectType } from '../schemas/quests/questCreationSchema';
 
 jest.setTimeout(60000);
 
@@ -30,13 +31,18 @@ describe('BadgesRepository Integration Tests', () => {
     return knex;
   }
 
-  async function createQuest(knex: Knex, title: string) {
+  async function createQuest(
+    knex: Knex,
+    title: string,
+    subjectType: QuestSubjectType = 'user',
+  ) {
     const questsRepo = new QuestsRepository(knex);
     return questsRepo.createQuest({
       title,
       description: `${title} description`,
       target_count: 1,
       xp_reward: 100,
+      subject_type: subjectType,
     });
   }
 
@@ -51,6 +57,7 @@ describe('BadgesRepository Integration Tests', () => {
       const badge = await repository.createBadge({
         title: 'Contributor',
         description: 'Awarded for completing core work',
+        subject_type: 'user',
       });
       await repository.insertBadgeCriteria(badge.id, [
         { quest_id: quest.id, target_count: 3 },
@@ -77,10 +84,12 @@ describe('BadgesRepository Integration Tests', () => {
       const badgeA = await repository.createBadge({
         title: 'Badge A',
         description: 'First badge',
+        subject_type: 'user',
       });
       const badgeB = await repository.createBadge({
         title: 'Badge B',
         description: 'Second badge',
+        subject_type: 'user',
       });
 
       await repository.insertBadgeCriteria(badgeA.id, [
@@ -110,6 +119,7 @@ describe('BadgesRepository Integration Tests', () => {
       const badge = await repository.createBadge({
         title: 'Original Badge',
         description: 'Original description',
+        subject_type: 'user',
       });
       await repository.insertBadgeCriteria(badge.id, [
         { quest_id: questA.id, target_count: 1 },
@@ -134,15 +144,36 @@ describe('BadgesRepository Integration Tests', () => {
       await knex.destroy();
     });
 
+    it('rejects criteria whose quest type does not match the badge type', async () => {
+      const knex = await initDb();
+      const repository = new BadgesRepository(knex);
+      const teamQuest = await createQuest(knex, 'Quest Team Only', 'team');
+
+      const badge = await repository.createBadge({
+        title: 'User Badge Only',
+        description: 'Should not allow team quests',
+        subject_type: 'user',
+      });
+
+      await expect(
+        repository.insertBadgeCriteria(badge.id, [
+          { quest_id: teamQuest.id, target_count: 1 },
+        ]),
+      ).rejects.toThrow(/subject_type/i);
+
+      await knex.destroy();
+    });
+
     it('returns all active badges with persisted earned state for a group subject', async () => {
       const knex = await initDb();
       const repository = new BadgesRepository(knex);
-      const questA = await createQuest(knex, 'Quest Earned A');
-      const questB = await createQuest(knex, 'Quest Earned B');
+      const questA = await createQuest(knex, 'Quest Earned A', 'team');
+      const questB = await createQuest(knex, 'Quest Earned B', 'team');
 
       const earnedBadge = await repository.createBadge({
         title: 'Earned Badge',
         description: 'Completed criteria',
+        subject_type: 'team',
       });
       await repository.insertBadgeCriteria(earnedBadge.id, [
         { quest_id: questA.id, target_count: 2 },
@@ -152,6 +183,7 @@ describe('BadgesRepository Integration Tests', () => {
       const unearnedBadge = await repository.createBadge({
         title: 'Unearned Badge',
         description: 'Missing progress',
+        subject_type: 'team',
       });
       await repository.insertBadgeCriteria(unearnedBadge.id, [
         { quest_id: questA.id, target_count: 3 },
@@ -243,6 +275,7 @@ describe('BadgesRepository Integration Tests', () => {
       const badge = await repository.createBadge({
         title: 'User Badge',
         description: 'Awarded once',
+        subject_type: 'user',
       });
       await repository.insertBadgeCriteria(badge.id, [
         { quest_id: quest.id, target_count: 2 },
@@ -288,12 +321,13 @@ describe('BadgesRepository Integration Tests', () => {
     it('clears persisted runtime state when criteria are replaced', async () => {
       const knex = await initDb();
       const repository = new BadgesRepository(knex);
-      const questA = await createQuest(knex, 'Quest Replace Runtime A');
-      const questB = await createQuest(knex, 'Quest Replace Runtime B');
+      const questA = await createQuest(knex, 'Quest Replace Runtime A', 'team');
+      const questB = await createQuest(knex, 'Quest Replace Runtime B', 'team');
 
       const badge = await repository.createBadge({
         title: 'Replace Runtime Badge',
         description: 'Runtime should be cleared on criteria replace',
+        subject_type: 'team',
       });
       await repository.insertBadgeCriteria(badge.id, [
         { quest_id: questA.id, target_count: 1 },
@@ -325,11 +359,12 @@ describe('BadgesRepository Integration Tests', () => {
     it('aggregates earned badge state across user and team subject refs', async () => {
       const knex = await initDb();
       const repository = new BadgesRepository(knex);
-      const quest = await createQuest(knex, 'Quest Aggregate Subjects');
+      const quest = await createQuest(knex, 'Quest Aggregate Subjects', 'team');
 
       const badge = await repository.createBadge({
         title: 'Team Earned Badge',
         description: 'Earned by a team membership',
+        subject_type: 'team',
       });
       await repository.insertBadgeCriteria(badge.id, [
         { quest_id: quest.id, target_count: 1 },
@@ -354,14 +389,56 @@ describe('BadgesRepository Integration Tests', () => {
       await knex.destroy();
     });
 
+    it('limits active badge visibility to the subject types in the requested refs', async () => {
+      const knex = await initDb();
+      const repository = new BadgesRepository(knex);
+      const userQuest = await createQuest(knex, 'Quest User Visible', 'user');
+      const teamQuest = await createQuest(knex, 'Quest Team Visible', 'team');
+
+      const userBadge = await repository.createBadge({
+        title: 'User Badge Visible',
+        description: 'Visible for user refs only',
+        subject_type: 'user',
+      });
+      const teamBadge = await repository.createBadge({
+        title: 'Team Badge Visible',
+        description: 'Visible for team refs only',
+        subject_type: 'team',
+      });
+
+      await repository.insertBadgeCriteria(userBadge.id, [
+        { quest_id: userQuest.id, target_count: 1 },
+      ]);
+      await repository.insertBadgeCriteria(teamBadge.id, [
+        { quest_id: teamQuest.id, target_count: 1 },
+      ]);
+
+      const groupOnlyProgress = await repository.getBadgeProgress([
+        'group:default/platform',
+      ]);
+      const userOnlyProgress = await repository.getBadgeProgress([
+        'user:default/alice',
+      ]);
+
+      expect(groupOnlyProgress.map(badge => badge.title)).toEqual([
+        'Team Badge Visible',
+      ]);
+      expect(userOnlyProgress.map(badge => badge.title)).toEqual([
+        'User Badge Visible',
+      ]);
+
+      await knex.destroy();
+    });
+
     it('archives a badge instead of deleting it', async () => {
       const knex = await initDb();
       const repository = new BadgesRepository(knex);
-      const quest = await createQuest(knex, 'Quest Delete');
+      const quest = await createQuest(knex, 'Quest Delete', 'team');
 
       const badge = await repository.createBadge({
         title: 'Delete Badge',
         description: 'To be removed',
+        subject_type: 'team',
       });
       await repository.insertBadgeCriteria(badge.id, [
         { quest_id: quest.id, target_count: 1 },

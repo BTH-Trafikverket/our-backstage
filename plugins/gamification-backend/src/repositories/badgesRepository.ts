@@ -1,9 +1,11 @@
 import type { Knex } from 'knex';
+import type { QuestSubjectType } from '../schemas/quests/questCreationSchema';
 
 export type BadgeRow = {
   id: string;
   title: string;
   description: string;
+  subject_type: QuestSubjectType;
   created_at: Date;
   updated_at: Date;
   archived_at: Date | null;
@@ -35,6 +37,7 @@ export type PaginatedBadgesResult<T> = {
 export type CreateBadgeRow = {
   title: string;
   description: string;
+  subject_type: QuestSubjectType;
 };
 
 export type UpdateBadgeRow = Partial<CreateBadgeRow>;
@@ -57,6 +60,7 @@ export class BadgesRepository {
       .insert({
         title: data.title,
         description: data.description,
+        subject_type: data.subject_type,
       })
       .returning('*');
 
@@ -147,11 +151,23 @@ export class BadgesRepository {
     const refs = [
       ...new Set(subjectRefs.map(ref => ref.trim()).filter(Boolean)),
     ];
-
+    const subjectTypes = [
+      ...new Set(
+        refs.flatMap(ref => {
+          if (ref.startsWith('group:')) {
+            return ['team' as const];
+          }
+          if (ref.startsWith('user:')) {
+            return ['user' as const];
+          }
+          return [];
+        }),
+      ),
+    ];
     const { page = 1, limit = 10 } = params ?? {};
     const { safePage, safeLimit, offset } = this.getSafePagination(page, limit);
 
-    if (refs.length === 0) {
+    if (refs.length === 0 || subjectTypes.length === 0) {
       return {
         data: [],
         pagination: {
@@ -177,14 +193,18 @@ export class BadgesRepository {
         ),
       )
       .where(function whereVisibleBadges() {
-        this.whereNull('badges.archived_at').orWhereNotNull(
-          'earned_badges.earned_at',
-        );
+        this.where(function whereActiveApplicableBadges() {
+          this.whereNull('badges.archived_at').whereIn(
+            'badges.subject_type',
+            subjectTypes,
+          );
+        }).orWhereNotNull('earned_badges.earned_at');
       })
       .groupBy([
         'badges.id',
         'badges.title',
         'badges.description',
+        'badges.subject_type',
         'badges.created_at',
         'badges.updated_at',
         'badges.archived_at',
@@ -308,6 +328,9 @@ export class BadgesRepository {
     }
     if (data.description !== undefined) {
       updateData.description = data.description;
+    }
+    if (data.subject_type !== undefined) {
+      updateData.subject_type = data.subject_type;
     }
 
     const rows = await this.db<BadgeRow>('badges')

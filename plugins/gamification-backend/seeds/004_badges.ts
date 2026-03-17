@@ -3,6 +3,7 @@ import type { Seed } from '../src/seeds/types';
 type BadgeSeed = {
   title: string;
   description: string;
+  subject_type: 'user' | 'team';
   criterias: Array<{
     questTitle: string;
     target_count: number;
@@ -17,16 +18,19 @@ export const seed004Badges: Seed = {
       {
         title: 'First Merge',
         description: 'Awarded for landing your first pull request',
+        subject_type: 'user',
         criterias: [{ questTitle: 'Merge a PR', target_count: 1 }],
       },
       {
         title: 'Review Champion',
         description: 'Awarded for consistent and meaningful code reviews',
+        subject_type: 'user',
         criterias: [{ questTitle: 'Review PRs', target_count: 3 }],
       },
       {
         title: 'All-round Contributor',
         description: 'Awarded for merging, reviewing, and fixing CI',
+        subject_type: 'user',
         criterias: [
           { questTitle: 'Merge a PR', target_count: 1 },
           { questTitle: 'Review PRs', target_count: 3 },
@@ -36,11 +40,13 @@ export const seed004Badges: Seed = {
       {
         title: 'Security Sweep',
         description: 'Awarded to teams that finish a security patch sweep',
+        subject_type: 'team',
         criterias: [{ questTitle: 'Security Patch Sweep', target_count: 1 }],
       },
       {
         title: 'Release Ready',
         description: 'Awarded to teams that finish readiness and docs work',
+        subject_type: 'team',
         criterias: [
           { questTitle: 'Shared Release Readiness', target_count: 3 },
           { questTitle: 'Documentation Drive', target_count: 5 },
@@ -50,6 +56,7 @@ export const seed004Badges: Seed = {
         title: 'Maintenance Crew',
         description:
           'Awarded to teams that keep dependencies and audits in shape',
+        subject_type: 'team',
         criterias: [
           { questTitle: 'Dependency Hygiene Sprint', target_count: 2 },
           { questTitle: 'Accessibility Audit', target_count: 2 },
@@ -86,11 +93,13 @@ export const seed004Badges: Seed = {
         badgeSeeds.map(badge => ({
           title: badge.title,
           description: badge.description,
+          subject_type: badge.subject_type,
         })),
       )
       .onConflict('title')
       .merge({
         description: knex.ref('excluded.description'),
+        subject_type: knex.ref('excluded.subject_type'),
         archived_at: null,
       });
 

@@ -13,6 +13,7 @@ describe('badges routes auth and errors', () => {
   const badgePayload = {
     title: 'Contributor',
     description: 'Awarded for shipping code',
+    subject_type: 'user' as const,
     criterias: [{ quest_id: 'quest-1', target_count: 3 }],
   };
 
@@ -50,6 +51,7 @@ describe('badges routes auth and errors', () => {
             id: 'badge-1',
             title: 'Contributor',
             description: 'Awarded for shipping code',
+            subject_type: 'user' as const,
             criterias: [{ quest_id: 'quest-1', target_count: 3 }],
             archived_at: null,
             created_at: new Date('2026-01-01T00:00:00Z'),
@@ -62,6 +64,7 @@ describe('badges routes auth and errors', () => {
         id,
         title: 'Contributor',
         description: 'Awarded for shipping code',
+        subject_type: 'user' as const,
         criterias: [{ quest_id: 'quest-1', target_count: 3 }],
         archived_at: null,
         created_at: new Date('2026-01-01T00:00:00Z'),
@@ -74,6 +77,7 @@ describe('badges routes auth and errors', () => {
             id: 'badge-1',
             title: 'Contributor',
             description: 'Awarded for shipping code',
+            subject_type: 'user' as const,
             criterias: [{ quest_id: 'quest-1', target_count: 3 }],
             isEarned: true,
             earnedAt: new Date('2026-01-03T00:00:00Z'),
@@ -88,6 +92,7 @@ describe('badges routes auth and errors', () => {
         id,
         title: 'Contributor',
         description: 'Awarded for shipping code',
+        subject_type: 'user' as const,
         criterias: [{ quest_id: 'quest-1', target_count: 3 }],
         archived_at: null,
         created_at: new Date('2026-01-01T00:00:00Z'),
