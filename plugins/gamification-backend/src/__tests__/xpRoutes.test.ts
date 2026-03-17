@@ -61,7 +61,7 @@ describePostgres18('xp routes', () => {
     const b = Math.floor(totalXp / 3);
     const c = totalXp - a - b;
 
-    await knex('xp_ledger').insert([
+    await knex('xp_awards').insert([
       {
         id: randomUUID(),
         subject_ref: subjectRef,

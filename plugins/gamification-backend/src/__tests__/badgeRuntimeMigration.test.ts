@@ -7,7 +7,7 @@ const { describePostgres18, initDb, migrationsDir } =
   createPostgres18TestHarness(__dirname);
 
 describePostgres18('badge runtime persistence migration', () => {
-  const runtimeMigration = '016_persist_badge_runtime_state.ts';
+  const runtimeMigration = '012_create_badge_triggers.ts';
 
   async function migrateThroughLegacySchema(knex: Knex): Promise<void> {
     const migrationNames = fs
@@ -51,6 +51,7 @@ describePostgres18('badge runtime persistence migration', () => {
       id: badgeId,
       title: 'Legacy Badge',
       description: 'Migrated from live computation',
+      xp_reward: 75,
     });
 
     await knex('badge_criteria').insert([
@@ -89,6 +90,10 @@ describePostgres18('badge runtime persistence migration', () => {
         { column: 'subject_ref', order: 'asc' },
         { column: 'badge_id', order: 'asc' },
       ]);
+    const badgeXpAwards = await knex('xp_awards')
+      .select(['subject_ref', 'badge_id', 'quest_id', 'xp_amount', 'source'])
+      .where({ badge_id: badgeId })
+      .orderBy('subject_ref', 'asc');
 
     expect(badge).toMatchObject({
       id: badgeId,
@@ -112,6 +117,15 @@ describePostgres18('badge runtime persistence migration', () => {
       {
         subject_ref: subjectRef,
         badge_id: badgeId,
+      },
+    ]);
+    expect(badgeXpAwards).toEqual([
+      {
+        subject_ref: subjectRef,
+        badge_id: badgeId,
+        quest_id: null,
+        xp_amount: 75,
+        source: 'badge_completion_trigger',
       },
     ]);
   });
