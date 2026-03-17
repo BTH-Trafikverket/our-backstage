@@ -222,20 +222,11 @@ export const QuestsAdminPage = ({
       }
 
       const result = await response.json();
+      const rows = Array.isArray(result.data) ? result.data : [];
 
-      if (result && result.data && result.pagination) {
-        setQuests((result.data || []).map(normalizeQuest));
-        setTotal(result.pagination.total || 0);
-        setTotalPages(result.pagination.totalPages || 1);
-      } else if (Array.isArray(result)) {
-        setQuests(result.map(normalizeQuest));
-        setTotal(result.length);
-        setTotalPages(1);
-      } else {
-        setQuests([]);
-        setTotal(0);
-        setTotalPages(1);
-      }
+      setQuests(rows.map(normalizeQuest));
+      setTotal(result.pagination?.total || 0);
+      setTotalPages(result.pagination?.totalPages || 1);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'An unknown error occurred',

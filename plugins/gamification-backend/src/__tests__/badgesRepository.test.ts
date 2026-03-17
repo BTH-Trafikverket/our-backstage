@@ -7,6 +7,33 @@ import { createPostgres18TestHarness } from '../../tests/helpers/postgres18TestH
 const { describePostgres18, initDb } = createPostgres18TestHarness(__dirname);
 
 describePostgres18('BadgesRepository integration', () => {
+  async function listBadges(
+    repository: BadgesRepository,
+    params?: Parameters<BadgesRepository['getPaginatedBadges']>[0],
+  ) {
+    const result = await repository.getPaginatedBadges({
+      page: 1,
+      limit: 1000,
+      ...params,
+    });
+
+    return result.data;
+  }
+
+  async function listBadgeProgress(
+    repository: BadgesRepository,
+    subjectRefs: string[],
+    params?: Parameters<BadgesRepository['getPaginatedBadgeProgress']>[1],
+  ) {
+    const result = await repository.getPaginatedBadgeProgress(subjectRefs, {
+      page: 1,
+      limit: 1000,
+      ...params,
+    });
+
+    return result.data;
+  }
+
   it('rolls back badge writes when a transaction fails', async () => {
     const knex = await initDb();
     const repository = new BadgesRepository(knex);
@@ -93,7 +120,7 @@ describePostgres18('BadgesRepository integration', () => {
       { quest_id: questB.id, target_count: 2 },
     ]);
 
-    const badges = await repository.getBadges();
+    const badges = await listBadges(repository);
     const criteria = await repository.getCriteriaForBadges(
       badges.map(badge => badge.id),
     );
@@ -152,8 +179,9 @@ describePostgres18('BadgesRepository integration', () => {
     await repository.updateBadge(activeBadge.id, { subject_type: 'team' });
     await repository.deleteBadge(archivedBadge.id);
 
-    const activeOnly = await repository.getBadges();
-    const searched = await repository.getBadges('Reviewer', {
+    const activeOnly = await listBadges(repository);
+    const searched = await listBadges(repository, {
+      searchTitle: 'Reviewer',
       includeArchived: true,
     });
     const archivedDefaultLookup = await repository.getBadgeById(
@@ -186,7 +214,7 @@ describePostgres18('BadgesRepository integration', () => {
     );
     await expect(repository.getCriteriaForBadges([])).resolves.toEqual([]);
     await expect(
-      repository.getBadgeProgress(['', 'catalog:default/component/example']),
+      listBadgeProgress(repository, ['', 'catalog:default/component/example']),
     ).resolves.toEqual([]);
 
     await knex.destroy();
@@ -319,7 +347,7 @@ describePostgres18('BadgesRepository integration', () => {
       },
     ]);
 
-    const badgeProgress = await repository.getBadgeProgress([
+    const badgeProgress = await listBadgeProgress(repository, [
       'group:default/platform',
     ]);
 
@@ -382,7 +410,7 @@ describePostgres18('BadgesRepository integration', () => {
         badge_id: badge.id,
       })
       .select(['badge_id', 'quest_id', 'xp_amount', 'source']);
-    const badgeProgress = await repository.getBadgeProgress([
+    const badgeProgress = await listBadgeProgress(repository, [
       'user:default/alice',
     ]);
 
@@ -475,7 +503,7 @@ describePostgres18('BadgesRepository integration', () => {
       completion_count: 1,
     });
 
-    const badgeProgress = await repository.getBadgeProgress([
+    const badgeProgress = await listBadgeProgress(repository, [
       'user:default/alice',
       'group:default/platform',
     ]);
@@ -563,10 +591,10 @@ describePostgres18('BadgesRepository integration', () => {
       { quest_id: teamQuest.id, target_count: 1 },
     ]);
 
-    const groupOnlyProgress = await repository.getBadgeProgress([
+    const groupOnlyProgress = await listBadgeProgress(repository, [
       'group:default/platform',
     ]);
-    const userOnlyProgress = await repository.getBadgeProgress([
+    const userOnlyProgress = await listBadgeProgress(repository, [
       'user:default/alice',
     ]);
 
@@ -810,12 +838,12 @@ describePostgres18('BadgesRepository integration', () => {
 
     const deleted = await repository.deleteBadge(badge.id);
     const activeBadge = await repository.getBadgeById(badge.id);
-    const listedBadges = await repository.getBadges();
+    const listedBadges = await listBadges(repository);
     const storedBadge = await knex('badges').where({ id: badge.id }).first();
     const earnedRows = await knex('earned_badges')
       .where({ badge_id: badge.id })
       .select('*');
-    const badgeProgress = await repository.getBadgeProgress([
+    const badgeProgress = await listBadgeProgress(repository, [
       'group:default/platform',
     ]);
 

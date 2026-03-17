@@ -4,10 +4,12 @@ import {
   QUEST_SUBJECT_TYPES,
 } from './questCreationSchema';
 
+const optionalNonEmptyTrimmedString = z.string().trim().min(1).optional();
+
 export const questEditSchema = z
   .object({
-    title: z.string().min(1).optional(),
-    description: z.string().min(1).optional(),
+    title: optionalNonEmptyTrimmedString,
+    description: optionalNonEmptyTrimmedString,
     target_count: z.number().int().positive().optional(),
     xp_reward: z.number().int().nonnegative().optional(),
     subject_type: z.enum(QUEST_SUBJECT_TYPES).optional(),
