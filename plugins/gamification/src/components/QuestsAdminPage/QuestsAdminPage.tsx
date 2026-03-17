@@ -148,7 +148,7 @@ export const QuestsAdminPage = ({
   const [sortBy, setSortBy] = useState<'created_at' | 'title' | 'xp_reward'>(
     'created_at',
   );
-  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
 
   // Create quest dialog state
   const [dialogOpen, setDialogOpen] = useState(false);

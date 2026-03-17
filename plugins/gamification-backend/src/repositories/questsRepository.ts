@@ -135,7 +135,7 @@ export class QuestsRepository {
       searchTitle,
       audience = 'all',
       sortBy = 'created_at',
-      order = 'asc',
+      order = 'desc',
       page = 1,
       limit = 10,
     } = params ?? {};
@@ -227,7 +227,7 @@ export class QuestsRepository {
       status = 'active',
       team_ref,
       sortBy = 'created_at',
-      order = 'asc',
+      order = 'desc',
       page = 1,
       limit = 10,
     } = params;

@@ -182,7 +182,7 @@ export const BadgesAdminPage = ({
   const [sortBy, setSortBy] = useState<'created_at' | 'title' | 'xp_reward'>(
     'created_at',
   );
-  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);

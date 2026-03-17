@@ -153,7 +153,7 @@ export function QuestsRouter({
       sortByQuery === 'title' || sortByQuery === 'xp_reward'
         ? sortByQuery
         : 'created_at';
-    const order = orderQuery === 'desc' ? 'desc' : 'asc';
+    const order = orderQuery === 'asc' ? 'asc' : 'desc';
     const page = Number.isFinite(pageQuery) && pageQuery > 0 ? pageQuery : 1;
     const limit =
       Number.isFinite(limitQuery) && limitQuery > 0 ? limitQuery : 10;
@@ -212,7 +212,7 @@ export function QuestsRouter({
       sortByQuery === 'title' || sortByQuery === 'xp_reward'
         ? sortByQuery
         : 'created_at';
-    const order = orderQuery === 'desc' ? 'desc' : 'asc';
+    const order = orderQuery === 'asc' ? 'asc' : 'desc';
     const page = Number.isFinite(pageQuery) && pageQuery > 0 ? pageQuery : 1;
     const limit =
       Number.isFinite(limitQuery) && limitQuery > 0 ? limitQuery : 10;
