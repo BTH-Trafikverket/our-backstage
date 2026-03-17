@@ -122,6 +122,7 @@ describe('validation schemas', () => {
         badgeCreationSchema.parse({
           title: 'Contributor',
           description: 'Awarded for contributing',
+          xp_reward: 150,
           subject_type: 'user',
           criterias: [
             { quest_id: 'quest-a', target_count: 1 },
@@ -131,6 +132,7 @@ describe('validation schemas', () => {
       ).toEqual({
         title: 'Contributor',
         description: 'Awarded for contributing',
+        xp_reward: 150,
         subject_type: 'user',
         criterias: [
           { quest_id: 'quest-a', target_count: 1 },
@@ -143,6 +145,7 @@ describe('validation schemas', () => {
       const result = badgeCreationSchema.safeParse({
         title: 'Contributor',
         description: 'Awarded for contributing',
+        xp_reward: 150,
         subject_type: 'user',
         criterias: [
           { quest_id: 'Quest-A', target_count: 1 },
