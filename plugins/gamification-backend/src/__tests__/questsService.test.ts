@@ -7,6 +7,8 @@ jest.mock('../repositories/questsRepository');
 describe('QuestsService', () => {
   let service: QuestsService;
   let mockRepo: jest.Mocked<QuestsRepository>;
+  let mockCatalogClient: { getEntities: jest.Mock };
+  let mockAuthService: { getPluginRequestToken: jest.Mock };
 
   beforeEach(() => {
     mockRepo = {
@@ -23,13 +25,23 @@ describe('QuestsService', () => {
       tryInsertReceipt: jest.fn(),
     } as any;
 
-    const mockCatalogClient = {} as any;
-    const mockAuthService = {} as any;
+    mockCatalogClient = {
+      getEntities: jest.fn(),
+    };
+    mockAuthService = {
+      getPluginRequestToken: jest.fn().mockResolvedValue({ token: 'token' }),
+    };
 
     service = new QuestsService({
       questsRepo: mockRepo,
       catalogClient: mockCatalogClient,
       auth: mockAuthService,
+      actorResolutionProviders: {
+        'azure-devops': {
+          idAnnotations: ['metadata.annotations.dev.azure.com/user-id'],
+          loginAnnotations: ['metadata.annotations.dev.azure.com/username'],
+        },
+      },
     });
   });
 
@@ -462,6 +474,78 @@ describe('QuestsService', () => {
         page: 2,
         limit: 5,
       });
+    });
+  });
+
+  describe('resolveActorToUserRef', () => {
+    it('resolves a github actor by email against the catalog user profile', async () => {
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: [
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'User',
+            metadata: { name: 'alice', namespace: 'local' },
+          },
+        ],
+      });
+
+      const result = await service.resolveActorToUserRef({
+        actor: {
+          provider: 'github',
+          email: 'alice@example.com',
+        },
+        credentials: {} as any,
+      });
+
+      expect(result).toBe('user:local/alice');
+      expect(mockAuthService.getPluginRequestToken).toHaveBeenCalledWith({
+        onBehalfOf: {},
+        targetPluginId: 'catalog',
+      });
+      expect(mockCatalogClient.getEntities).toHaveBeenCalledWith(
+        {
+          filter: [
+            {
+              kind: 'User',
+              'spec.profile.email': 'alice@example.com',
+            },
+          ],
+        },
+        { token: 'token' },
+      );
+    });
+
+    it('resolves a configured non-github provider by id annotation', async () => {
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: [
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'User',
+            metadata: { name: 'bob', namespace: 'local' },
+          },
+        ],
+      });
+
+      const result = await service.resolveActorToUserRef({
+        actor: {
+          provider: 'azure-devops',
+          id: 'ado-user-123',
+        },
+        credentials: {} as any,
+      });
+
+      expect(result).toBe('user:local/bob');
+      expect(mockCatalogClient.getEntities).toHaveBeenCalledWith(
+        {
+          filter: [
+            {
+              kind: 'User',
+              'metadata.annotations.dev.azure.com/user-id': 'ado-user-123',
+            },
+          ],
+        },
+        { token: 'token' },
+      );
     });
   });
 

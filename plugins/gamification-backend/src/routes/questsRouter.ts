@@ -10,7 +10,10 @@ import { questCreationSchema } from '../schemas/quests/questCreationSchema';
 import { QuestsService } from '../services/questsService';
 import { questEditSchema } from '../schemas/quests/questEditSchema';
 import { questEventSchema } from '../schemas/quests/questEventSchema';
-import { createRequireAdminCredentials } from './adminAccess';
+import {
+  createReadAdminAccess,
+  createRequireAdminCredentials,
+} from './adminAccess';
 
 export function QuestsRouter({
   httpAuth,
@@ -29,6 +32,16 @@ export function QuestsRouter({
     userInfo,
     config,
     deniedMessage: 'Only admin users can manage quests',
+  });
+  const readAdminAccess = createReadAdminAccess({
+    httpAuth,
+    userInfo,
+    config,
+  });
+
+  router.get('/admin-status', async (req, res) => {
+    const { isAdmin } = await readAdminAccess(req);
+    res.status(200).json({ isAdmin });
   });
 
   router.post('/', async (req, res) => {
@@ -140,7 +153,7 @@ export function QuestsRouter({
       sortByQuery === 'title' || sortByQuery === 'xp_reward'
         ? sortByQuery
         : 'created_at';
-    const order = orderQuery === 'desc' ? 'desc' : 'asc';
+    const order = orderQuery === 'asc' ? 'asc' : 'desc';
     const page = Number.isFinite(pageQuery) && pageQuery > 0 ? pageQuery : 1;
     const limit =
       Number.isFinite(limitQuery) && limitQuery > 0 ? limitQuery : 10;
@@ -199,7 +212,7 @@ export function QuestsRouter({
       sortByQuery === 'title' || sortByQuery === 'xp_reward'
         ? sortByQuery
         : 'created_at';
-    const order = orderQuery === 'desc' ? 'desc' : 'asc';
+    const order = orderQuery === 'asc' ? 'asc' : 'desc';
     const page = Number.isFinite(pageQuery) && pageQuery > 0 ? pageQuery : 1;
     const limit =
       Number.isFinite(limitQuery) && limitQuery > 0 ? limitQuery : 10;

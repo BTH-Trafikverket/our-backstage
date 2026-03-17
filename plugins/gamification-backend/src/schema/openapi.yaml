@@ -539,7 +539,7 @@ components:
           minimum: 1
         xp_reward:
           type: integer
-          minimum: 1
+          minimum: 0
         subject_type:
           $ref: '#/components/schemas/QuestSubjectType'
         entityRef:

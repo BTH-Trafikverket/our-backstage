@@ -21,19 +21,42 @@ type QuestServiceOpts = {
   credentials: any;
 };
 
+export type ActorResolutionProviderConfig = {
+  idAnnotations?: string[];
+  loginAnnotations?: string[];
+};
+
+export type ActorResolutionProviders = Record<
+  string,
+  ActorResolutionProviderConfig
+>;
+
+const DEFAULT_ACTOR_RESOLUTION_PROVIDERS: ActorResolutionProviders = {
+  github: {
+    idAnnotations: ['metadata.annotations.github.com/user-id'],
+    loginAnnotations: ['metadata.annotations.github.com/user-login'],
+  },
+};
+
 export class QuestsService {
   private readonly questsRepo: QuestsRepository;
   private readonly catalogClient: CatalogClient;
   private readonly auth: AuthService;
+  private readonly actorResolutionProviders: ActorResolutionProviders;
 
   constructor(opts: {
     questsRepo: QuestsRepository;
     catalogClient: CatalogClient;
     auth: AuthService;
+    actorResolutionProviders?: ActorResolutionProviders;
   }) {
     this.questsRepo = opts.questsRepo;
     this.catalogClient = opts.catalogClient;
     this.auth = opts.auth;
+    this.actorResolutionProviders = this.mergeActorResolutionProviders(
+      DEFAULT_ACTOR_RESOLUTION_PROVIDERS,
+      opts.actorResolutionProviders ?? {},
+    );
   }
 
   private normalizeQuestSubjectType(subjectType: QuestSubjectType | undefined) {
@@ -208,6 +231,68 @@ export class QuestsService {
     return actor.entityRef;
   }
 
+  private mergeActorResolutionProviders(
+    defaults: ActorResolutionProviders,
+    custom: ActorResolutionProviders,
+  ): ActorResolutionProviders {
+    const merged: ActorResolutionProviders = {};
+    const providerNames = new Set([
+      ...Object.keys(defaults),
+      ...Object.keys(custom),
+    ]);
+
+    for (const providerName of providerNames) {
+      const normalizedProviderName = providerName.toLocaleLowerCase('en-US');
+      const defaultConfig =
+        defaults[providerName] ?? defaults[normalizedProviderName];
+      const customConfig =
+        custom[providerName] ?? custom[normalizedProviderName];
+
+      merged[normalizedProviderName] = {
+        idAnnotations: [
+          ...new Set([
+            ...(defaultConfig?.idAnnotations ?? []),
+            ...(customConfig?.idAnnotations ?? []),
+          ]),
+        ],
+        loginAnnotations: [
+          ...new Set([
+            ...(defaultConfig?.loginAnnotations ?? []),
+            ...(customConfig?.loginAnnotations ?? []),
+          ]),
+        ],
+      };
+    }
+
+    return merged;
+  }
+
+  private async getFirstMatchingUserRef(
+    token: string,
+    filters: Record<string, string>[],
+  ): Promise<string | undefined> {
+    for (const filter of filters) {
+      const res = await this.catalogClient.getEntities(
+        {
+          filter: [
+            {
+              kind: 'User',
+              ...filter,
+            },
+          ],
+        },
+        { token },
+      );
+
+      const entity = res.items[0];
+      if (entity) {
+        return stringifyEntityRef(entity);
+      }
+    }
+
+    return undefined;
+  }
+
   async resolveActorToUserRef(params: {
     actor: QuestEventActor;
     credentials: QuestServiceOpts['credentials'];
@@ -216,51 +301,62 @@ export class QuestsService {
 
     if (actor.entityRef) return actor.entityRef;
 
+    const { token } = await this.auth.getPluginRequestToken({
+      onBehalfOf: credentials,
+      targetPluginId: 'catalog',
+    });
+
+    if (actor.email) {
+      const normalizedEmail = actor.email.trim().toLowerCase();
+      const userRef =
+        (await this.getFirstMatchingUserRef(token, [
+          {
+            'spec.profile.email': actor.email,
+          },
+        ])) ??
+        (normalizedEmail === actor.email
+          ? undefined
+          : await this.getFirstMatchingUserRef(token, [
+              {
+                'spec.profile.email': normalizedEmail,
+              },
+            ]));
+
+      if (!userRef) throw new NotFoundError('User not found in catalog');
+      return userRef;
+    }
+
     if (!actor.provider) {
       throw new InputError(
         'actor.provider is required when actor.entityRef is not provided',
       );
     }
 
-    const { token } = await this.auth.getPluginRequestToken({
-      onBehalfOf: credentials,
-      targetPluginId: 'catalog',
-    });
+    const providerConfig =
+      this.actorResolutionProviders[actor.provider.toLocaleLowerCase('en-US')];
 
-    if (actor.provider === 'github' && actor.id) {
-      const res = await this.catalogClient.getEntities(
-        {
-          filter: [
-            {
-              kind: 'User',
-              'metadata.annotations.github.com/user-id': actor.id,
-            },
-          ],
-        },
-        { token },
+    if (actor.id && providerConfig?.idAnnotations?.length) {
+      const userRef = await this.getFirstMatchingUserRef(
+        token,
+        providerConfig.idAnnotations.map(annotation => ({
+          [annotation]: actor.id!,
+        })),
       );
-
-      const entity = res.items[0];
-      if (!entity) throw new NotFoundError('User not found in catalog');
-      return stringifyEntityRef(entity);
+      if (userRef) {
+        return userRef;
+      }
     }
 
-    if (actor.provider === 'github' && actor.login) {
-      const res = await this.catalogClient.getEntities(
-        {
-          filter: [
-            {
-              kind: 'User',
-              'metadata.annotations.github.com/user-login': actor.login,
-            },
-          ],
-        },
-        { token },
+    if (actor.login && providerConfig?.loginAnnotations?.length) {
+      const userRef = await this.getFirstMatchingUserRef(
+        token,
+        providerConfig.loginAnnotations.map(annotation => ({
+          [annotation]: actor.login!,
+        })),
       );
-
-      const entity = res.items[0];
-      if (!entity) throw new NotFoundError('User not found in catalog');
-      return stringifyEntityRef(entity);
+      if (userRef) {
+        return userRef;
+      }
     }
 
     throw new NotFoundError('Actor could not be mapped to a Backstage user');

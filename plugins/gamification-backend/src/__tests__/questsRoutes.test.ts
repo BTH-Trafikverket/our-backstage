@@ -150,6 +150,63 @@ describe('quests routes auth', () => {
     });
   });
 
+  it('returns admin-status=true for admin users', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .get('/quests/admin-status')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ isAdmin: true });
+  });
+
+  it('returns admin-status=false for non-admin users', async () => {
+    const userRef = 'user:default/bob';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, 'group:default/engineering'],
+    });
+    const { app } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .get('/quests/admin-status')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ isAdmin: false });
+  });
+
+  it('allows admin users to create quests with zero xp reward', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, questsService } = makeApp({ userInfo });
+    const zeroRewardPayload = {
+      ...createQuestPayload,
+      xp_reward: 0,
+    };
+
+    const res = await request(app)
+      .post('/quests')
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send(zeroRewardPayload);
+
+    expect(res.status).toBe(201);
+    expect(questsService.createQuest).toHaveBeenCalledWith(zeroRewardPayload, {
+      credentials: expect.objectContaining({
+        principal: expect.objectContaining({
+          type: 'user',
+          userEntityRef: userRef,
+        }),
+      }),
+    });
+  });
+
   it('allows admin users to list quests with SQL-backed filters and sorting', async () => {
     const userRef = 'user:default/alice';
     const userInfo = mockServices.userInfo({
@@ -233,7 +290,7 @@ describe('quests routes auth', () => {
         status: 'active',
         teamRef: undefined,
         sortBy: 'created_at',
-        order: 'asc',
+        order: 'desc',
         page: 1,
         limit: 10,
       },

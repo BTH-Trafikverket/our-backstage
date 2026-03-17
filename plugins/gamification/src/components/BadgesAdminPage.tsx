@@ -182,7 +182,7 @@ export const BadgesAdminPage = ({
   const [sortBy, setSortBy] = useState<'created_at' | 'title' | 'xp_reward'>(
     'created_at',
   );
-  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -818,6 +818,8 @@ export const BadgesAdminPage = ({
     return 'In progress';
   };
 
+  const filteredBadges = badges;
+
   return (
     <>
       <Dialog open={createOpen} onClose={closeCreate} maxWidth="sm" fullWidth>
@@ -1206,7 +1208,7 @@ export const BadgesAdminPage = ({
               </Typography>
             )}
 
-            {!loading && !error && badges.length > 0 && (
+            {!loading && !error && filteredBadges.length > 0 && (
               <>
                 <TableContainer component={Paper} style={{ marginTop: 16 }}>
                   <Table size="small">
@@ -1227,7 +1229,7 @@ export const BadgesAdminPage = ({
                     </TableHead>
 
                     <TableBody>
-                      {badges.map(badge => (
+                      {filteredBadges.map(badge => (
                         <TableRow key={badge.id}>
                           <TableCell>{badge.title}</TableCell>
                           <TableCell>
