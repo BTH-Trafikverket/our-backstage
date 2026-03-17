@@ -87,6 +87,7 @@ describe('badges routes auth and errors', () => {
             updated_at: new Date('2026-01-01T00:00:00Z'),
           },
         ],
+        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
       })),
       updateBadge: jest.fn(async (id: string, data: unknown) => ({
         id,
@@ -189,6 +190,8 @@ describe('badges routes auth and errors', () => {
             userEntityRef: userRef,
           }),
         }),
+        page: 1,
+        limit: 10,
       },
     );
   });
@@ -227,6 +230,8 @@ describe('badges routes auth and errors', () => {
             userEntityRef: userRef,
           }),
         }),
+        page: 1,
+        limit: 10,
       },
     );
   });
@@ -270,7 +275,16 @@ describe('badges routes auth and errors', () => {
 
     expect(listRes.status).toBe(200);
     expect(getRes.status).toBe(200);
-    expect(badgesService.getBadges).toHaveBeenCalled();
+    expect(badgesService.getBadges).toHaveBeenCalledWith(undefined, {
+      credentials: expect.objectContaining({
+        principal: expect.objectContaining({
+          type: 'user',
+          userEntityRef: userRef,
+        }),
+      }),
+      page: 1,
+      limit: 10,
+    });
     expect(badgesService.getBadgeById).toHaveBeenCalledWith('badge-1', {
       credentials: expect.objectContaining({
         principal: expect.objectContaining({
