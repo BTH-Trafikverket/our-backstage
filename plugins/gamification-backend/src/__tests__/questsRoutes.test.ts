@@ -53,7 +53,10 @@ describe('quests routes auth', () => {
         ...((data as object) ?? {}),
       })),
       deleteQuest: jest.fn(async () => true),
-      getQuests: jest.fn(async () => []),
+      getQuests: jest.fn(async () => ({
+        data: [],
+        pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
+      })),
       getQuestsWithProgress: jest.fn(async () => []),
       handleQuestEvent: jest.fn(async () => ({
         duplicate: false,
@@ -144,6 +147,55 @@ describe('quests routes auth', () => {
           userEntityRef: userRef,
         }),
       }),
+    });
+  });
+
+  it('allows admin users to list quests with SQL-backed filters and sorting', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, questsService } = makeApp({ userInfo });
+
+    (questsService.getQuests as jest.Mock).mockResolvedValue({
+      data: [{ id: 'quest-1', title: 'Quest 1', subject_type: 'team' }],
+      pagination: { page: 2, limit: 5, total: 7, totalPages: 2 },
+    });
+
+    const res = await request(app)
+      .get('/quests')
+      .query({
+        search: 'team',
+        audience: 'team',
+        sortBy: 'xp_reward',
+        order: 'desc',
+        page: 2,
+        limit: 5,
+      })
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(questsService.getQuests).toHaveBeenCalledWith(
+      {
+        searchTitle: 'team',
+        audience: 'team',
+        sortBy: 'xp_reward',
+        order: 'desc',
+        page: 2,
+        limit: 5,
+      },
+      {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'user',
+            userEntityRef: userRef,
+          }),
+        }),
+      },
+    );
+    expect(res.body).toEqual({
+      data: [{ id: 'quest-1', title: 'Quest 1', subject_type: 'team' }],
+      pagination: { page: 2, limit: 5, total: 7, totalPages: 2 },
     });
   });
 

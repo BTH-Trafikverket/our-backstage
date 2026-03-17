@@ -328,6 +328,74 @@ describe('QuestsRepository Integration Tests', () => {
     });
   });
 
+  describe('getQuests', () => {
+    it('filters, sorts, and paginates quest definitions in SQL', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      await repository.createQuest({
+        title: 'Alpha Team Quest',
+        description: 'Team alpha',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'team',
+      });
+      await repository.createQuest({
+        title: 'Bravo User Quest',
+        description: 'User bravo',
+        target_count: 1,
+        xp_reward: 70,
+        subject_type: 'user',
+      });
+      await repository.createQuest({
+        title: 'Charlie Team Quest',
+        description: 'Team charlie',
+        target_count: 1,
+        xp_reward: 40,
+        subject_type: 'team',
+      });
+
+      const pageOne = await repository.getQuests({
+        searchTitle: 'Quest',
+        audience: 'team',
+        sortBy: 'xp_reward',
+        order: 'desc',
+        page: 1,
+        limit: 1,
+      });
+      const pageTwo = await repository.getQuests({
+        searchTitle: 'Quest',
+        audience: 'team',
+        sortBy: 'xp_reward',
+        order: 'desc',
+        page: 2,
+        limit: 1,
+      });
+
+      expect(pageOne.pagination).toEqual({
+        page: 1,
+        limit: 1,
+        total: 2,
+        totalPages: 2,
+      });
+      expect(pageOne.data.map(quest => quest.title)).toEqual([
+        'Charlie Team Quest',
+      ]);
+
+      expect(pageTwo.pagination).toEqual({
+        page: 2,
+        limit: 1,
+        total: 2,
+        totalPages: 2,
+      });
+      expect(pageTwo.data.map(quest => quest.title)).toEqual([
+        'Alpha Team Quest',
+      ]);
+
+      await knex.destroy();
+    });
+  });
+
   describe('getQuestsWithProgress', () => {
     it('returns user quests plus one team quest row per owned team', async () => {
       const knex = await initDb();
