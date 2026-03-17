@@ -62,17 +62,42 @@ export function BadgesRouter({
     if (requested) {
       subjectRefs = [requested];
     } else {
+      const principal = credentials.principal;
+      if (principal.type !== 'user') {
+        throw new InputError('Only user credentials are allowed');
+      }
+
       const info = await userInfo.getUserInfo(credentials);
-      subjectRefs = [
-        ...new Set(
-          [
-            credentials.principal.type === 'user'
-              ? credentials.principal.userEntityRef
-              : '',
-            ...info.ownershipEntityRefs,
-          ].filter(Boolean),
-        ),
-      ];
+      const audienceQuery =
+        typeof req.query.audience === 'string' ? req.query.audience : undefined;
+      const teamQuery =
+        typeof req.query.team === 'string' ? req.query.team : undefined;
+      const audience =
+        audienceQuery === 'individual' || audienceQuery === 'team'
+          ? audienceQuery
+          : 'all';
+
+      const userRef = principal.userEntityRef;
+      const teamRefs = info.ownershipEntityRefs.filter(
+        ref => ref !== userRef && ref.startsWith('group:'),
+      );
+      const selectedTeamRefs = teamQuery
+        ? teamRefs.filter(
+            ref =>
+              ref.toLocaleLowerCase('en-US') ===
+              teamQuery.toLocaleLowerCase('en-US'),
+          )
+        : teamRefs;
+
+      if (audience === 'individual') {
+        subjectRefs = [userRef];
+      } else if (audience === 'team') {
+        subjectRefs = selectedTeamRefs;
+      } else {
+        subjectRefs = [userRef, ...selectedTeamRefs];
+      }
+
+      subjectRefs = [...new Set(subjectRefs.filter(Boolean))];
     }
 
     const { page, limit } = parsePagination(req);
