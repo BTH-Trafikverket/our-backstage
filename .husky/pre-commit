@@ -1,39 +1,7 @@
 #!/bin/sh
 
-run_with_spinner () {
-  msg="$1"
-  shift
+echo "🔎 Checking staged gamification plugin files..."
+yarn lint:staged || exit 1
 
-  "$@" &
-  pid=$!
-
-  spin='-\|/'
-  i=0
-  printf "%s " "$msg"
-  while kill -0 "$pid" 2>/dev/null; do
-    i=$(( (i + 1) % 4 ))
-    printf "\b%s" "$(printf "%s" "$spin" | cut -c $((i+1)) )"
-    sleep 0.1
-  done
-
-  wait "$pid"
-  rc=$?
-  if [ $rc -eq 0 ]; then
-    printf "\b✓\n"
-  else
-    printf "\b✗\n"
-  fi
-  return $rc
-}
-
-# 1) Format repo-wide (YAML/MD/config too)
-run_with_spinner "🎨 Formatting with Prettier (repo-wide)..." npx prettier --write . --cache || exit 1
-
-# 2) Apply Backstage fixers (eslint etc.)
-run_with_spinner "🧹 Running auto-fix (yarn fix)..." yarn fix || exit 1
-
-# 3) Ensure the formatting/fixes are included in the commit
-run_with_spinner "📌 Restaging changes..." git add -A || exit 1
-
-echo "✅ pre-commit done"
+echo "✅ pre-commit OK"
 exit 0

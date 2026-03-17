@@ -431,6 +431,23 @@ describe('badges routes auth and errors', () => {
     expect(badgesService.createBadge).not.toHaveBeenCalled();
   });
 
+  it('returns 400 for invalid badge patch payloads', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, badgesService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .patch('/badges/badge-1')
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send({ subject_type: 'invalid-type' });
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.name).toBe('InputError');
+    expect(badgesService.updateBadge).not.toHaveBeenCalled();
+  });
+
   it('returns 404 when a badge is missing', async () => {
     const userRef = 'user:default/alice';
     const userInfo = mockServices.userInfo({

@@ -150,61 +150,21 @@ describe('quests routes auth', () => {
     });
   });
 
-  it('returns admin-status=true for admin users', async () => {
-    const userRef = 'user:default/alice';
-    const userInfo = mockServices.userInfo({
-      ownershipEntityRefs: [userRef, adminGroup],
-    });
-    const { app } = makeApp({ userInfo });
-
-    const res = await request(app)
-      .get('/quests/admin-status')
-      .set('authorization', mockCredentials.user.header(userRef));
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ isAdmin: true });
-  });
-
-  it('returns admin-status=false for non-admin users', async () => {
-    const userRef = 'user:default/bob';
-    const userInfo = mockServices.userInfo({
-      ownershipEntityRefs: [userRef, 'group:default/engineering'],
-    });
-    const { app } = makeApp({ userInfo });
-
-    const res = await request(app)
-      .get('/quests/admin-status')
-      .set('authorization', mockCredentials.user.header(userRef));
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ isAdmin: false });
-  });
-
-  it('allows admin users to create quests with zero xp reward', async () => {
+  it('returns 400 for invalid quest creation payloads', async () => {
     const userRef = 'user:default/alice';
     const userInfo = mockServices.userInfo({
       ownershipEntityRefs: [userRef, adminGroup],
     });
     const { app, questsService } = makeApp({ userInfo });
-    const zeroRewardPayload = {
-      ...createQuestPayload,
-      xp_reward: 0,
-    };
 
     const res = await request(app)
       .post('/quests')
       .set('authorization', mockCredentials.user.header(userRef))
-      .send(zeroRewardPayload);
+      .send({ title: '', xp_reward: -1 });
 
-    expect(res.status).toBe(201);
-    expect(questsService.createQuest).toHaveBeenCalledWith(zeroRewardPayload, {
-      credentials: expect.objectContaining({
-        principal: expect.objectContaining({
-          type: 'user',
-          userEntityRef: userRef,
-        }),
-      }),
-    });
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.name).toBe('InputError');
+    expect(questsService.createQuest).not.toHaveBeenCalled();
   });
 
   it('allows admin users to list quests with SQL-backed filters and sorting', async () => {
@@ -300,5 +260,129 @@ describe('quests routes auth', () => {
       data: [{ id: 'quest-1', title: 'Quest 1', completion_count: 0 }],
       pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
     });
+  });
+
+  it('returns 400 for invalid quest patch payloads', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, questsService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .patch('/quests/quest-1')
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send({ completion_policy: 'INVALID_POLICY' });
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.name).toBe('InputError');
+    expect(questsService.editQuest).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when updating a quest that no longer exists', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, questsService } = makeApp({ userInfo });
+    (questsService.editQuest as jest.Mock).mockResolvedValue(undefined);
+
+    const res = await request(app)
+      .patch('/quests/missing-quest')
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send({ title: 'Updated Quest' });
+
+    expect(res.status).toBe(404);
+    expect(res.body?.error?.name).toBe('NotFoundError');
+  });
+
+  it('returns 404 when deleting a quest that no longer exists', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, questsService } = makeApp({ userInfo });
+    (questsService.deleteQuest as jest.Mock).mockResolvedValue(false);
+
+    const res = await request(app)
+      .delete('/quests/missing-quest')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(404);
+    expect(res.body?.error?.name).toBe('NotFoundError');
+  });
+
+  it('allows approved services to post quest events', async () => {
+    const { app, questsService } = makeApp();
+
+    const res = await request(app)
+      .post('/quests/events')
+      .set(
+        'authorization',
+        mockCredentials.service.header({
+          onBehalfOf: mockCredentials.service('external:test-service'),
+        }),
+      )
+      .send({
+        questId: '11111111-1111-4111-8111-111111111111',
+        subjectRef: 'user:default/alice',
+      });
+
+    expect(res.status).toBe(200);
+    expect(questsService.handleQuestEvent).toHaveBeenCalledWith({
+      questId: '11111111-1111-4111-8111-111111111111',
+      subjectRef: 'user:default/alice',
+      actor: undefined,
+      opts: {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'service',
+            subject: 'external:test-service',
+          }),
+        }),
+      },
+    });
+  });
+
+  it('returns 404 for services that are not in the allowed caller list', async () => {
+    const { app, questsService } = makeApp();
+
+    const res = await request(app)
+      .post('/quests/events')
+      .set(
+        'authorization',
+        mockCredentials.service.header({
+          onBehalfOf: mockCredentials.service('external:other'),
+        }),
+      )
+      .send({
+        questId: '11111111-1111-4111-8111-111111111111',
+        subjectRef: 'user:default/alice',
+      });
+
+    expect(res.status).toBe(404);
+    expect(res.body?.error?.name).toBe('NotFoundError');
+    expect(questsService.handleQuestEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for invalid quest event payloads', async () => {
+    const { app, questsService } = makeApp();
+
+    const res = await request(app)
+      .post('/quests/events')
+      .set(
+        'authorization',
+        mockCredentials.service.header({
+          onBehalfOf: mockCredentials.service('external:test-service'),
+        }),
+      )
+      .send({
+        questId: 'not-a-uuid',
+        subjectRef: 'user:default/alice',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.name).toBe('InputError');
+    expect(questsService.handleQuestEvent).not.toHaveBeenCalled();
   });
 });

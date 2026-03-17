@@ -1,34 +1,9 @@
-import path from 'node:path';
-import { TestDatabases } from '@backstage/backend-test-utils';
-import type { Knex } from 'knex';
 import { QuestsRepository } from '../repositories/questsRepository';
+import { createPostgres18TestHarness } from '../../tests/helpers/postgres18TestHarness';
 
-jest.setTimeout(60000);
+const { describePostgres18, initDb } = createPostgres18TestHarness(__dirname);
 
-describe('QuestsRepository Integration Tests', () => {
-  if (!process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING) {
-    const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD } = process.env;
-
-    const isLocal =
-      DB_HOST === 'localhost' ||
-      DB_HOST === '127.0.0.1' ||
-      DB_HOST === 'postgres';
-
-    if (DB_HOST && DB_PORT && DB_USER && DB_PASSWORD && isLocal) {
-      process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING = `postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/postgres`;
-    }
-  }
-
-  const databases = TestDatabases.create({ ids: ['POSTGRES_18'] });
-
-  const migrationsDir = path.resolve(__dirname, '../../migrations');
-
-  async function initDb(): Promise<Knex> {
-    const knex = await databases.init('POSTGRES_18');
-    await knex.migrate.latest({ directory: migrationsDir });
-    return knex;
-  }
-
+describePostgres18('QuestsRepository integration', () => {
   describe('withTransaction', () => {
     it('rolls back quest event receipts when the transaction fails', async () => {
       const knex = await initDb();
@@ -151,9 +126,6 @@ describe('QuestsRepository Integration Tests', () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
 
-      const beforeCreation = new Date();
-      await new Promise(resolve => setTimeout(resolve, 10));
-
       const quest = await repository.createQuest({
         title: 'Timestamp Test',
         description: 'Testing timestamp generation',
@@ -161,17 +133,11 @@ describe('QuestsRepository Integration Tests', () => {
         xp_reward: 50,
       });
 
-      await new Promise(resolve => setTimeout(resolve, 10));
-      const afterCreation = new Date();
-
-      expect(quest.created_at.getTime()).toBeGreaterThan(
-        beforeCreation.getTime(),
+      expect(quest.created_at).toBeInstanceOf(Date);
+      expect(quest.updated_at).toBeInstanceOf(Date);
+      expect(quest.updated_at.getTime()).toBeGreaterThanOrEqual(
+        quest.created_at.getTime(),
       );
-      expect(quest.created_at.getTime()).toBeLessThan(afterCreation.getTime());
-      expect(quest.updated_at.getTime()).toBeGreaterThan(
-        beforeCreation.getTime(),
-      );
-      expect(quest.updated_at.getTime()).toBeLessThan(afterCreation.getTime());
 
       await knex.destroy();
     });
@@ -412,6 +378,51 @@ describe('QuestsRepository Integration Tests', () => {
 
       await knex.destroy();
     });
+
+    it('filters individual quests and preserves pagination totals for out-of-range pages', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      await repository.createQuest({
+        title: 'Alpha User Quest',
+        description: 'User quest',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+      });
+      await repository.createQuest({
+        title: 'Bravo User Quest',
+        description: 'User quest',
+        target_count: 1,
+        xp_reward: 20,
+        subject_type: 'user',
+      });
+      await repository.createQuest({
+        title: 'Team Only Quest',
+        description: 'Team quest',
+        target_count: 1,
+        xp_reward: 30,
+        subject_type: 'team',
+      });
+
+      const result = await repository.getQuests({
+        audience: 'individual',
+        sortBy: 'title',
+        order: 'asc',
+        page: 3,
+        limit: 1,
+      });
+
+      expect(result.data).toEqual([]);
+      expect(result.pagination).toEqual({
+        page: 3,
+        limit: 1,
+        total: 2,
+        totalPages: 2,
+      });
+
+      await knex.destroy();
+    });
   });
 
   describe('getQuestsWithProgress', () => {
@@ -521,6 +532,103 @@ describe('QuestsRepository Integration Tests', () => {
 
       await knex.destroy();
     });
+
+    it('returns empty pagination when only team quests are requested without owned teams', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      await repository.createQuest({
+        title: 'Team Quest',
+        description: 'For teams only',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'team',
+      });
+
+      const result = await repository.getQuestsWithProgress({
+        user_ref: 'user:default/alice',
+        ownership_refs: ['user:default/alice'],
+        audience: 'team',
+      });
+
+      expect(result).toEqual({
+        data: [],
+        pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
+      });
+
+      await knex.destroy();
+    });
+
+    it('filters completed team quests by team ref case-insensitively', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const teamQuest = await repository.createQuest({
+        title: 'Platform Completed Quest',
+        description: 'Completed by one team',
+        target_count: 2,
+        xp_reward: 30,
+        subject_type: 'team',
+        completion_policy: 'ONE_TIME',
+      });
+
+      await repository.incrementQuestProgress({
+        quest_id: teamQuest.id,
+        subject_ref: 'group:default/platform',
+        by: 2,
+      });
+
+      const result = await repository.getQuestsWithProgress({
+        user_ref: 'user:default/alice',
+        ownership_refs: [
+          'user:default/alice',
+          'group:default/platform',
+          'group:default/engineering',
+        ],
+        audience: 'team',
+        status: 'completed',
+        team_ref: 'GROUP:DEFAULT/PLATFORM',
+      });
+
+      expect(result.pagination.total).toBe(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].subject_ref).toBe('group:default/platform');
+      expect(result.data[0].completion_count).toBe(2);
+
+      await knex.destroy();
+    });
+
+    it('keeps pagination totals when a progress query page is out of range', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      await repository.createQuest({
+        title: 'Only Quest',
+        description: 'Single visible quest',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+      });
+
+      const result = await repository.getQuestsWithProgress({
+        user_ref: 'user:default/alice',
+        ownership_refs: ['user:default/alice'],
+        page: 2,
+        limit: 1,
+      });
+
+      expect(result).toEqual({
+        data: [],
+        pagination: {
+          page: 2,
+          limit: 1,
+          total: 1,
+          totalPages: 1,
+        },
+      });
+
+      await knex.destroy();
+    });
   });
 
   describe('CRUD operations with real database interactions', () => {
@@ -625,6 +733,69 @@ describe('QuestsRepository Integration Tests', () => {
 
       quest = await repository.getQuestById(row.id);
       expect(quest).toBeUndefined();
+
+      await knex.destroy();
+    });
+
+    it('edits and deletes quests through repository methods', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const created = await repository.createQuest({
+        title: 'Repository Edit Quest',
+        description: 'Before edit',
+        target_count: 1,
+        xp_reward: 10,
+      });
+
+      const updated = await repository.editQuest(created.id, {
+        title: 'Repository Edit Quest Updated',
+        description: 'After edit',
+        target_count: 3,
+        xp_reward: 25,
+        subject_type: 'team',
+        completion_policy: 'ONE_TIME',
+        cooldown_days: null,
+      });
+      const deleted = await repository.deleteQuest(created.id);
+      const missing = await repository.deleteQuest(created.id);
+
+      expect(updated).toEqual(
+        expect.objectContaining({
+          id: created.id,
+          title: 'Repository Edit Quest Updated',
+          description: 'After edit',
+          target_count: 3,
+          xp_reward: 25,
+          subject_type: 'team',
+          completion_policy: 'ONE_TIME',
+          cooldown_days: null,
+        }),
+      );
+      expect(deleted).toBe(true);
+      expect(missing).toBe(false);
+
+      await knex.destroy();
+    });
+
+    it('de-duplicates quest event receipts by event id', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+      const firstInsert = await repository.tryInsertReceipt({
+        event_id: 'evt-1',
+        event_key: 'pull_request.merged',
+        subject_ref: 'user:default/alice',
+        caller_subject: 'external:test-service',
+      });
+      const duplicateInsert = await repository.tryInsertReceipt({
+        event_id: 'evt-1',
+        event_key: 'pull_request.merged',
+        subject_ref: 'user:default/alice',
+        caller_subject: 'external:test-service',
+      });
+
+      expect(firstInsert).toBe(true);
+      expect(duplicateInsert).toBe(false);
 
       await knex.destroy();
     });

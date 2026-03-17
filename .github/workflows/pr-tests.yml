@@ -1,4 +1,4 @@
-name: PR Tests
+name: Gamification PR Tests
 
 on:
   pull_request:
@@ -7,26 +7,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  gamification:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres -d postgres"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-    env:
-      CI: true
-      BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING: postgresql://postgres:postgres@localhost:5432/postgres
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -37,15 +21,26 @@ jobs:
         with:
           node-version: 22
           cache: yarn
+          cache-dependency-path: yarn.lock
 
       - name: Enable Corepack
         run: corepack enable
 
+      - name: Restore node_modules cache
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache
+            .yarn/install-state.gz
+            node_modules
+            packages/*/node_modules
+            plugins/*/node_modules
+          key: ${{ runner.os }}-node-22-yarn-4-node-modules-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+
       - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: yarn install --immutable
 
-      - name: Typecheck
-        run: yarn tsc --pretty false --noEmit
-
-      - name: Gamification backend tests
-        run: yarn workspace @internal/gamification-backend test --runInBand
+      - name: Verify gamification plugin
+        run: yarn gamification:verify

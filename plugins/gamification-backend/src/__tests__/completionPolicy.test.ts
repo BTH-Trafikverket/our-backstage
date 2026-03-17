@@ -6,37 +6,15 @@
  *  - REPEATABLE quests with cooldown_days block re-completion within the window
  *  - REPEATABLE quests with cooldown_days allow re-completion after the window
  */
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { TestDatabases } from '@backstage/backend-test-utils';
 import type { Knex } from 'knex';
 import { QuestsRepository } from '../repositories/questsRepository';
 import { QuestsService } from '../services/questsService';
+import { createPostgres18TestHarness } from '../../tests/helpers/postgres18TestHarness';
 
-jest.setTimeout(60000);
+const { describePostgres18, initDb } = createPostgres18TestHarness(__dirname);
 
-describe('Completion Policy – Integration Tests', () => {
-  if (!process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING) {
-    const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD } = process.env;
-    const isLocal =
-      DB_HOST === 'localhost' ||
-      DB_HOST === '127.0.0.1' ||
-      DB_HOST === 'postgres';
-    if (DB_HOST && DB_PORT && DB_USER && DB_PASSWORD && isLocal) {
-      process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING = `postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/postgres`;
-    }
-  }
-
-  const databases = TestDatabases.create({ ids: ['POSTGRES_18'] });
-
-  const migrationsDir = path.resolve(__dirname, '../../migrations');
-
-  async function initDb(): Promise<Knex> {
-    const knex = await databases.init('POSTGRES_18');
-    await knex.migrate.latest({ directory: migrationsDir });
-    return knex;
-  }
-
+describePostgres18('Completion policy integration', () => {
   function makeService(knex: Knex): QuestsService {
     const repo = new QuestsRepository(knex);
     return new QuestsService({
@@ -46,10 +24,6 @@ describe('Completion Policy – Integration Tests', () => {
       auth: {} as any,
     });
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // ONE_TIME policy
-  // ─────────────────────────────────────────────────────────────────────────
 
   describe('ONE_TIME policy', () => {
     it('stores completion_policy = ONE_TIME in DB with the given target_count', async () => {
@@ -162,10 +136,6 @@ describe('Completion Policy – Integration Tests', () => {
       await knex.destroy();
     });
   });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // REPEATABLE with cooldown_days
-  // ─────────────────────────────────────────────────────────────────────────
 
   describe('REPEATABLE with cooldown_days', () => {
     it('stores cooldown_days correctly in DB', async () => {
