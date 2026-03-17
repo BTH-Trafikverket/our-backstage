@@ -392,12 +392,14 @@ export class QuestsService {
   }
 
   async handleQuestEvent(params: {
+    eventId: string;
     questId: string;
     subjectRef?: string;
     actor?: QuestEventActor;
+    callerSubject: string;
     opts: QuestServiceOpts;
   }) {
-    const { questId, subjectRef, actor, opts } = params;
+    const { eventId, questId, subjectRef, actor, callerSubject, opts } = params;
 
     const quest = await this.questsRepo.getQuestById(questId);
     if (!quest) {
@@ -424,6 +426,22 @@ export class QuestsService {
 
     return this.questsRepo.withTransaction(async repo => {
       await repo.lockSubjectQuest(resolvedSubjectRef, questId);
+
+      const insertedReceipt = await repo.tryInsertReceipt({
+        event_id: eventId,
+        event_key: `quest:${questId}`,
+        subject_ref: resolvedSubjectRef,
+        caller_subject: callerSubject,
+      });
+
+      if (!insertedReceipt) {
+        return {
+          duplicate: true,
+          blocked: false,
+          subjectRef: resolvedSubjectRef,
+          questId,
+        };
+      }
 
       try {
         await this.enforceCompletionPolicy(repo, quest, resolvedSubjectRef);

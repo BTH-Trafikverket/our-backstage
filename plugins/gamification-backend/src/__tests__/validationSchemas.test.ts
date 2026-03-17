@@ -50,10 +50,12 @@ describe('validation schemas', () => {
     it('accepts subjectRef-only requests', () => {
       expect(
         questEventSchema.parse({
+          eventId: 'evt-1',
           questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
           subjectRef: 'user:default/alice',
         }),
       ).toEqual({
+        eventId: 'evt-1',
         questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
         subjectRef: 'user:default/alice',
       });
@@ -62,6 +64,7 @@ describe('validation schemas', () => {
     it('accepts actor requests with provider and login', () => {
       expect(
         questEventSchema.parse({
+          eventId: 'evt-2',
           questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
           actor: {
             provider: 'github',
@@ -69,6 +72,7 @@ describe('validation schemas', () => {
           },
         }),
       ).toEqual({
+        eventId: 'evt-2',
         questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
         actor: {
           provider: 'github',
@@ -79,6 +83,7 @@ describe('validation schemas', () => {
 
     it('rejects requests without subjectRef or actor', () => {
       const result = questEventSchema.safeParse({
+        eventId: 'evt-3',
         questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
       });
 
@@ -90,6 +95,7 @@ describe('validation schemas', () => {
 
     it('rejects actor payloads without entityRef or provider plus identifier', () => {
       const result = questEventSchema.safeParse({
+        eventId: 'evt-4',
         questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
         actor: {
           provider: 'github',
@@ -105,6 +111,7 @@ describe('validation schemas', () => {
 
     it('rejects non-v4 quest ids', () => {
       const result = questEventSchema.safeParse({
+        eventId: 'evt-5',
         questId: '00000000-0000-0000-0000-000000000000',
         subjectRef: 'user:default/alice',
       });
@@ -113,6 +120,16 @@ describe('validation schemas', () => {
       expect(result.error?.issues[0]?.message).toBe(
         'questId must be a valid UUID v4',
       );
+    });
+
+    it('rejects requests without an eventId', () => {
+      const result = questEventSchema.safeParse({
+        questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+        subjectRef: 'user:default/alice',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe('eventId is required');
     });
   });
 

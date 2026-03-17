@@ -120,9 +120,11 @@ export function QuestsRouter({
     }
 
     const result = await questsService.handleQuestEvent({
+      eventId: parsed.data.eventId,
       questId: parsed.data.questId,
       subjectRef: parsed.data.subjectRef,
       actor: parsed.data.actor,
+      callerSubject: principal.subject,
       opts: { credentials },
     });
 

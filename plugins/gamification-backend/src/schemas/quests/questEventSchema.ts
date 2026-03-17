@@ -5,6 +5,9 @@ const uuidV4Regex =
 
 export const questEventSchema = z
   .object({
+    eventId: z
+      .string({ required_error: 'eventId is required' })
+      .min(1, 'eventId is required'),
     questId: z.string().regex(uuidV4Regex, 'questId must be a valid UUID v4'),
     subjectRef: z.string().min(1).optional(),
     actor: z

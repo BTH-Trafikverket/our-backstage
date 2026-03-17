@@ -24,7 +24,6 @@ describe('QuestsService', () => {
       getLastAwardedAt: jest.fn(),
       incrementQuestProgress: jest.fn(),
       getQuestsWithProgress: jest.fn(),
-      getTriggerByEvent: jest.fn(),
       tryInsertReceipt: jest.fn(),
     } as any;
 
@@ -738,8 +737,10 @@ describe('QuestsService', () => {
       });
 
       const result = await service.handleQuestEvent({
+        eventId: 'evt-one-time',
         questId: 'quest-ot',
         subjectRef: 'user:default/alice',
+        callerSubject: 'external:test-service',
         opts: { credentials: {} as any },
       });
 
@@ -767,8 +768,10 @@ describe('QuestsService', () => {
       mockRepo.getLastAwardedAt.mockResolvedValue(twoDaysAgo);
 
       const result = await service.handleQuestEvent({
+        eventId: 'evt-cooldown',
         questId: 'quest-ot',
         subjectRef: 'user:default/bob',
+        callerSubject: 'external:test-service',
         opts: { credentials: {} as any },
       });
 
@@ -801,8 +804,10 @@ describe('QuestsService', () => {
       });
 
       const result = await service.handleQuestEvent({
+        eventId: 'evt-success',
         questId: 'quest-ot',
         subjectRef: 'user:default/carol',
+        callerSubject: 'external:test-service',
         opts: { credentials: {} as any },
       });
 
@@ -811,7 +816,7 @@ describe('QuestsService', () => {
       expect((result as any).completionCount).toBe(1);
     });
 
-    it('increments progress on repeated requests (no event receipt dedupe)', async () => {
+    it('returns duplicate=true when the event receipt already exists', async () => {
       mockRepo.getQuestById.mockResolvedValue({
         id: 'quest-ot',
         title: 'Daily Commit',
@@ -824,23 +829,23 @@ describe('QuestsService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       } as any);
-      mockRepo.incrementQuestProgress.mockResolvedValue({
-        subject_ref: 'user:default/dave',
-        quest_id: 'quest-ot',
-        completion_count: 2,
-        created_at: new Date(),
-        updated_at: new Date(),
-      });
+      mockRepo.tryInsertReceipt.mockResolvedValue(false);
 
       const result = await service.handleQuestEvent({
+        eventId: 'evt-duplicate',
         questId: 'quest-ot',
         subjectRef: 'user:default/dave',
+        callerSubject: 'external:test-service',
         opts: { credentials: {} as any },
       });
 
-      expect(result.duplicate).toBe(false);
-      expect((result as any).completionCount).toBe(2);
-      expect(mockRepo.incrementQuestProgress).toHaveBeenCalled();
+      expect(result).toEqual({
+        duplicate: true,
+        blocked: false,
+        subjectRef: 'user:default/dave',
+        questId: 'quest-ot',
+      });
+      expect(mockRepo.incrementQuestProgress).not.toHaveBeenCalled();
     });
 
     it('uses the group entity ref as the subject for team quest events', async () => {
@@ -867,8 +872,10 @@ describe('QuestsService', () => {
       });
 
       const result = await service.handleQuestEvent({
+        eventId: 'evt-team',
         questId: 'quest-team',
         subjectRef: 'group:default/platform',
+        callerSubject: 'external:test-service',
         opts: { credentials: {} as any },
       });
 
@@ -899,7 +906,9 @@ describe('QuestsService', () => {
 
       await expect(
         service.handleQuestEvent({
+          eventId: 'evt-missing-subject',
           questId: 'quest-user',
+          callerSubject: 'external:test-service',
           opts: { credentials: {} as any },
         }),
       ).rejects.toThrow(InputError);
@@ -921,8 +930,10 @@ describe('QuestsService', () => {
 
       await expect(
         service.handleQuestEvent({
+          eventId: 'evt-bad-team-subject',
           questId: 'quest-team',
           subjectRef: 'user:default/alice',
+          callerSubject: 'external:test-service',
           opts: { credentials: {} as any },
         }),
       ).rejects.toThrow(InputError);
@@ -944,8 +955,10 @@ describe('QuestsService', () => {
 
       await expect(
         service.handleQuestEvent({
+          eventId: 'evt-bad-user-subject',
           questId: 'quest-user',
           subjectRef: 'group:default/platform',
+          callerSubject: 'external:test-service',
           opts: { credentials: {} as any },
         }),
       ).rejects.toThrow(InputError);
@@ -967,8 +980,10 @@ describe('QuestsService', () => {
 
       await expect(
         service.handleQuestEvent({
+          eventId: 'evt-team-actor-missing-entity',
           questId: 'quest-team',
           actor: { provider: 'github', login: 'alice' },
+          callerSubject: 'external:test-service',
           opts: { credentials: {} as any },
         }),
       ).rejects.toThrow(InputError);
@@ -990,8 +1005,10 @@ describe('QuestsService', () => {
 
       await expect(
         service.handleQuestEvent({
+          eventId: 'evt-team-actor-bad-ref',
           questId: 'quest-team',
           actor: { entityRef: 'user:default/alice' },
+          callerSubject: 'external:test-service',
           opts: { credentials: {} as any },
         }),
       ).rejects.toThrow(InputError);
@@ -1028,8 +1045,10 @@ describe('QuestsService', () => {
       });
 
       const result = await service.handleQuestEvent({
+        eventId: 'evt-actor-resolution',
         questId: 'quest-user',
         actor: { provider: 'github', login: 'alice' },
+        callerSubject: 'external:test-service',
         opts: { credentials: {} as any },
       });
 
@@ -1053,8 +1072,10 @@ describe('QuestsService', () => {
 
       await expect(
         service.handleQuestEvent({
+          eventId: 'evt-rethrow',
           questId: 'quest-user',
           subjectRef: 'user:default/alice',
+          callerSubject: 'external:test-service',
           opts: { credentials: {} as any },
         }),
       ).rejects.toThrow('db down');
