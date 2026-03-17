@@ -150,6 +150,33 @@ describe('quests routes auth', () => {
     });
   });
 
+  it('allows admin users to create quests with zero xp reward', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, questsService } = makeApp({ userInfo });
+    const zeroRewardPayload = {
+      ...createQuestPayload,
+      xp_reward: 0,
+    };
+
+    const res = await request(app)
+      .post('/quests')
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send(zeroRewardPayload);
+
+    expect(res.status).toBe(201);
+    expect(questsService.createQuest).toHaveBeenCalledWith(zeroRewardPayload, {
+      credentials: expect.objectContaining({
+        principal: expect.objectContaining({
+          type: 'user',
+          userEntityRef: userRef,
+        }),
+      }),
+    });
+  });
+
   it('allows admin users to list quests with SQL-backed filters and sorting', async () => {
     const userRef = 'user:default/alice';
     const userInfo = mockServices.userInfo({

@@ -10,7 +10,7 @@ export const questCreationSchema = z.object({
   title: z.string().min(1),
   description: z.string().default(''),
   target_count: z.number().int().positive().default(1),
-  xp_reward: z.number().int().positive(),
+  xp_reward: z.number().int().nonnegative(),
   subject_type: questSubjectTypeSchema.default('user'),
   completion_policy: z.enum(COMPLETION_POLICIES).default('REPEATABLE'),
   cooldown_days: z.number().int().positive().nullable().optional(),
