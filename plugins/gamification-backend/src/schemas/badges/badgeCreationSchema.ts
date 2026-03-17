@@ -35,6 +35,7 @@ export const badgeCreationSchema = z
   .object({
     title: z.string().trim().min(1),
     description: z.string().trim().min(1),
+    xp_reward: z.number().int().min(0),
     subject_type: questSubjectTypeSchema,
     criterias: z.array(badgeCriteriaSchema).min(1),
   })

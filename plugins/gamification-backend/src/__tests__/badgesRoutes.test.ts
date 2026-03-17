@@ -13,6 +13,7 @@ describe('badges routes auth and errors', () => {
   const badgePayload = {
     title: 'Contributor',
     description: 'Awarded for shipping code',
+    xp_reward: 150,
     subject_type: 'user' as const,
     criterias: [{ quest_id: 'quest-1', target_count: 3 }],
   };
@@ -45,25 +46,24 @@ describe('badges routes auth and errors', () => {
         updated_at: new Date('2026-01-01T00:00:00Z'),
         ...((data as object) ?? {}),
       })),
-      getBadges: jest.fn(async () => ({
-        data: [
-          {
-            id: 'badge-1',
-            title: 'Contributor',
-            description: 'Awarded for shipping code',
-            subject_type: 'user' as const,
-            criterias: [{ quest_id: 'quest-1', target_count: 3 }],
-            archived_at: null,
-            created_at: new Date('2026-01-01T00:00:00Z'),
-            updated_at: new Date('2026-01-01T00:00:00Z'),
-          },
-        ],
-        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
-      })),
+      getBadges: jest.fn(async () => [
+        {
+          id: 'badge-1',
+          title: 'Contributor',
+          description: 'Awarded for shipping code',
+          xp_reward: 150,
+          subject_type: 'user' as const,
+          criterias: [{ quest_id: 'quest-1', target_count: 3 }],
+          archived_at: null,
+          created_at: new Date('2026-01-01T00:00:00Z'),
+          updated_at: new Date('2026-01-01T00:00:00Z'),
+        },
+      ]),
       getBadgeById: jest.fn(async (id: string) => ({
         id,
         title: 'Contributor',
         description: 'Awarded for shipping code',
+        xp_reward: 150,
         subject_type: 'user' as const,
         criterias: [{ quest_id: 'quest-1', target_count: 3 }],
         archived_at: null,
@@ -77,6 +77,7 @@ describe('badges routes auth and errors', () => {
             id: 'badge-1',
             title: 'Contributor',
             description: 'Awarded for shipping code',
+            xp_reward: 150,
             subject_type: 'user' as const,
             criterias: [{ quest_id: 'quest-1', target_count: 3 }],
             isEarned: true,
@@ -92,6 +93,7 @@ describe('badges routes auth and errors', () => {
         id,
         title: 'Contributor',
         description: 'Awarded for shipping code',
+        xp_reward: 150,
         subject_type: 'user' as const,
         criterias: [{ quest_id: 'quest-1', target_count: 3 }],
         archived_at: null,

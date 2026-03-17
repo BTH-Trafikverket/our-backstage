@@ -89,6 +89,7 @@ export class BadgesService {
       id: badge.id,
       title: badge.title,
       description: badge.description,
+      xp_reward: badge.xp_reward,
       subject_type: badge.subject_type,
       created_at: badge.created_at,
       updated_at: badge.updated_at,
@@ -115,6 +116,7 @@ export class BadgesService {
       const badge = await repo.createBadge({
         title: data.title,
         description: data.description,
+        xp_reward: data.xp_reward,
         subject_type: data.subject_type,
       });
 
@@ -242,11 +244,13 @@ export class BadgesService {
       if (
         data.title !== undefined ||
         data.description !== undefined ||
+        data.xp_reward !== undefined ||
         data.subject_type !== undefined
       ) {
         const updated = await repo.updateBadge(id, {
           title: data.title,
           description: data.description,
+          xp_reward: data.xp_reward,
           subject_type: data.subject_type,
         });
 
