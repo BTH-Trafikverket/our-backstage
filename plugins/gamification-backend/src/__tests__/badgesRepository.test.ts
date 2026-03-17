@@ -57,6 +57,7 @@ describe('BadgesRepository Integration Tests', () => {
       const badge = await repository.createBadge({
         title: 'Contributor',
         description: 'Awarded for completing core work',
+        xp_reward: 125,
         subject_type: 'user',
       });
       await repository.insertBadgeCriteria(badge.id, [
@@ -68,6 +69,7 @@ describe('BadgesRepository Integration Tests', () => {
 
       expect(storedBadge).toBeDefined();
       expect(storedBadge?.title).toBe('Contributor');
+      expect(storedBadge?.xp_reward).toBe(125);
       expect(criteria).toEqual([
         { badge_id: badge.id, quest_id: quest.id, target_count: 3 },
       ]);
@@ -84,11 +86,13 @@ describe('BadgesRepository Integration Tests', () => {
       const badgeA = await repository.createBadge({
         title: 'Badge A',
         description: 'First badge',
+        xp_reward: 10,
         subject_type: 'user',
       });
       const badgeB = await repository.createBadge({
         title: 'Badge B',
         description: 'Second badge',
+        xp_reward: 20,
         subject_type: 'user',
       });
 
@@ -119,6 +123,7 @@ describe('BadgesRepository Integration Tests', () => {
       const badge = await repository.createBadge({
         title: 'Original Badge',
         description: 'Original description',
+        xp_reward: 30,
         subject_type: 'user',
       });
       await repository.insertBadgeCriteria(badge.id, [
@@ -128,6 +133,7 @@ describe('BadgesRepository Integration Tests', () => {
       const updated = await repository.updateBadge(badge.id, {
         title: 'Updated Badge',
         description: 'Updated description',
+        xp_reward: 45,
       });
       await repository.replaceBadgeCriteria(badge.id, [
         { quest_id: questB.id, target_count: 4 },
@@ -137,6 +143,7 @@ describe('BadgesRepository Integration Tests', () => {
       const criteria = await repository.getBadgeCriteria(badge.id);
 
       expect(updated?.title).toBe('Updated Badge');
+      expect(updated?.xp_reward).toBe(45);
       expect(criteria).toEqual([
         { badge_id: badge.id, quest_id: questB.id, target_count: 4 },
       ]);
@@ -152,6 +159,7 @@ describe('BadgesRepository Integration Tests', () => {
       const badge = await repository.createBadge({
         title: 'User Badge Only',
         description: 'Should not allow team quests',
+        xp_reward: 0,
         subject_type: 'user',
       });
 
@@ -173,6 +181,7 @@ describe('BadgesRepository Integration Tests', () => {
       const earnedBadge = await repository.createBadge({
         title: 'Earned Badge',
         description: 'Completed criteria',
+        xp_reward: 80,
         subject_type: 'team',
       });
       await repository.insertBadgeCriteria(earnedBadge.id, [
@@ -183,6 +192,7 @@ describe('BadgesRepository Integration Tests', () => {
       const unearnedBadge = await repository.createBadge({
         title: 'Unearned Badge',
         description: 'Missing progress',
+        xp_reward: 0,
         subject_type: 'team',
       });
       await repository.insertBadgeCriteria(unearnedBadge.id, [
@@ -230,23 +240,58 @@ describe('BadgesRepository Integration Tests', () => {
           { column: 'subject_ref', order: 'asc' },
           { column: 'badge_id', order: 'asc' },
         ]);
+      const xpRows = await knex('xp_ledger')
+        .select(['subject_ref', 'badge_id', 'quest_id', 'xp_amount', 'source'])
+        .orderBy([{ column: 'subject_ref', order: 'asc' }]);
 
-      expect(criteriaCompletion).toEqual([
-        {
-          subject_ref: 'group:default/platform',
-          badge_id: earnedBadge.id,
-          quest_id: questA.id,
-        },
-        {
-          subject_ref: 'group:default/platform',
-          badge_id: earnedBadge.id,
-          quest_id: questB.id,
-        },
-      ]);
+      const sortCriteriaCompletion = (
+        rows: Array<{
+          subject_ref: string;
+          badge_id: string;
+          quest_id: string;
+        }>,
+      ) =>
+        [...rows].sort((a, b) => {
+          const bySubject = a.subject_ref.localeCompare(b.subject_ref);
+          if (bySubject !== 0) {
+            return bySubject;
+          }
+
+          const byBadge = a.badge_id.localeCompare(b.badge_id);
+          if (byBadge !== 0) {
+            return byBadge;
+          }
+
+          return a.quest_id.localeCompare(b.quest_id);
+        });
+
+      expect(sortCriteriaCompletion(criteriaCompletion)).toEqual(
+        sortCriteriaCompletion([
+          {
+            subject_ref: 'group:default/platform',
+            badge_id: earnedBadge.id,
+            quest_id: questA.id,
+          },
+          {
+            subject_ref: 'group:default/platform',
+            badge_id: earnedBadge.id,
+            quest_id: questB.id,
+          },
+        ]),
+      );
       expect(earnedRows).toEqual([
         {
           subject_ref: 'group:default/platform',
           badge_id: earnedBadge.id,
+        },
+      ]);
+      expect(xpRows).toEqual([
+        {
+          subject_ref: 'group:default/platform',
+          badge_id: earnedBadge.id,
+          quest_id: null,
+          xp_amount: 80,
+          source: 'badge_completion_trigger',
         },
       ]);
 
@@ -275,6 +320,7 @@ describe('BadgesRepository Integration Tests', () => {
       const badge = await repository.createBadge({
         title: 'User Badge',
         description: 'Awarded once',
+        xp_reward: 60,
         subject_type: 'user',
       });
       await repository.insertBadgeCriteria(badge.id, [
@@ -306,12 +352,19 @@ describe('BadgesRepository Integration Tests', () => {
           badge_id: badge.id,
         })
         .select('*');
+      const xpRows = await knex('xp_ledger')
+        .where({
+          subject_ref: 'user:default/alice',
+          badge_id: badge.id,
+        })
+        .select('*');
       const badgeProgress = await repository.getBadgeProgress([
         'user:default/alice',
       ]);
 
       expect(criteriaCompletion).toHaveLength(1);
       expect(earnedRows).toHaveLength(1);
+      expect(xpRows).toHaveLength(1);
       expect(badgeProgress).toHaveLength(1);
       expect(badgeProgress[0].is_earned).toBe(true);
 
@@ -327,6 +380,7 @@ describe('BadgesRepository Integration Tests', () => {
       const badge = await repository.createBadge({
         title: 'Replace Runtime Badge',
         description: 'Runtime should be cleared on criteria replace',
+        xp_reward: 40,
         subject_type: 'team',
       });
       await repository.insertBadgeCriteria(badge.id, [
@@ -349,9 +403,13 @@ describe('BadgesRepository Integration Tests', () => {
       const earnedBadge = await knex('earned_badges')
         .where({ badge_id: badge.id })
         .select('*');
+      const xpLedger = await knex('xp_ledger')
+        .where({ badge_id: badge.id })
+        .select('*');
 
       expect(criteriaCompletion).toEqual([]);
       expect(earnedBadge).toEqual([]);
+      expect(xpLedger).toEqual([]);
 
       await knex.destroy();
     });
@@ -364,6 +422,7 @@ describe('BadgesRepository Integration Tests', () => {
       const badge = await repository.createBadge({
         title: 'Team Earned Badge',
         description: 'Earned by a team membership',
+        xp_reward: 25,
         subject_type: 'team',
       });
       await repository.insertBadgeCriteria(badge.id, [
@@ -398,11 +457,13 @@ describe('BadgesRepository Integration Tests', () => {
       const userBadge = await repository.createBadge({
         title: 'User Badge Visible',
         description: 'Visible for user refs only',
+        xp_reward: 0,
         subject_type: 'user',
       });
       const teamBadge = await repository.createBadge({
         title: 'Team Badge Visible',
         description: 'Visible for team refs only',
+        xp_reward: 0,
         subject_type: 'team',
       });
 
@@ -438,6 +499,7 @@ describe('BadgesRepository Integration Tests', () => {
       const badge = await repository.createBadge({
         title: 'Delete Badge',
         description: 'To be removed',
+        xp_reward: 35,
         subject_type: 'team',
       });
       await repository.insertBadgeCriteria(badge.id, [

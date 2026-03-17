@@ -68,14 +68,21 @@ export type QuestStatusFilter = 'active' | 'completed' | 'all';
 export type QuestSortField = 'created_at' | 'title' | 'xp_reward';
 export type SortOrder = 'asc' | 'desc';
 
+export type PaginationResult = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+export type PaginatedQuestRowsResult = {
+  data: QuestRow[];
+  pagination: PaginationResult;
+};
+
 export type PaginatedQuestsResult = {
   data: QuestWithProgressRow[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
+  pagination: PaginationResult;
 };
 
 export class QuestsRepository {
@@ -116,14 +123,76 @@ export class QuestsRepository {
     return rows[0];
   }
 
-  async getQuests(searchTitle?: string): Promise<QuestRow[]> {
-    let query = this.db<QuestRow>('quests');
+  async getQuests(params?: {
+    searchTitle?: string;
+    audience?: QuestAudienceFilter;
+    sortBy?: QuestSortField;
+    order?: SortOrder;
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedQuestRowsResult> {
+    const {
+      searchTitle,
+      audience = 'all',
+      sortBy = 'created_at',
+      order = 'asc',
+      page = 1,
+      limit = 10,
+    } = params ?? {};
+
+    const safePage = Math.max(1, Math.floor(page));
+    const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const offset = (safePage - 1) * safeLimit;
+    const sortOrder = order === 'desc' ? 'desc' : 'asc';
+
+    let query = this.db<QuestRow>('quests').select('*');
 
     if (searchTitle) {
       query = query.where('title', 'ilike', `%${searchTitle}%`);
     }
 
-    return await query.select('*');
+    if (audience === 'individual') {
+      query = query.where('subject_type', 'user');
+    } else if (audience === 'team') {
+      query = query.where('subject_type', 'team');
+    }
+
+    const results = await query
+      .clone()
+      .select(this.db.raw('COUNT(*) OVER() as full_count'))
+      .orderBy([
+        { column: sortBy, order: sortOrder },
+        { column: 'id', order: 'asc' },
+      ])
+      .limit(safeLimit)
+      .offset(offset);
+
+    let total = results.length > 0 ? Number((results[0] as any).full_count) : 0;
+
+    if (results.length === 0 && safePage > 1) {
+      const countRow = await query
+        .clone()
+        .count<{ count: string }[]>({ count: '*' })
+        .first();
+
+      total = Number(countRow?.count ?? 0);
+    }
+
+    const totalPages = Math.ceil(total / safeLimit) || 0;
+    const data = results.map((row: any) => {
+      const { full_count, ...rest } = row;
+      return rest as QuestRow;
+    });
+
+    return {
+      data,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages,
+      },
+    };
   }
 
   async getQuestById(id: string): Promise<QuestRow | undefined> {

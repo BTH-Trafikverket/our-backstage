@@ -13,6 +13,7 @@ describe('QuestsService', () => {
   beforeEach(() => {
     mockRepo = {
       createQuest: jest.fn(),
+      getQuests: jest.fn(),
       getQuestById: jest.fn(),
       withTransaction: jest.fn(async fn => fn(mockRepo)),
       lockSubjectQuest: jest.fn(),
@@ -442,6 +443,36 @@ describe('QuestsService', () => {
         audience: undefined,
         status: undefined,
         team_ref: undefined,
+      });
+    });
+  });
+
+  describe('getQuests', () => {
+    it('passes admin list filters to the repository', async () => {
+      mockRepo.getQuests.mockResolvedValue({
+        data: [],
+        pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
+      } as any);
+
+      await service.getQuests(
+        {
+          searchTitle: 'team',
+          audience: 'team',
+          sortBy: 'xp_reward',
+          order: 'desc',
+          page: 2,
+          limit: 5,
+        },
+        { credentials: {} as any },
+      );
+
+      expect(mockRepo.getQuests).toHaveBeenCalledWith({
+        searchTitle: 'team',
+        audience: 'team',
+        sortBy: 'xp_reward',
+        order: 'desc',
+        page: 2,
+        limit: 5,
       });
     });
   });

@@ -54,6 +54,7 @@ describe('BadgesService', () => {
       id: 'badge-1',
       title: 'Reviewer',
       description: 'User badge',
+      xp_reward: 75,
       subject_type: 'user',
       archived_at: null,
       created_at: new Date(),
@@ -64,6 +65,7 @@ describe('BadgesService', () => {
       {
         title: 'Reviewer',
         description: 'User badge',
+        xp_reward: 75,
         subject_type: 'user',
         criterias: [{ quest_id: 'quest-1', target_count: 3 }],
       },
@@ -73,6 +75,7 @@ describe('BadgesService', () => {
     expect(badgesRepo.createBadge).toHaveBeenCalledWith({
       title: 'Reviewer',
       description: 'User badge',
+      xp_reward: 75,
       subject_type: 'user',
     });
     expect(questsRepo.getQuestsByIds).toHaveBeenCalledWith(['quest-1']);
@@ -99,6 +102,7 @@ describe('BadgesService', () => {
         {
           title: 'Reviewer',
           description: 'User badge',
+          xp_reward: 75,
           subject_type: 'user',
           criterias: [{ quest_id: 'quest-1', target_count: 1 }],
         },
@@ -114,6 +118,7 @@ describe('BadgesService', () => {
       id: 'badge-1',
       title: 'Reviewer',
       description: 'User badge',
+      xp_reward: 75,
       subject_type: 'user',
       archived_at: null,
       created_at: new Date(),
