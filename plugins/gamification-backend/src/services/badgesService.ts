@@ -2,8 +2,8 @@ import { InputError, NotFoundError } from '@backstage/errors';
 import type {
   BadgesRepository,
   BadgePagination,
-  BadgeProgressRow,
   BadgeRow,
+  CriteriaProgressRow,
 } from '../repositories/badgesRepository';
 import type { QuestsRepository } from '../repositories/questsRepository';
 import type {
@@ -26,14 +26,42 @@ export type PaginatedBadgeResponse = {
   pagination: BadgePagination;
 };
 
+export type CriteriaProgress = {
+  quest_id: string;
+  quest_title: string;
+  target_count: number;
+  completion_policy: string;
+  progress: {
+    current: number;
+    target: number;
+    percent: number;
+    done: boolean;
+  };
+  quest_progress: {
+    current: number;
+    target: number;
+    percent: number;
+    done: boolean;
+  };
+};
+
+export type BadgeProgress = {
+  completedRequirements: number;
+  totalRequirements: number;
+  percent: number;
+};
+
+export type BadgeProgressBadge = Omit<BadgeResponse, 'criterias'> & {
+  isEarned: boolean;
+  earnedAt: Date | null;
+  progressSubjectRef: string | null;
+  progress: BadgeProgress;
+  criterias: CriteriaProgress[];
+};
+
 export type BadgeProgressResponse = {
   subjectRefs: string[];
-  badges: Array<
-    BadgeResponse & {
-      isEarned: boolean;
-      earnedAt: Date | null;
-    }
-  >;
+  badges: BadgeProgressBadge[];
   pagination: BadgePagination;
 };
 
@@ -97,15 +125,137 @@ export class BadgesService {
     };
   }
 
-  private buildBadgeProgress(
-    badge: BadgeProgressRow,
-    criterias: BadgeCriteriaInput[],
-  ): BadgeProgressResponse['badges'][number] {
+  private getProgressPercent(current: number, target: number): number {
+    if (target <= 0) {
+      return 0;
+    }
+
+    return Math.min(100, Math.round((current / target) * 100));
+  }
+
+  private buildCriteriaProgress(row: CriteriaProgressRow): CriteriaProgress {
+    const completionCount = Number(row.completion_count);
+    const targetCount = Number(row.target_count);
+    const questTargetCount = Number(row.quest_target_count);
+    const requirementCurrent = Math.min(completionCount, targetCount);
+    const requirementDone = completionCount >= targetCount;
+    const questDone =
+      row.completion_policy === 'ONE_TIME' &&
+      completionCount >= questTargetCount;
+    const questCurrent = questDone
+      ? questTargetCount
+      : questTargetCount > 0
+      ? completionCount % questTargetCount
+      : 0;
+
     return {
-      ...this.buildBadge(badge, criterias),
+      quest_id: row.quest_id,
+      quest_title: row.quest_title,
+      target_count: targetCount,
+      completion_policy: row.completion_policy,
+      progress: {
+        current: requirementCurrent,
+        target: targetCount,
+        percent: this.getProgressPercent(requirementCurrent, targetCount),
+        done: requirementDone,
+      },
+      quest_progress: {
+        current: questCurrent,
+        target: questTargetCount,
+        percent: questDone
+          ? 100
+          : this.getProgressPercent(questCurrent, questTargetCount),
+        done: questDone,
+      },
+    };
+  }
+
+  private buildBadgeProgress(
+    badge: BadgeRow & { is_earned: boolean; earned_at: Date | null },
+    progressSubjectRef: string | null,
+    criterias: CriteriaProgress[],
+  ): BadgeProgressBadge {
+    const completedRequirements = criterias.filter(
+      criteria => criteria.progress.done,
+    ).length;
+    const totalRequirements = criterias.length;
+
+    return {
+      id: badge.id,
+      title: badge.title,
+      description: badge.description,
+      subject_type: badge.subject_type,
+      created_at: badge.created_at,
+      updated_at: badge.updated_at,
+      archived_at: badge.archived_at,
       isEarned: badge.is_earned,
       earnedAt: badge.earned_at,
+      progressSubjectRef,
+      progress: {
+        completedRequirements,
+        totalRequirements,
+        percent:
+          totalRequirements > 0
+            ? Math.round((completedRequirements / totalRequirements) * 100)
+            : 0,
+      },
+      criterias,
     };
+  }
+
+  private pickBestProgressSubject(
+    rows: CriteriaProgressRow[],
+    subjectRefs: string[],
+  ): string | null {
+    const refs = [
+      ...new Set(subjectRefs.map(ref => ref.trim()).filter(Boolean)),
+    ];
+
+    if (rows.length === 0 || refs.length === 0) {
+      return null;
+    }
+
+    let bestSubjectRef: string | null = null;
+    let bestCompletedRequirements = -1;
+    let bestPercentTotal = -1;
+    let bestCompletionCountTotal = -1;
+
+    for (const subjectRef of refs) {
+      const subjectRows = rows.filter(row => row.subject_ref === subjectRef);
+      if (subjectRows.length === 0) {
+        continue;
+      }
+
+      const criterias = subjectRows.map(row => this.buildCriteriaProgress(row));
+      const completedRequirements = criterias.filter(
+        criteria => criteria.progress.done,
+      ).length;
+      const percentTotal = criterias.reduce(
+        (total, criteria) => total + criteria.progress.percent,
+        0,
+      );
+      const completionCountTotal = subjectRows.reduce(
+        (total, row) => total + Number(row.completion_count),
+        0,
+      );
+
+      const isBetterCandidate =
+        completedRequirements > bestCompletedRequirements ||
+        (completedRequirements === bestCompletedRequirements &&
+          percentTotal > bestPercentTotal) ||
+        (completedRequirements === bestCompletedRequirements &&
+          percentTotal === bestPercentTotal &&
+          completionCountTotal > bestCompletionCountTotal);
+
+      if (isBetterCandidate) {
+        bestSubjectRef = subjectRef;
+        bestCompletedRequirements = completedRequirements;
+        bestPercentTotal = percentTotal;
+        bestCompletionCountTotal = completionCountTotal;
+      }
+    }
+
+    return bestSubjectRef;
   }
 
   async createBadge(data: BadgeCreationInput, _opts: BadgeServiceOpts) {
@@ -157,29 +307,36 @@ export class BadgesService {
     subjectRefs: string[],
     opts?: BadgePaginationOpts,
   ): Promise<BadgeProgressResponse> {
-    const paginated = await this.badgesRepo.getPaginatedBadgeProgress(
-      subjectRefs,
-      {
-        page: opts?.page,
-        limit: opts?.limit,
-      },
-    );
-    const criteriaRows = await this.badgesRepo.getCriteriaForBadges(
-      paginated.data.map(badge => badge.id),
-    );
+    const refs = [
+      ...new Set(subjectRefs.map(ref => ref.trim()).filter(Boolean)),
+    ];
+    const paginated = await this.badgesRepo.getPaginatedBadgeProgress(refs, {
+      page: opts?.page,
+      limit: opts?.limit,
+    });
 
-    const criteriaByBadgeId = new Map<string, BadgeCriteriaInput[]>();
-    for (const row of criteriaRows) {
-      const entries = criteriaByBadgeId.get(row.badge_id) ?? [];
-      entries.push({ quest_id: row.quest_id, target_count: row.target_count });
-      criteriaByBadgeId.set(row.badge_id, entries);
-    }
+    const badgeIds = paginated.data.map(badge => badge.id);
+    const criteriaProgressRows =
+      await this.badgesRepo.getCriteriaProgressForBadges(badgeIds, refs);
 
     return {
-      subjectRefs,
-      badges: paginated.data.map(badge =>
-        this.buildBadgeProgress(badge, criteriaByBadgeId.get(badge.id) ?? []),
-      ),
+      subjectRefs: refs,
+      badges: paginated.data.map(badge => {
+        const badgeRows = criteriaProgressRows.filter(
+          row => row.badge_id === badge.id,
+        );
+        const progressSubjectRef = this.pickBestProgressSubject(
+          badgeRows,
+          refs,
+        );
+        const criterias = progressSubjectRef
+          ? badgeRows
+              .filter(row => row.subject_ref === progressSubjectRef)
+              .map(row => this.buildCriteriaProgress(row))
+          : [];
+
+        return this.buildBadgeProgress(badge, progressSubjectRef, criterias);
+      }),
       pagination: paginated.pagination,
     };
   }
