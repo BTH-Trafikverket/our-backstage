@@ -21,6 +21,40 @@ import { CatalogClient } from '@backstage/catalog-client';
 import { XpRepository } from './repositories/xpRepository';
 import { XpService } from './services/xpService';
 
+function readActorResolutionProviders(config: RootConfigService): Record<
+  string,
+  {
+    idAnnotations?: string[];
+    loginAnnotations?: string[];
+  }
+> {
+  const providersConfig = config.getOptionalConfig(
+    'gamification.actorResolution.providers',
+  );
+  if (!providersConfig) {
+    return {};
+  }
+
+  const providers: Record<
+    string,
+    {
+      idAnnotations?: string[];
+      loginAnnotations?: string[];
+    }
+  > = {};
+
+  for (const providerName of providersConfig.keys()) {
+    const providerConfig = providersConfig.getConfig(providerName);
+    providers[providerName.toLocaleLowerCase('en-US')] = {
+      idAnnotations: providerConfig.getOptionalStringArray('idAnnotations'),
+      loginAnnotations:
+        providerConfig.getOptionalStringArray('loginAnnotations'),
+    };
+  }
+
+  return providers;
+}
+
 export function createRouter({
   httpAuth,
   userInfo,
@@ -43,8 +77,14 @@ export function createRouter({
   const badgesRepo = new BadgesRepository(knex);
 
   const catalogClient = new CatalogClient({ discoveryApi: discovery });
+  const actorResolutionProviders = readActorResolutionProviders(config);
 
-  const questsService = new QuestsService({ questsRepo, catalogClient, auth });
+  const questsService = new QuestsService({
+    questsRepo,
+    catalogClient,
+    auth,
+    actorResolutionProviders,
+  });
   const badgesService = new BadgesService({ badgesRepo, questsRepo });
 
   const xpRepo = new XpRepository(knex);
