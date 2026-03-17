@@ -25,6 +25,7 @@ describe('BadgesService', () => {
 
     questsRepo = {
       getQuestById: jest.fn(),
+      getQuestsByIds: jest.fn(),
     } as any;
 
     service = new BadgesService({
@@ -34,18 +35,20 @@ describe('BadgesService', () => {
   });
 
   it('creates a user badge only from user quests', async () => {
-    questsRepo.getQuestById.mockResolvedValue({
-      id: 'quest-1',
-      title: 'Review PRs',
-      description: '',
-      target_count: 1,
-      xp_reward: 100,
-      subject_type: 'user',
-      completion_policy: 'REPEATABLE',
-      cooldown_days: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    } as any);
+    questsRepo.getQuestsByIds.mockResolvedValue([
+      {
+        id: 'quest-1',
+        title: 'Review PRs',
+        description: '',
+        target_count: 1,
+        xp_reward: 100,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any,
+    ]);
 
     badgesRepo.createBadge.mockResolvedValue({
       id: 'badge-1',
@@ -72,21 +75,24 @@ describe('BadgesService', () => {
       description: 'User badge',
       subject_type: 'user',
     });
+    expect(questsRepo.getQuestsByIds).toHaveBeenCalledWith(['quest-1']);
   });
 
   it('rejects badges that mix badge type and quest type', async () => {
-    questsRepo.getQuestById.mockResolvedValue({
-      id: 'quest-1',
-      title: 'Security Sweep',
-      description: '',
-      target_count: 1,
-      xp_reward: 100,
-      subject_type: 'team',
-      completion_policy: 'REPEATABLE',
-      cooldown_days: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    } as any);
+    questsRepo.getQuestsByIds.mockResolvedValue([
+      {
+        id: 'quest-1',
+        title: 'Security Sweep',
+        description: '',
+        target_count: 1,
+        xp_reward: 100,
+        subject_type: 'team',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any,
+    ]);
 
     await expect(
       service.createBadge(
@@ -116,18 +122,20 @@ describe('BadgesService', () => {
     badgesRepo.getBadgeCriteria.mockResolvedValue([
       { badge_id: 'badge-1', quest_id: 'quest-1', target_count: 1 },
     ]);
-    questsRepo.getQuestById.mockResolvedValue({
-      id: 'quest-1',
-      title: 'Review PRs',
-      description: '',
-      target_count: 1,
-      xp_reward: 100,
-      subject_type: 'user',
-      completion_policy: 'REPEATABLE',
-      cooldown_days: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    } as any);
+    questsRepo.getQuestsByIds.mockResolvedValue([
+      {
+        id: 'quest-1',
+        title: 'Review PRs',
+        description: '',
+        target_count: 1,
+        xp_reward: 100,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any,
+    ]);
 
     await expect(
       service.updateBadge(
@@ -138,5 +146,47 @@ describe('BadgesService', () => {
     ).rejects.toThrow(InputError);
 
     expect(badgesRepo.updateBadge).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates repeated quest ids into a single batched lookup', async () => {
+    questsRepo.getQuestsByIds.mockResolvedValue([
+      {
+        id: 'quest-1',
+        title: 'Review PRs',
+        description: '',
+        target_count: 1,
+        xp_reward: 100,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any,
+    ]);
+    badgesRepo.createBadge.mockResolvedValue({
+      id: 'badge-1',
+      title: 'Reviewer',
+      description: 'User badge',
+      subject_type: 'user',
+      archived_at: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    } as any);
+
+    await service.createBadge(
+      {
+        title: 'Reviewer',
+        description: 'User badge',
+        subject_type: 'user',
+        criterias: [
+          { quest_id: 'quest-1', target_count: 1 },
+          { quest_id: 'quest-1', target_count: 2 },
+        ],
+      },
+      { credentials: {} as any },
+    );
+
+    expect(questsRepo.getQuestsByIds).toHaveBeenCalledWith(['quest-1']);
+    expect(questsRepo.getQuestsByIds).toHaveBeenCalledTimes(1);
   });
 });

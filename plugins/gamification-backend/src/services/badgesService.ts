@@ -58,8 +58,12 @@ export class BadgesService {
     badgeSubjectType: QuestSubjectType,
     criterias: BadgeCriteriaInput[],
   ) {
+    const questIds = [...new Set(criterias.map(criteria => criteria.quest_id))];
+    const quests = await this.questsRepo.getQuestsByIds(questIds);
+    const questsById = new Map(quests.map(quest => [quest.id, quest]));
+
     for (const criteria of criterias) {
-      const quest = await this.questsRepo.getQuestById(criteria.quest_id);
+      const quest = questsById.get(criteria.quest_id);
       if (!quest) {
         throw new NotFoundError(`Quest '${criteria.quest_id}' not found`);
       }

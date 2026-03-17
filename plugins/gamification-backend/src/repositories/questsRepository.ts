@@ -130,6 +130,14 @@ export class QuestsRepository {
     return this.db<QuestRow>('quests').where({ id }).first();
   }
 
+  async getQuestsByIds(ids: string[]): Promise<QuestRow[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.db<QuestRow>('quests').whereIn('id', ids).select('*');
+  }
+
   async getQuestsWithProgress(params: {
     user_ref: string;
     ownership_refs: string[];
