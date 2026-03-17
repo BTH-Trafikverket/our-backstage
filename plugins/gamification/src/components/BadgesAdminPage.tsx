@@ -60,6 +60,7 @@ type Badge = {
   id: string;
   title: string;
   description: string;
+  xp_reward: number;
   subject_type: BadgeSubjectType;
   criterias: BadgeCriteria[];
   archived_at?: string | null;
@@ -80,6 +81,7 @@ type BadgeFormCriteria = {
 type BadgeFormData = {
   title: string;
   description: string;
+  xp_reward: string;
   subject_type: BadgeSubjectType;
   criterias: BadgeFormCriteria[];
 };
@@ -93,6 +95,7 @@ type BadgesAdminPageProps = {
 const createEmptyForm = (): BadgeFormData => ({
   title: '',
   description: '',
+  xp_reward: '0',
   subject_type: 'user',
   criterias: [{ quest_id: '', target_count: '1' }],
 });
@@ -342,8 +345,14 @@ export const BadgesAdminPage = ({
   const validateBadgeForm = (form: BadgeFormData): string | null => {
     if (!form.title.trim()) return 'Title is required';
     if (!form.description.trim()) return 'Description is required';
+    if (form.xp_reward.trim() === '') return 'XP reward is required';
     if (!form.subject_type) return 'Badge type is required';
     if (!form.criterias.length) return 'At least one criterion is required';
+
+    const parsedXpReward = parseInt(form.xp_reward, 10);
+    if (Number.isNaN(parsedXpReward) || parsedXpReward < 0) {
+      return 'XP reward must be 0 or greater';
+    }
 
     const selectedIds = form.criterias
       .map(c => c.quest_id)
@@ -423,6 +432,7 @@ export const BadgesAdminPage = ({
         body: JSON.stringify({
           title: createForm.title.trim(),
           description: createForm.description.trim(),
+          xp_reward: parseInt(createForm.xp_reward, 10),
           subject_type: createForm.subject_type,
           criterias: createForm.criterias.map(c => ({
             quest_id: c.quest_id,
@@ -451,6 +461,7 @@ export const BadgesAdminPage = ({
     setEditForm({
       title: badge.title,
       description: badge.description,
+      xp_reward: String(badge.xp_reward),
       subject_type: badge.subject_type,
       criterias: badge.criterias.map(c => ({
         quest_id: c.quest_id,
@@ -493,6 +504,7 @@ export const BadgesAdminPage = ({
         body: JSON.stringify({
           title: editForm.title.trim(),
           description: editForm.description.trim(),
+          xp_reward: parseInt(editForm.xp_reward, 10),
           subject_type: editForm.subject_type,
           criterias: editForm.criterias.map(c => ({
             quest_id: c.quest_id,
@@ -767,6 +779,22 @@ export const BadgesAdminPage = ({
             <MenuItem value="team">Team</MenuItem>
           </TextField>
 
+          <TextField
+            fullWidth
+            label="XP Reward"
+            margin="dense"
+            type="number"
+            inputProps={{ min: 0 }}
+            value={createForm.xp_reward}
+            onChange={e => {
+              setCreateForm(prev => ({
+                ...prev,
+                xp_reward: e.target.value,
+              }));
+              setCreateError(null);
+            }}
+          />
+
           <Box mt={3} mb={1}>
             <Typography variant="subtitle1">Criteria</Typography>
             <Typography variant="body2" color="textSecondary">
@@ -853,6 +881,22 @@ export const BadgesAdminPage = ({
             <MenuItem value="user">User</MenuItem>
             <MenuItem value="team">Team</MenuItem>
           </TextField>
+
+          <TextField
+            fullWidth
+            label="XP Reward"
+            margin="dense"
+            type="number"
+            inputProps={{ min: 0 }}
+            value={editForm.xp_reward}
+            onChange={e => {
+              setEditForm(prev => ({
+                ...prev,
+                xp_reward: e.target.value,
+              }));
+              setEditError(null);
+            }}
+          />
 
           <Box mt={3} mb={1}>
             <Typography variant="subtitle1">Criteria</Typography>
@@ -983,14 +1027,15 @@ export const BadgesAdminPage = ({
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell style={{ width: '16%' }}>Title</TableCell>
-                      <TableCell style={{ width: '10%' }}>Type</TableCell>
-                      <TableCell style={{ width: '26%' }}>
+                      <TableCell style={{ width: '14%' }}>Title</TableCell>
+                      <TableCell style={{ width: '8%' }}>Type</TableCell>
+                      <TableCell style={{ width: '8%' }}>XP</TableCell>
+                      <TableCell style={{ width: '24%' }}>
                         Description
                       </TableCell>
-                      <TableCell style={{ width: '28%' }}>Criteria</TableCell>
-                      <TableCell style={{ width: '12%' }}>Status</TableCell>
-                      <TableCell align="right" style={{ width: '8%' }}>
+                      <TableCell style={{ width: '30%' }}>Criteria</TableCell>
+                      <TableCell style={{ width: '10%' }}>Status</TableCell>
+                      <TableCell align="right" style={{ width: '6%' }}>
                         {isAdmin ? 'Actions' : ''}
                       </TableCell>
                     </TableRow>
@@ -1006,6 +1051,7 @@ export const BadgesAdminPage = ({
                             size="small"
                           />
                         </TableCell>
+                        <TableCell>{badge.xp_reward}</TableCell>
                         <TableCell>{badge.description}</TableCell>
                         <TableCell>
                           {renderCriteriaSummary(badge.criterias)}

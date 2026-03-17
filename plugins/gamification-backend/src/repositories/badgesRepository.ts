@@ -5,6 +5,7 @@ export type BadgeRow = {
   id: string;
   title: string;
   description: string;
+  xp_reward: number;
   subject_type: QuestSubjectType;
   created_at: Date;
   updated_at: Date;
@@ -25,6 +26,7 @@ export type BadgeProgressRow = BadgeRow & {
 export type CreateBadgeRow = {
   title: string;
   description: string;
+  xp_reward: number;
   subject_type: QuestSubjectType;
 };
 
@@ -48,6 +50,7 @@ export class BadgesRepository {
       .insert({
         title: data.title,
         description: data.description,
+        xp_reward: data.xp_reward,
         subject_type: data.subject_type,
       })
       .returning('*');
@@ -119,6 +122,7 @@ export class BadgesRepository {
         'badges.id',
         'badges.title',
         'badges.description',
+        'badges.xp_reward',
         'badges.subject_type',
         'badges.created_at',
         'badges.updated_at',
@@ -202,6 +206,9 @@ export class BadgesRepository {
     }
     if (data.description !== undefined) {
       updateData.description = data.description;
+    }
+    if (data.xp_reward !== undefined) {
+      updateData.xp_reward = data.xp_reward;
     }
     if (data.subject_type !== undefined) {
       updateData.subject_type = data.subject_type;
