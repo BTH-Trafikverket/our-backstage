@@ -13,15 +13,29 @@
     "build-image": "yarn workspace backend build-image",
     "tsc": "tsc",
     "tsc:full": "tsc --skipLibCheck false --incremental false",
+    "typecheck": "tsc --pretty false --noEmit",
     "clean": "backstage-cli repo clean",
     "test": "backstage-cli repo test",
+    "test:ci": "backstage-cli repo test --runInBand --watch=false",
+    "test:ci:with-db": "yarn gamification:test",
+    "test:backend:db": "yarn gamification:test:backend",
     "test:all": "backstage-cli repo test --coverage",
     "test:local": "dotenvx run --env-file=.env.local -- backstage-cli repo test",
     "test:e2e": "playwright test",
     "fix": "backstage-cli repo fix",
     "lint": "backstage-cli repo lint --since origin/main",
     "lint:all": "backstage-cli repo lint",
+    "lint:staged": "node ./scripts/lint-staged-files.mjs",
     "prettier:check": "prettier --check .",
+    "gamification:prettier:check": "prettier --check plugins/gamification plugins/gamification-backend",
+    "gamification:prettier:write": "prettier --write plugins/gamification plugins/gamification-backend",
+    "gamification:lint": "node ./scripts/run-gamification-eslint.mjs",
+    "gamification:test:frontend": "yarn workspace @internal/gamification test --runInBand --watch=false",
+    "gamification:test:backend": "node ./scripts/run-with-temp-postgres.mjs yarn workspace @internal/gamification-backend test --runInBand --watch=false",
+    "gamification:test": "yarn gamification:test:frontend && yarn gamification:test:backend",
+    "gamification:verify": "yarn gamification:prettier:check && yarn gamification:lint && yarn gamification:test",
+    "verify:ci": "yarn gamification:verify",
+    "verify:prepush": "yarn gamification:verify",
     "new": "backstage-cli new",
     "prepare": "husky"
   },
@@ -42,6 +56,7 @@
     "jest": "^30.2.0",
     "jsdom": "^27.1.0",
     "node-gyp": "^10.0.0",
+    "pg": "^8.11.3",
     "prettier": "^2.3.2",
     "typescript": "~5.8.0"
   },
@@ -50,14 +65,5 @@
     "@types/react-dom": "^18"
   },
   "prettier": "@backstage/cli/config/prettier",
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,mjs,cjs}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
-  },
   "packageManager": "yarn@4.4.1"
 }

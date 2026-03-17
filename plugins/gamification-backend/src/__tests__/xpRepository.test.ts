@@ -1,40 +1,11 @@
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { TestDatabases } from '@backstage/backend-test-utils';
 import type { Knex } from 'knex';
 import { XpRepository } from '../repositories/xpRepository';
+import { createPostgres18TestHarness } from '../../tests/helpers/postgres18TestHarness';
 
-jest.setTimeout(60000);
+const { describePostgres18, initDb } = createPostgres18TestHarness(__dirname);
 
-describe('XpRepository Integration Tests', () => {
-  // Auto-derive the TestDatabases Postgres connection string from your existing DB_* env vars.
-  if (!process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING) {
-    const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD } = process.env;
-
-    const isLocal =
-      DB_HOST === 'localhost' ||
-      DB_HOST === '127.0.0.1' ||
-      DB_HOST === 'postgres';
-
-    if (DB_HOST && DB_PORT && DB_USER && DB_PASSWORD && isLocal) {
-      process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING = `postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/postgres`;
-    }
-  }
-
-  const databases = TestDatabases.create({ ids: ['POSTGRES_18'] });
-
-  const migrationsDir = path.resolve(__dirname, '../../migrations');
-
-  async function initDb(): Promise<Knex> {
-    const knex = await databases.init('POSTGRES_18');
-    await knex.migrate.latest({ directory: migrationsDir });
-    return knex;
-  }
-
-  /**
-   * Helper function to create a quest in the database.
-   * Required because xp_ledger has a foreign key to quests.
-   */
+describePostgres18('XpRepository integration', () => {
   async function createQuest(
     knex: Knex,
     questId: string,
@@ -54,9 +25,6 @@ describe('XpRepository Integration Tests', () => {
     });
   }
 
-  /**
-   * Helper function to create an XP ledger entry.
-   */
   async function createXpLedgerEntry(
     knex: Knex,
     data: {

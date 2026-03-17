@@ -1,38 +1,9 @@
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { TestDatabases } from '@backstage/backend-test-utils';
-import type { Knex } from 'knex';
+import { createPostgres18TestHarness } from '../../tests/helpers/postgres18TestHarness';
 
-jest.setTimeout(60000);
+const { describePostgres18, initDb } = createPostgres18TestHarness(__dirname);
 
-describe('quest_progress trigger -> xp_ledger', () => {
-  // Auto-derive the TestDatabases Postgres connection string from your existing DB_* env vars.
-  // Must happen BEFORE TestDatabases.create().
-  if (!process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING) {
-    const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD } = process.env;
-
-    const isLocal =
-      DB_HOST === 'localhost' ||
-      DB_HOST === '127.0.0.1' ||
-      DB_HOST === 'postgres';
-
-    if (DB_HOST && DB_PORT && DB_USER && DB_PASSWORD && isLocal) {
-      process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING = `postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/postgres`;
-    }
-  }
-
-  // Backstage standard: create this synchronously inside describe.
-  const databases = TestDatabases.create({ ids: ['POSTGRES_18'] });
-
-  const migrationsDir = path.resolve(__dirname, '../../migrations');
-
-  async function initDb(): Promise<Knex> {
-    // Each init() gives a fresh empty logical DB on Postgres.
-    const knex = await databases.init('POSTGRES_18');
-    await knex.migrate.latest({ directory: migrationsDir });
-    return knex;
-  }
-
+describePostgres18('quest_progress trigger -> xp_ledger', () => {
   it('inserts xp_ledger row when completion_count hits target_count multiple', async () => {
     const knex = await initDb();
 

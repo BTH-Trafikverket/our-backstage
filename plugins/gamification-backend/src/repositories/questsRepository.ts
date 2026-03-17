@@ -170,8 +170,8 @@ export class QuestsRepository {
     let total = results.length > 0 ? Number((results[0] as any).full_count) : 0;
 
     if (results.length === 0 && safePage > 1) {
-      const countRow = await query
-        .clone()
+      const countRow = await this.db
+        .from(query.clone().clearSelect().as('matching_quests'))
         .count<{ count: string }[]>({ count: '*' })
         .first();
 

@@ -1,18 +1,23 @@
 import { QuestsService } from '../services/questsService';
 import { QuestsRepository } from '../repositories/questsRepository';
 import { QuestCreationInput } from '../schemas/quests/questCreationSchema';
+import { InputError, NotFoundError } from '@backstage/errors';
 
 jest.mock('../repositories/questsRepository');
 
 describe('QuestsService', () => {
   let service: QuestsService;
   let mockRepo: jest.Mocked<QuestsRepository>;
+  let mockCatalogClient: { getEntities: jest.Mock };
+  let mockAuthService: { getPluginRequestToken: jest.Mock };
 
   beforeEach(() => {
     mockRepo = {
       createQuest: jest.fn(),
       getQuests: jest.fn(),
       getQuestById: jest.fn(),
+      editQuest: jest.fn(),
+      deleteQuest: jest.fn(),
       withTransaction: jest.fn(async fn => fn(mockRepo)),
       lockSubjectQuest: jest.fn(),
       getProgressForSubjectQuest: jest.fn(),
@@ -23,13 +28,17 @@ describe('QuestsService', () => {
       tryInsertReceipt: jest.fn(),
     } as any;
 
-    const mockCatalogClient = {} as any;
-    const mockAuthService = {} as any;
+    mockCatalogClient = {
+      getEntities: jest.fn(),
+    };
+    mockAuthService = {
+      getPluginRequestToken: jest.fn(async () => ({ token: 'catalog-token' })),
+    };
 
     service = new QuestsService({
       questsRepo: mockRepo,
-      catalogClient: mockCatalogClient,
-      auth: mockAuthService,
+      catalogClient: mockCatalogClient as any,
+      auth: mockAuthService as any,
     });
   });
 
@@ -465,6 +474,240 @@ describe('QuestsService', () => {
     });
   });
 
+  describe('getQuestById', () => {
+    it('delegates directly to the repository', async () => {
+      const quest = {
+        id: 'quest-1',
+        title: 'Review PRs',
+      };
+
+      mockRepo.getQuestById.mockResolvedValue(quest as any);
+
+      await expect(
+        service.getQuestById('quest-1', { credentials: {} as any }),
+      ).resolves.toBe(quest);
+    });
+  });
+
+  describe('editQuest', () => {
+    it('returns undefined when the quest does not exist', async () => {
+      mockRepo.getQuestById.mockResolvedValue(undefined);
+
+      await expect(
+        service.editQuest(
+          'missing-quest',
+          { title: 'Updated' },
+          {
+            credentials: {} as any,
+          },
+        ),
+      ).resolves.toBeUndefined();
+
+      expect(mockRepo.editQuest).not.toHaveBeenCalled();
+    });
+
+    it('clears cooldown_days when editing a quest to ONE_TIME', async () => {
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-1',
+        title: 'Weekly Review',
+        description: '',
+        target_count: 2,
+        xp_reward: 50,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: 7,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+      mockRepo.editQuest.mockResolvedValue({
+        id: 'quest-1',
+        title: 'Weekly Review',
+        description: '',
+        target_count: 2,
+        xp_reward: 50,
+        subject_type: 'user',
+        completion_policy: 'ONE_TIME',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      await service.editQuest(
+        'quest-1',
+        { completion_policy: 'ONE_TIME' },
+        { credentials: {} as any },
+      );
+
+      expect(mockRepo.editQuest).toHaveBeenCalledWith(
+        'quest-1',
+        expect.objectContaining({
+          subject_type: 'user',
+          completion_policy: 'ONE_TIME',
+          cooldown_days: null,
+        }),
+      );
+    });
+
+    it('updates repeatable cooldown_days when one is provided', async () => {
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-1',
+        title: 'Weekly Review',
+        description: '',
+        target_count: 2,
+        xp_reward: 50,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: 7,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+      mockRepo.editQuest.mockResolvedValue({
+        id: 'quest-1',
+        title: 'Weekly Review',
+        description: '',
+        target_count: 2,
+        xp_reward: 50,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: 14,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      await service.editQuest(
+        'quest-1',
+        { cooldown_days: 14 },
+        { credentials: {} as any },
+      );
+
+      expect(mockRepo.editQuest).toHaveBeenCalledWith(
+        'quest-1',
+        expect.objectContaining({
+          completion_policy: 'REPEATABLE',
+          cooldown_days: 14,
+        }),
+      );
+    });
+  });
+
+  describe('deleteQuest', () => {
+    it('delegates quest deletion to the repository', async () => {
+      mockRepo.deleteQuest.mockResolvedValue(true);
+
+      await expect(
+        service.deleteQuest('quest-1', { credentials: {} as any }),
+      ).resolves.toBe(true);
+
+      expect(mockRepo.deleteQuest).toHaveBeenCalledWith('quest-1');
+    });
+  });
+
+  describe('resolveActorToUserRef', () => {
+    it('returns actor.entityRef directly when it is already provided', async () => {
+      await expect(
+        service.resolveActorToUserRef({
+          actor: { entityRef: 'user:default/alice' },
+          credentials: {} as any,
+        }),
+      ).resolves.toBe('user:default/alice');
+
+      expect(mockAuthService.getPluginRequestToken).not.toHaveBeenCalled();
+      expect(mockCatalogClient.getEntities).not.toHaveBeenCalled();
+    });
+
+    it('resolves github logins through the catalog', async () => {
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: [
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'User',
+            metadata: { name: 'alice', namespace: 'default' },
+          },
+        ],
+      });
+
+      await expect(
+        service.resolveActorToUserRef({
+          actor: { provider: 'github', login: 'alice' },
+          credentials: {} as any,
+        }),
+      ).resolves.toBe('user:default/alice');
+
+      expect(mockAuthService.getPluginRequestToken).toHaveBeenCalled();
+      expect(mockCatalogClient.getEntities).toHaveBeenCalledWith(
+        {
+          filter: [
+            {
+              kind: 'User',
+              'metadata.annotations.github.com/user-login': 'alice',
+            },
+          ],
+        },
+        { token: 'catalog-token' },
+      );
+    });
+
+    it('resolves github ids through the catalog', async () => {
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: [
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'User',
+            metadata: { name: 'alice', namespace: 'default' },
+          },
+        ],
+      });
+
+      await expect(
+        service.resolveActorToUserRef({
+          actor: { provider: 'github', id: '12345' },
+          credentials: {} as any,
+        }),
+      ).resolves.toBe('user:default/alice');
+
+      expect(mockCatalogClient.getEntities).toHaveBeenCalledWith(
+        {
+          filter: [
+            {
+              kind: 'User',
+              'metadata.annotations.github.com/user-id': '12345',
+            },
+          ],
+        },
+        { token: 'catalog-token' },
+      );
+    });
+
+    it('requires actor.provider when actor.entityRef is missing', async () => {
+      await expect(
+        service.resolveActorToUserRef({
+          actor: { id: '12345' },
+          credentials: {} as any,
+        }),
+      ).rejects.toThrow(InputError);
+    });
+
+    it('throws when the catalog cannot map the actor', async () => {
+      mockCatalogClient.getEntities.mockResolvedValue({ items: [] });
+
+      await expect(
+        service.resolveActorToUserRef({
+          actor: { provider: 'github', login: 'missing-user' },
+          credentials: {} as any,
+        }),
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it('throws when the provider is unsupported', async () => {
+      await expect(
+        service.resolveActorToUserRef({
+          actor: { provider: 'gitlab', login: 'alice' } as any,
+          credentials: {} as any,
+        }),
+      ).rejects.toThrow(NotFoundError);
+    });
+  });
+
   describe('handleQuestEvent policy enforcement', () => {
     beforeEach(() => {
       mockRepo.tryInsertReceipt.mockResolvedValue(true);
@@ -630,6 +873,191 @@ describe('QuestsService', () => {
       });
 
       expect(result.subjectRef).toBe('group:default/platform');
+    });
+
+    it('throws when completing a missing quest by id', async () => {
+      mockRepo.getQuestById.mockResolvedValue(undefined);
+
+      await expect(
+        service.completeQuest('missing-quest', 'user:default/alice'),
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it('requires either subjectRef or actor', async () => {
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-user',
+        title: 'Daily Commit',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      await expect(
+        service.handleQuestEvent({
+          questId: 'quest-user',
+          opts: { credentials: {} as any },
+        }),
+      ).rejects.toThrow(InputError);
+    });
+
+    it('rejects subject refs that do not match the quest subject type', async () => {
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-team',
+        title: 'Team Quest',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'team',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      await expect(
+        service.handleQuestEvent({
+          questId: 'quest-team',
+          subjectRef: 'user:default/alice',
+          opts: { credentials: {} as any },
+        }),
+      ).rejects.toThrow(InputError);
+    });
+
+    it('rejects user quests when given a group subject ref', async () => {
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-user',
+        title: 'User Quest',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      await expect(
+        service.handleQuestEvent({
+          questId: 'quest-user',
+          subjectRef: 'group:default/platform',
+          opts: { credentials: {} as any },
+        }),
+      ).rejects.toThrow(InputError);
+    });
+
+    it('requires actor.entityRef for team quest actors', async () => {
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-team',
+        title: 'Team Quest',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'team',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      await expect(
+        service.handleQuestEvent({
+          questId: 'quest-team',
+          actor: { provider: 'github', login: 'alice' },
+          opts: { credentials: {} as any },
+        }),
+      ).rejects.toThrow(InputError);
+    });
+
+    it('requires team quest actors to use a group entity ref', async () => {
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-team',
+        title: 'Team Quest',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'team',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      await expect(
+        service.handleQuestEvent({
+          questId: 'quest-team',
+          actor: { entityRef: 'user:default/alice' },
+          opts: { credentials: {} as any },
+        }),
+      ).rejects.toThrow(InputError);
+    });
+
+    it('resolves user actors when subjectRef is omitted', async () => {
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-user',
+        title: 'User Quest',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: [
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'User',
+            metadata: { name: 'alice', namespace: 'default' },
+          },
+        ],
+      });
+      mockRepo.incrementQuestProgress.mockResolvedValue({
+        subject_ref: 'user:default/alice',
+        quest_id: 'quest-user',
+        completion_count: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const result = await service.handleQuestEvent({
+        questId: 'quest-user',
+        actor: { provider: 'github', login: 'alice' },
+        opts: { credentials: {} as any },
+      });
+
+      expect(result.subjectRef).toBe('user:default/alice');
+    });
+
+    it('rethrows non-conflict errors from policy enforcement', async () => {
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-user',
+        title: 'User Quest',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: 7,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+      mockRepo.getLastAwardedAt.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.handleQuestEvent({
+          questId: 'quest-user',
+          subjectRef: 'user:default/alice',
+          opts: { credentials: {} as any },
+        }),
+      ).rejects.toThrow('db down');
     });
   });
 });

@@ -1,34 +1,10 @@
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { TestDatabases } from '@backstage/backend-test-utils';
-import type { Knex } from 'knex';
+import { createPostgres18TestHarness } from '../../tests/helpers/postgres18TestHarness';
 
-jest.setTimeout(60000);
+const { describePostgres18, initDb } = createPostgres18TestHarness(__dirname);
 
-describe('quests updated_at trigger', () => {
-  // Auto-derive the TestDatabases Postgres connection string from your existing DB_* env vars.
-  if (!process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING) {
-    const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD } = process.env;
-
-    const isLocal =
-      DB_HOST === 'localhost' ||
-      DB_HOST === '127.0.0.1' ||
-      DB_HOST === 'postgres';
-
-    if (DB_HOST && DB_PORT && DB_USER && DB_PASSWORD && isLocal) {
-      process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING = `postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/postgres`;
-    }
-  }
-
-  const databases = TestDatabases.create({ ids: ['POSTGRES_18'] });
-
-  const migrationsDir = path.resolve(__dirname, '../../migrations');
-
-  async function initDb(): Promise<Knex> {
-    const knex = await databases.init('POSTGRES_18');
-    await knex.migrate.latest({ directory: migrationsDir });
-    return knex;
-  }
+describePostgres18('quests updated_at trigger', () => {
+  const staleTimestamp = new Date('2024-01-01T00:00:00Z');
 
   it('automatically updates updated_at when quest is modified', async () => {
     const knex = await initDb();
@@ -42,6 +18,8 @@ describe('quests updated_at trigger', () => {
       description: 'Original description',
       target_count: 1,
       xp_reward: 10,
+      created_at: staleTimestamp,
+      updated_at: staleTimestamp,
     });
 
     // Get the initial timestamps
@@ -50,10 +28,6 @@ describe('quests updated_at trigger', () => {
     expect(initialQuest).toBeDefined();
     const initialUpdatedAt = new Date(initialQuest!.updated_at);
 
-    // Wait a bit to ensure time difference is visible
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Update the quest
     await knex('quests').where({ id: questId }).update({
       title: 'Updated Title',
       description: 'Updated description',
@@ -65,12 +39,9 @@ describe('quests updated_at trigger', () => {
     expect(updatedQuest).toBeDefined();
     const newUpdatedAt = new Date(updatedQuest!.updated_at);
 
-    // Verify the trigger worked
     expect(updatedQuest!.title).toBe('Updated Title');
     expect(updatedQuest!.description).toBe('Updated description');
     expect(newUpdatedAt.getTime()).toBeGreaterThan(initialUpdatedAt.getTime());
-
-    await knex.destroy();
   });
 
   it('updates updated_at even when only changing xp_reward', async () => {
@@ -84,13 +55,12 @@ describe('quests updated_at trigger', () => {
       description: 'Test',
       target_count: 1,
       xp_reward: 10,
+      created_at: staleTimestamp,
+      updated_at: staleTimestamp,
     });
 
     const initialQuest = await knex('quests').where({ id: questId }).first();
 
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Update only xp_reward
     await knex('quests').where({ id: questId }).update({ xp_reward: 20 });
 
     const updatedQuest = await knex('quests').where({ id: questId }).first();
@@ -99,8 +69,6 @@ describe('quests updated_at trigger', () => {
     expect(new Date(updatedQuest!.updated_at).getTime()).toBeGreaterThan(
       new Date(initialQuest!.updated_at).getTime(),
     );
-
-    await knex.destroy();
   });
 
   it('does not update updated_at on SELECT queries', async () => {
@@ -114,26 +82,22 @@ describe('quests updated_at trigger', () => {
       description: 'Test',
       target_count: 1,
       xp_reward: 10,
+      created_at: staleTimestamp,
+      updated_at: staleTimestamp,
     });
 
     const initialQuest = await knex('quests').where({ id: questId }).first();
 
     const initialUpdatedAt = new Date(initialQuest!.updated_at);
 
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Just read the quest multiple times
     await knex('quests').where({ id: questId }).first();
     await knex('quests').where({ id: questId }).first();
     await knex('quests').where({ id: questId }).first();
 
     const afterReadsQuest = await knex('quests').where({ id: questId }).first();
 
-    // updated_at should NOT have changed
     expect(new Date(afterReadsQuest!.updated_at).getTime()).toBe(
       initialUpdatedAt.getTime(),
     );
-
-    await knex.destroy();
   });
 });

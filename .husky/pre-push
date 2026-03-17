@@ -1,6 +1,4 @@
 #!/bin/sh
-echo "🔎 Linting changes..."
-yarn lint || exit 1
-echo "🎨 Checking Prettier..."
-yarn prettier:check || exit 1
+echo "🧪 Running gamification plugin tests and checks..."
+yarn gamification:verify || exit 1
 echo "✅ pre-push OK"

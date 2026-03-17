@@ -1,0 +1,185 @@
+import { badgeCreationSchema } from '../schemas/badges/badgeCreationSchema';
+import { badgeEditSchema } from '../schemas/badges/badgeEditSchema';
+import { questCreationSchema } from '../schemas/quests/questCreationSchema';
+import { questEditSchema } from '../schemas/quests/questEditSchema';
+import { questEventSchema } from '../schemas/quests/questEventSchema';
+
+describe('validation schemas', () => {
+  describe('questCreationSchema', () => {
+    it('applies defaults for optional quest fields', () => {
+      expect(
+        questCreationSchema.parse({
+          title: 'Review pull request',
+          xp_reward: 25,
+        }),
+      ).toEqual({
+        title: 'Review pull request',
+        description: '',
+        target_count: 1,
+        xp_reward: 25,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+      });
+    });
+  });
+
+  describe('questEditSchema', () => {
+    it('rejects empty patch payloads', () => {
+      const result = questEditSchema.safeParse({});
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe(
+        'No fields provided to update',
+      );
+    });
+
+    it('accepts nullable cooldown_days when another field is present', () => {
+      expect(
+        questEditSchema.parse({
+          completion_policy: 'REPEATABLE',
+          cooldown_days: null,
+        }),
+      ).toEqual({
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+      });
+    });
+  });
+
+  describe('questEventSchema', () => {
+    it('accepts subjectRef-only requests', () => {
+      expect(
+        questEventSchema.parse({
+          questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+          subjectRef: 'user:default/alice',
+        }),
+      ).toEqual({
+        questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+        subjectRef: 'user:default/alice',
+      });
+    });
+
+    it('accepts actor requests with provider and login', () => {
+      expect(
+        questEventSchema.parse({
+          questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+          actor: {
+            provider: 'github',
+            login: 'alice',
+          },
+        }),
+      ).toEqual({
+        questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+        actor: {
+          provider: 'github',
+          login: 'alice',
+        },
+      });
+    });
+
+    it('rejects requests without subjectRef or actor', () => {
+      const result = questEventSchema.safeParse({
+        questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe(
+        'Either subjectRef or actor is required',
+      );
+    });
+
+    it('rejects actor payloads without entityRef or provider plus identifier', () => {
+      const result = questEventSchema.safeParse({
+        questId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+        actor: {
+          provider: 'github',
+        },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe(
+        'actor must include either { entityRef } or { provider + (id|login|email) }',
+      );
+      expect(result.error?.issues[0]?.path).toEqual(['actor']);
+    });
+
+    it('rejects non-v4 quest ids', () => {
+      const result = questEventSchema.safeParse({
+        questId: '00000000-0000-0000-0000-000000000000',
+        subjectRef: 'user:default/alice',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe(
+        'questId must be a valid UUID v4',
+      );
+    });
+  });
+
+  describe('badgeCreationSchema', () => {
+    it('accepts badges with unique criteria quests', () => {
+      expect(
+        badgeCreationSchema.parse({
+          title: 'Contributor',
+          description: 'Awarded for contributing',
+          subject_type: 'user',
+          criterias: [
+            { quest_id: 'quest-a', target_count: 1 },
+            { quest_id: 'quest-b', target_count: 2 },
+          ],
+        }),
+      ).toEqual({
+        title: 'Contributor',
+        description: 'Awarded for contributing',
+        subject_type: 'user',
+        criterias: [
+          { quest_id: 'quest-a', target_count: 1 },
+          { quest_id: 'quest-b', target_count: 2 },
+        ],
+      });
+    });
+
+    it('rejects duplicate criteria quests case-insensitively', () => {
+      const result = badgeCreationSchema.safeParse({
+        title: 'Contributor',
+        description: 'Awarded for contributing',
+        subject_type: 'user',
+        criterias: [
+          { quest_id: 'Quest-A', target_count: 1 },
+          { quest_id: 'quest-a', target_count: 2 },
+        ],
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe(
+        'Each quest can only appear once in badge criteria',
+      );
+      expect(result.error?.issues[0]?.path).toEqual([
+        'criterias',
+        1,
+        'quest_id',
+      ]);
+    });
+  });
+
+  describe('badgeEditSchema', () => {
+    it('rejects empty badge edit payloads', () => {
+      const result = badgeEditSchema.safeParse({});
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe(
+        'At least one field must be provided',
+      );
+    });
+
+    it('accepts partial badge edits', () => {
+      expect(
+        badgeEditSchema.parse({
+          description: 'Updated description',
+        }),
+      ).toEqual({
+        description: 'Updated description',
+      });
+    });
+  });
+});
