@@ -128,6 +128,7 @@ const getAdminColumns = (
     {
       id: 'updated_at',
       label: 'Updated',
+      isSortable: true,
       width: 180,
       cell: (item: QuestTableRow) => (
         <CellText
