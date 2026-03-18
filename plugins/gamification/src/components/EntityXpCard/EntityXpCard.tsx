@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { InfoCardVariants } from '@backstage/core-components';
 import {
-  InfoCard,
-  Progress,
-  type InfoCardVariants,
-} from '@backstage/core-components';
+  Alert,
+  Box,
+  Card,
+  CardBody,
+  CardHeader,
+  Flex,
+  Skeleton,
+  Text,
+} from '@backstage/ui';
 import {
   discoveryApiRef,
   fetchApiRef,
@@ -12,14 +18,6 @@ import {
 } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
-import {
-  LinearProgress,
-  Typography,
-  Box,
-  Tooltip,
-  IconButton,
-} from '@material-ui/core';
-import InfoOutlinedIcon from '@material-ui/icons/InfoOutlined';
 
 type XpStatus = {
   subjectRef: string;
@@ -32,12 +30,51 @@ type XpStatus = {
   progress: number;
 };
 
-export const EntityXpCard = (props: {
+type EntityXpCardProps = {
   title?: string;
   variant?: InfoCardVariants;
-}) => {
-  const { title = 'Level and XP', variant = 'gridItem' } = props;
+};
 
+const renderLoadingState = () => (
+  <Flex direction="column" gap="4">
+    <Flex justify="between" align="end" gap="3">
+      <Skeleton height={40} width={132} rounded />
+      <Skeleton height={24} width={88} rounded />
+    </Flex>
+    <Skeleton height={10} width="100%" rounded />
+    <Flex justify="between" gap="3">
+      <Skeleton height={20} width={148} rounded />
+      <Skeleton height={20} width={132} rounded />
+    </Flex>
+  </Flex>
+);
+
+const renderProgressBar = (progress: number) => (
+  <Box
+    aria-hidden
+    style={{
+      width: '100%',
+      height: '0.625rem',
+      borderRadius: '999px',
+      overflow: 'hidden',
+      backgroundColor: 'var(--bui-bg-neutral-2)',
+    }}
+  >
+    <Box
+      style={{
+        width: `${Math.max(0, Math.min(100, progress * 100))}%`,
+        height: '100%',
+        borderRadius: '999px',
+        backgroundColor: 'var(--bui-bg-solid)',
+      }}
+    />
+  </Box>
+);
+
+export const EntityXpCard = ({
+  title = 'Level and XP',
+  variant: _variant = 'gridItem',
+}: EntityXpCardProps) => {
   const discoveryApi = useApi(discoveryApiRef);
   const fetchApi = useApi(fetchApiRef);
   const identityApi = useApi(identityApiRef);
@@ -58,12 +95,10 @@ export const EntityXpCard = (props: {
         setError(undefined);
 
         const baseUrl = await discoveryApi.getBaseUrl('gamification');
-
         const url = new URL(`${baseUrl}/xp`);
         url.searchParams.set('subjectRef', subjectRef);
 
         const { token } = await identityApi.getCredentials();
-
         const resp = await fetchApi.fetch(url.toString(), {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
@@ -74,11 +109,17 @@ export const EntityXpCard = (props: {
         }
 
         const json = (await resp.json()) as XpStatus;
-        if (!cancelled) setData(json);
+        if (!cancelled) {
+          setData(json);
+        }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? String(e));
+        if (!cancelled) {
+          setError(e?.message ?? String(e));
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
@@ -88,53 +129,72 @@ export const EntityXpCard = (props: {
     };
   }, [discoveryApi, fetchApi, identityApi, subjectRef]);
 
-  let body: JSX.Element;
-
-  if (loading) {
-    body = <Progress />;
-  } else if (error) {
-    body = <Typography color="error">{error}</Typography>;
-  } else if (!data) {
-    body = <Typography>No data</Typography>;
-  } else {
-    const progressPct = Math.max(0, Math.min(100, data.progress * 100));
-    const levelTotal = data.xpIntoLevel + data.xpToNextLevel;
-
-    body = (
-      <Box>
-        <Box mb={1} display="flex" alignItems="center">
-          <Typography variant="h4">Level {data.level}</Typography>
-
-          <Tooltip title={`${data.totalXp} XP total`} arrow placement="right">
-            <span>
-              <IconButton
-                size="small"
-                aria-label="Show total XP"
-                style={{ marginLeft: 8 }}
-              >
-                <InfoOutlinedIcon fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Box>
-
-        <LinearProgress variant="determinate" value={progressPct} />
-
-        <Box mt={1}>
-          <Typography variant="body2">
-            {data.xpIntoLevel}/{levelTotal} XP in this level
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            {data.xpToNextLevel} XP until next level
-          </Typography>
-        </Box>
-      </Box>
-    );
-  }
+  const levelSpan = data ? data.nextLevelXp - data.currentLevelXp : 0;
 
   return (
-    <InfoCard title={title} variant={variant}>
-      {body}
-    </InfoCard>
+    <Card style={{ height: '100%' }}>
+      <CardHeader>
+        <Text weight="bold">{title}</Text>
+      </CardHeader>
+      <CardBody>
+        {loading ? renderLoadingState() : null}
+
+        {!loading && error ? (
+          <Alert
+            status="danger"
+            icon
+            title="Unable to load XP"
+            description={error}
+          />
+        ) : null}
+
+        {!loading && !error && !data ? (
+          <Text color="secondary">No XP data available.</Text>
+        ) : null}
+
+        {!loading && !error && data ? (
+          <Flex direction="column" gap="4">
+            <Flex justify="between" align="end" gap="3">
+              <Flex direction="column" gap="1">
+                <Text
+                  as="div"
+                  weight="bold"
+                  style={{
+                    fontSize: '1.875rem',
+                    lineHeight: 1,
+                  }}
+                >
+                  Level {data.level}
+                </Text>
+              </Flex>
+
+              <Flex direction="column" align="end" gap="1">
+                <Text weight="bold">{data.totalXp} XP</Text>
+                <Text variant="body-small" color="secondary">
+                  Total earned
+                </Text>
+              </Flex>
+            </Flex>
+
+            {renderProgressBar(data.progress)}
+
+            <Flex justify="between" gap="3" style={{ flexWrap: 'wrap' }}>
+              <Flex direction="column" gap="1">
+                <Text weight="bold">
+                  {data.xpIntoLevel}/{levelSpan} XP
+                </Text>
+              </Flex>
+
+              <Flex direction="column" gap="1" align="end">
+                <Text weight="bold">{data.xpToNextLevel} XP</Text>
+                <Text variant="body-small" color="secondary">
+                  Until level {data.level + 1}
+                </Text>
+              </Flex>
+            </Flex>
+          </Flex>
+        ) : null}
+      </CardBody>
+    </Card>
   );
 };

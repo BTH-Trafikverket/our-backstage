@@ -9,28 +9,6 @@ import { BadgesCard } from './EntityBadgesCard';
 
 describe('BadgesCard', () => {
   const baseUrl = 'http://example.test/api/gamification';
-  const originalConsoleError = console.error;
-  let consoleErrorSpy: jest.SpyInstance;
-
-  beforeAll(() => {
-    consoleErrorSpy = jest
-      .spyOn(console, 'error')
-      .mockImplementation((...args) => {
-        const [msg] = args;
-        if (
-          typeof msg === 'string' &&
-          msg.includes('findDOMNode is deprecated')
-        ) {
-          return;
-        }
-
-        originalConsoleError(...args);
-      });
-  });
-
-  afterAll(() => {
-    consoleErrorSpy.mockRestore();
-  });
 
   function renderCard(fetchImpl: (...args: any[]) => Promise<Response>) {
     const discoveryApi = {
@@ -59,19 +37,23 @@ describe('BadgesCard', () => {
   it('shows a loading state while badges are loading', async () => {
     let resolveResponse!: (value: Response) => void;
 
-    renderCard(
+    const { container } = renderCard(
       () =>
         new Promise<Response>(resolve => {
           resolveResponse = resolve;
         }),
     );
 
-    expect(screen.getByTestId('progress')).toBeInTheDocument();
+    expect(container.querySelector('.bui-Skeleton')).toBeInTheDocument();
     await waitFor(() => expect(resolveResponse).toBeDefined());
 
     resolveResponse(
       new Response(
-        JSON.stringify({ subjectRefs: ['group:default/platform'], badges: [] }),
+        JSON.stringify({
+          subjectRefs: ['group:default/platform'],
+          badges: [],
+          pagination: { total: 0, page: 1, limit: 10, pages: 0 },
+        }),
         {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -89,6 +71,7 @@ describe('BadgesCard', () => {
           JSON.stringify({
             subjectRefs: ['group:default/platform'],
             badges: [],
+            pagination: { total: 0, page: 1, limit: 10, pages: 0 },
           }),
           {
             status: 200,
@@ -113,16 +96,30 @@ describe('BadgesCard', () => {
                 id: 'badge-1',
                 title: 'Contributor',
                 description: 'Awarded for completing core work',
+                xp_reward: 25,
                 isEarned: true,
                 earnedAt: '2026-01-03T00:00:00Z',
+                progressSubjectRef: 'group:default/platform',
+                progress: {
+                  completedRequirements: 1,
+                  totalRequirements: 1,
+                  percent: 100,
+                },
                 criterias: [{ quest_id: 'quest-1', target_count: 1 }],
               },
               {
                 id: 'badge-2',
                 title: 'Reviewer',
                 description: 'Awarded for code review work',
+                xp_reward: 40,
                 isEarned: false,
                 earnedAt: null,
+                progressSubjectRef: 'group:default/platform',
+                progress: {
+                  completedRequirements: 1,
+                  totalRequirements: 3,
+                  percent: 33,
+                },
                 criterias: [{ quest_id: 'quest-2', target_count: 2 }],
                 archived_at: null,
               },
@@ -130,12 +127,20 @@ describe('BadgesCard', () => {
                 id: 'badge-3',
                 title: 'Legacy Hero',
                 description: 'Archived badge you already earned',
+                xp_reward: 10,
                 isEarned: true,
                 earnedAt: '2026-01-01T00:00:00Z',
+                progressSubjectRef: 'group:default/platform',
+                progress: {
+                  completedRequirements: 2,
+                  totalRequirements: 2,
+                  percent: 100,
+                },
                 archived_at: '2026-02-01T00:00:00Z',
                 criterias: [{ quest_id: 'quest-3', target_count: 1 }],
               },
             ],
+            pagination: { total: 3, page: 1, limit: 10, pages: 1 },
           }),
           {
             status: 200,
@@ -149,5 +154,9 @@ describe('BadgesCard', () => {
       expect(screen.getByText('Reviewer')).toBeInTheDocument();
       expect(screen.getByText('Legacy Hero')).toBeInTheDocument();
     });
+
+    expect(screen.getByText('25 XP')).toBeInTheDocument();
+    expect(screen.getByText('1/3 requirements')).toBeInTheDocument();
+    expect(screen.getByText('Archived')).toBeInTheDocument();
   });
 });
