@@ -135,7 +135,7 @@ permission:
 
 gamification:
   seed:
-    enabled: false
+    enabled: true
     reset: false
 
   admin:

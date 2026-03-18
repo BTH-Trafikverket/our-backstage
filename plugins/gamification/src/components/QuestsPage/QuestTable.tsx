@@ -206,6 +206,7 @@ const userColumns = [
   {
     id: 'progress',
     label: 'Progress',
+    isSortable: true,
     defaultWidth: '2.2fr',
     minWidth: 240,
     cell: renderProgressCell,

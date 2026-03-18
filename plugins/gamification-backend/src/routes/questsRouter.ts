@@ -211,7 +211,9 @@ export function QuestsRouter({
         ? statusQuery
         : 'active';
     const sortBy =
-      sortByQuery === 'title' || sortByQuery === 'xp_reward'
+      sortByQuery === 'title' ||
+      sortByQuery === 'xp_reward' ||
+      sortByQuery === 'progress_toward_target'
         ? sortByQuery
         : 'created_at';
     const order = orderQuery === 'asc' ? 'asc' : 'desc';
