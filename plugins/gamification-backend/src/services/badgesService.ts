@@ -1,5 +1,6 @@
 import { InputError, NotFoundError } from '@backstage/errors';
 import type {
+  BadgeAdminSortField,
   BadgesRepository,
   BadgePagination,
   BadgeProgressSortField,
@@ -70,7 +71,7 @@ export type BadgeProgressResponse = {
 
 type BadgePaginationOpts = BadgeServiceOpts & {
   searchTitle?: string;
-  sortBy?: BadgeProgressSortField;
+  sortBy?: BadgeProgressSortField | BadgeAdminSortField;
   order?: BadgeSortOrder;
   status?: BadgeProgressStatusFilter;
   page?: number;
@@ -297,6 +298,15 @@ export class BadgesService {
     const paginated = await this.badgesRepo.getPaginatedBadges({
       searchTitle,
       includeArchived: true,
+      sortBy:
+        opts?.sortBy === 'title' ||
+        opts?.sortBy === 'xp_reward' ||
+        opts?.sortBy === 'created_at' ||
+        opts?.sortBy === 'criteria_count' ||
+        opts?.sortBy === 'status'
+          ? opts.sortBy
+          : undefined,
+      order: opts?.order,
       page: opts?.page,
       limit: opts?.limit,
     });
