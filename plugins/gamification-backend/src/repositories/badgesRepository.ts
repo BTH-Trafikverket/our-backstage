@@ -30,6 +30,12 @@ export type BadgeProgressSortField =
   | 'title'
   | 'xp_reward'
   | 'progress_percent';
+export type BadgeAdminSortField =
+  | 'created_at'
+  | 'title'
+  | 'xp_reward'
+  | 'criteria_count'
+  | 'status';
 export type BadgeSortOrder = 'asc' | 'desc';
 export type BadgeProgressStatusFilter = 'active' | 'earned' | 'all';
 
@@ -102,11 +108,21 @@ export class BadgesRepository {
   async getPaginatedBadges(params?: {
     searchTitle?: string;
     includeArchived?: boolean;
+    sortBy?: BadgeAdminSortField;
+    order?: BadgeSortOrder;
     page?: number;
     limit?: number;
   }): Promise<PaginatedBadgesResult<BadgeRow>> {
-    const { searchTitle, includeArchived, page = 1, limit = 10 } = params ?? {};
+    const {
+      searchTitle,
+      includeArchived,
+      sortBy = 'created_at',
+      order = 'desc',
+      page = 1,
+      limit = 10,
+    } = params ?? {};
     const { safePage, safeLimit, offset } = this.getSafePagination(page, limit);
+    const sortOrder = order === 'asc' ? 'asc' : 'desc';
 
     let query = this.db<BadgeRow>('badges').select('*');
 
@@ -118,12 +134,36 @@ export class BadgesRepository {
       query = query.where('title', 'ilike', `%${searchTitle}%`);
     }
 
-    const results = await query
+    const resultsQuery = query
       .clone()
-      .select(this.db.raw('COUNT(*) OVER() as full_count'))
-      .orderBy('created_at', 'desc')
-      .limit(safeLimit)
-      .offset(offset);
+      .select(this.db.raw('COUNT(*) OVER() as full_count'));
+
+    if (sortBy === 'criteria_count') {
+      resultsQuery.orderByRaw(
+        `(SELECT COUNT(*) FROM badge_criteria WHERE badge_criteria.badge_id = badges.id) ${
+          sortOrder === 'asc' ? 'ASC' : 'DESC'
+        }`,
+      );
+      resultsQuery.orderBy('badges.created_at', sortOrder);
+      resultsQuery.orderBy('badges.id', sortOrder);
+    } else if (sortBy === 'status') {
+      resultsQuery.orderByRaw(
+        `CASE WHEN badges.archived_at IS NULL THEN 0 ELSE 1 END ${
+          sortOrder === 'asc' ? 'ASC' : 'DESC'
+        }`,
+      );
+      resultsQuery.orderBy('badges.archived_at', sortOrder);
+      resultsQuery.orderBy('badges.created_at', sortOrder);
+      resultsQuery.orderBy('badges.id', sortOrder);
+    } else {
+      resultsQuery.orderBy(`badges.${sortBy}`, sortOrder);
+      if (sortBy !== 'created_at') {
+        resultsQuery.orderBy('badges.created_at', sortOrder);
+      }
+      resultsQuery.orderBy('badges.id', sortOrder);
+    }
+
+    const results = await resultsQuery.limit(safeLimit).offset(offset);
 
     let total =
       results.length > 0 ? Number((results[0] as any).full_count || 0) : 0;

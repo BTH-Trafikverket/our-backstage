@@ -154,9 +154,24 @@ export function BadgesRouter({
     const credentials = await requireAdminCredentials(req);
     const search =
       typeof req.query.search === 'string' ? req.query.search : undefined;
+    const sortByQuery =
+      typeof req.query.sortBy === 'string' ? req.query.sortBy : undefined;
+    const orderQuery =
+      typeof req.query.order === 'string' ? req.query.order : undefined;
     const { page, limit } = parsePagination(req);
+    const sortBy =
+      sortByQuery === 'title' ||
+      sortByQuery === 'xp_reward' ||
+      sortByQuery === 'created_at' ||
+      sortByQuery === 'criteria_count' ||
+      sortByQuery === 'status'
+        ? sortByQuery
+        : 'created_at';
+    const order = orderQuery === 'asc' ? 'asc' : 'desc';
     const badges = await badgesService.getBadges(search, {
       credentials,
+      sortBy,
+      order,
       page,
       limit,
     });

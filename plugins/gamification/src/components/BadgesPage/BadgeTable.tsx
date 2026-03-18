@@ -198,6 +198,7 @@ const getAdminColumns = (
       id: 'title',
       label: 'Badge',
       isRowHeader: true,
+      isSortable: true,
       defaultWidth: '3fr',
       minWidth: 320,
       cell: (item: BadgeTableRow) => (
@@ -216,6 +217,7 @@ const getAdminColumns = (
     {
       id: 'xp_reward',
       label: 'Reward',
+      isSortable: true,
       width: 160,
       cell: (item: BadgeTableRow) => (
         <CellText
@@ -227,6 +229,7 @@ const getAdminColumns = (
     {
       id: 'criteria',
       label: 'Requirements',
+      isSortable: true,
       defaultWidth: '2fr',
       minWidth: 240,
       cell: (item: BadgeTableRow) => (
@@ -239,6 +242,7 @@ const getAdminColumns = (
     {
       id: 'status',
       label: 'Status',
+      isSortable: true,
       width: 160,
       cell: (item: BadgeTableRow) => (
         <CellText title={getBadgeStatusLabel(item.badge, true)} />

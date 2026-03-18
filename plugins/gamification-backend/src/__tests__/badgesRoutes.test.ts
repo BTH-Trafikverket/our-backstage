@@ -459,6 +459,8 @@ describe('badges routes auth and errors', () => {
           userEntityRef: userRef,
         }),
       }),
+      sortBy: 'created_at',
+      order: 'desc',
       page: 1,
       limit: 10,
     });

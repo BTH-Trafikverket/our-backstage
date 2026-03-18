@@ -218,12 +218,14 @@ export const BadgesPage = ({
       signal: AbortSignal;
     }) => {
       const currentFilter = filterState ?? createDefaultBadgeFilter();
-      const { sortBy, order } = getBadgeSort(sortDescriptor);
+      const { sortBy, order } = getBadgeSort(sortDescriptor, isAdmin);
       const page = Math.floor(offset / pageSize) + 1;
 
       const query = isAdmin
         ? {
             search: searchValue.trim(),
+            sortBy,
+            order,
             page: String(page),
             limit: String(pageSize),
           }
@@ -276,8 +278,8 @@ export const BadgesPage = ({
     onSearchChange: setSearch,
     filter,
     onFilterChange: setFilter,
-    sort: isAdmin ? null : sort,
-    onSortChange: isAdmin ? undefined : setSort,
+    sort,
+    onSortChange: setSort,
     paginationOptions: {
       pageSize: 10,
       pageSizeOptions: [10, 20, 30, 50],

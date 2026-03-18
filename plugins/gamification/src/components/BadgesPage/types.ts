@@ -6,7 +6,9 @@ export type BadgeSortField =
   | 'created_at'
   | 'title'
   | 'xp_reward'
-  | 'progress_percent';
+  | 'progress_percent'
+  | 'criteria_count'
+  | 'status';
 export type BadgeSortOrder = 'asc' | 'desc';
 
 export type QuestLite = {
