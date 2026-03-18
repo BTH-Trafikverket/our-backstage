@@ -48,7 +48,10 @@
 - Keep forms, validation messages, and backend constraints aligned.
 - Avoid unnecessary fetches, repeated identity lookups, and duplicated state.
 - Favor simple, readable state and request flow over premature optimization.
-- First try to use backstage components for the frontend UI, I want you to explicity search and really look around and try to find if backstage has that component u wanna introduce in its docs. If you are sure it is not found, then fall back to using material UI components for that component.
+- Use Backstage UI components from `ui.backstage.io` for frontend work.
+- Explicitly check the Backstage UI docs before introducing a new component pattern.
+- Do not introduce Material UI for new frontend work in this repo.
+- If Backstage UI does not provide the needed primitive, fall back to native HTML or an existing local project pattern rather than adding new Material UI usage.
 
 ## Testing and Validation
 
