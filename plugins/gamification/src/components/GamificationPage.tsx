@@ -8,6 +8,7 @@ import {
 import { Route, Routes } from 'react-router-dom';
 import { BadgesPage } from './BadgesPage';
 import { QuestsPage } from './QuestsPage';
+import { TestPage } from './TestPage';
 
 export const GamificationRootPage = () => {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -52,6 +53,11 @@ export const GamificationRootPage = () => {
             label: 'Badges',
             href: '/gamification/badges',
           },
+          {
+            id: 'test',
+            label: 'Test',
+            href: '/gamification/test',
+          },
         ]}
         customActions={
           <Text variant="body-medium" color="secondary">
@@ -83,6 +89,7 @@ export const GamificationRootPage = () => {
                 />
               }
             />
+            <Route path="/test" element={<TestPage isAdmin={isAdmin} />} />
           </Routes>
         </Box>
       </Container>
