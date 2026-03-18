@@ -21,6 +21,7 @@ export const createEmptyBadgeForm = (): BadgeFormData => ({
 
 export const createDefaultBadgeFilter = (): BadgeFilterState => ({
   audience: 'all',
+  status: 'active',
   team: '',
 });
 
@@ -69,13 +70,18 @@ export const getBadgeSort = (
   }
 
   const column = String(descriptor.column);
-  const sortBy: BadgeSortField =
+  let sortBy: BadgeSortField = 'earned_at';
+
+  if (
     column === 'title' ||
     column === 'xp_reward' ||
     column === 'created_at' ||
     column === 'earned_at'
-      ? column
-      : 'earned_at';
+  ) {
+    sortBy = column;
+  } else if (column === 'progress') {
+    sortBy = 'progress_percent';
+  }
 
   return {
     sortBy,

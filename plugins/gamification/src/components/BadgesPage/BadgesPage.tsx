@@ -230,6 +230,7 @@ export const BadgesPage = ({
         : {
             search: searchValue.trim(),
             audience: currentFilter.audience,
+            status: currentFilter.status,
             team: currentFilter.audience === 'team' ? currentFilter.team : '',
             sortBy,
             order,
@@ -655,6 +656,7 @@ export const BadgesPage = ({
           isLoading={tableProps.loading || tableProps.isStale}
           search={search}
           audienceFilter={filter.audience}
+          statusFilter={filter.status}
           teamFilter={filter.team}
           teamOptions={teamOptions}
           totalCount={totalCount}
@@ -665,6 +667,12 @@ export const BadgesPage = ({
               ...prev,
               audience: value,
               team: value === 'team' ? prev.team || teamOptions[0] || '' : '',
+            }))
+          }
+          onStatusChange={value =>
+            setFilter(prev => ({
+              ...prev,
+              status: value,
             }))
           }
           onTeamChange={value =>
@@ -678,6 +686,7 @@ export const BadgesPage = ({
 
         <BadgeTable
           isAdmin={isAdmin}
+          statusFilter={filter.status}
           search={search}
           quests={quests}
           tableProps={tableProps}
