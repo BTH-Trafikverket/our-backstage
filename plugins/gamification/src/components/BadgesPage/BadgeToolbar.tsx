@@ -1,17 +1,19 @@
 import { Box, Button, Flex, SearchField, Text } from '@backstage/ui';
-import type { BadgeAudienceFilter } from './types';
+import type { BadgeAudienceFilter, BadgeStatusFilter } from './types';
 
 type BadgeToolbarProps = {
   isAdmin: boolean;
   isLoading: boolean;
   search: string;
   audienceFilter: BadgeAudienceFilter;
+  statusFilter: BadgeStatusFilter;
   teamFilter: string;
   teamOptions: string[];
   totalCount: number;
   visibleCount: number;
   onSearchChange: (value: string) => void;
   onAudienceChange: (value: BadgeAudienceFilter) => void;
+  onStatusChange: (value: BadgeStatusFilter) => void;
   onTeamChange: (value: string) => void;
   onCreateBadge?: () => void;
 };
@@ -42,12 +44,14 @@ export const BadgeToolbar = ({
   isLoading,
   search,
   audienceFilter,
+  statusFilter,
   teamFilter,
   teamOptions,
   totalCount,
   visibleCount,
   onSearchChange,
   onAudienceChange,
+  onStatusChange,
   onTeamChange,
   onCreateBadge,
 }: BadgeToolbarProps) => {
@@ -63,6 +67,12 @@ export const BadgeToolbar = ({
       label: 'Teams',
       disabled: !isAdmin && teamOptions.length === 0,
     },
+  ];
+
+  const statusButtons: Array<{ value: BadgeStatusFilter; label: string }> = [
+    { value: 'active', label: 'Active' },
+    { value: 'earned', label: 'Earned' },
+    { value: 'all', label: 'All' },
   ];
 
   return (
@@ -96,12 +106,44 @@ export const BadgeToolbar = ({
         </Text>
       </Flex>
 
-      <Flex
-        gap="3"
-        align="center"
-        justify="between"
-        style={{ flexWrap: 'wrap' }}
-      >
+      <Flex direction="column" gap="3">
+        <Flex
+          gap="3"
+          align="center"
+          justify="between"
+          style={{ flexWrap: 'wrap' }}
+        >
+          {!isAdmin ? (
+            <Flex gap="2" align="center" style={{ flexWrap: 'wrap' }}>
+              <Text
+                as="span"
+                variant="body-small"
+                color="secondary"
+                weight="bold"
+              >
+                Scope
+              </Text>
+              {scopeButtons.map(option => (
+                <FilterButton
+                  key={option.value}
+                  label={option.label}
+                  isSelected={audienceFilter === option.value}
+                  isDisabled={option.disabled}
+                  onPress={() => onAudienceChange(option.value)}
+                />
+              ))}
+            </Flex>
+          ) : (
+            <div />
+          )}
+
+          {isAdmin && onCreateBadge ? (
+            <Button size="small" variant="primary" onPress={onCreateBadge}>
+              Create badge
+            </Button>
+          ) : null}
+        </Flex>
+
         {!isAdmin ? (
           <Flex gap="2" align="center" style={{ flexWrap: 'wrap' }}>
             <Text
@@ -110,26 +152,17 @@ export const BadgeToolbar = ({
               color="secondary"
               weight="bold"
             >
-              Scope
+              Status
             </Text>
-            {scopeButtons.map(option => (
+            {statusButtons.map(option => (
               <FilterButton
                 key={option.value}
                 label={option.label}
-                isSelected={audienceFilter === option.value}
-                isDisabled={option.disabled}
-                onPress={() => onAudienceChange(option.value)}
+                isSelected={statusFilter === option.value}
+                onPress={() => onStatusChange(option.value)}
               />
             ))}
           </Flex>
-        ) : (
-          <div />
-        )}
-
-        {isAdmin && onCreateBadge ? (
-          <Button size="small" variant="primary" onPress={onCreateBadge}>
-            Create badge
-          </Button>
         ) : null}
       </Flex>
 

@@ -107,20 +107,28 @@ export function BadgesRouter({
       typeof req.query.sortBy === 'string' ? req.query.sortBy : undefined;
     const orderQuery =
       typeof req.query.order === 'string' ? req.query.order : undefined;
+    const statusQuery =
+      typeof req.query.status === 'string' ? req.query.status : undefined;
     const sortBy =
       sortByQuery === 'created_at' ||
       sortByQuery === 'title' ||
       sortByQuery === 'xp_reward' ||
+      sortByQuery === 'progress_percent' ||
       sortByQuery === 'earned_at'
         ? sortByQuery
         : 'earned_at';
     const order = orderQuery === 'asc' ? 'asc' : 'desc';
+    const status =
+      statusQuery === 'earned' || statusQuery === 'all'
+        ? statusQuery
+        : 'active';
 
     const badgeProgress = await badgesService.getBadgeProgress(subjectRefs, {
       credentials,
       searchTitle: search,
       sortBy,
       order,
+      status,
       page,
       limit,
     });

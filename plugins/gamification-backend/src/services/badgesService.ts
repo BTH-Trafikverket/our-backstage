@@ -3,6 +3,7 @@ import type {
   BadgesRepository,
   BadgePagination,
   BadgeProgressSortField,
+  BadgeProgressStatusFilter,
   BadgeSortOrder,
   BadgeRow,
   CriteriaProgressRow,
@@ -71,6 +72,7 @@ type BadgePaginationOpts = BadgeServiceOpts & {
   searchTitle?: string;
   sortBy?: BadgeProgressSortField;
   order?: BadgeSortOrder;
+  status?: BadgeProgressStatusFilter;
   page?: number;
   limit?: number;
 };
@@ -328,6 +330,7 @@ export class BadgesService {
       searchTitle: opts?.searchTitle,
       sortBy: opts?.sortBy,
       order: opts?.order,
+      status: opts?.status,
       page: opts?.page,
       limit: opts?.limit,
     });
