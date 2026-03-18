@@ -43,6 +43,7 @@ describePostgres18('BadgesRepository integration', () => {
         await repo.createBadge({
           title: 'Transactional Badge',
           description: 'Should be rolled back',
+          xp_reward: 0,
           subject_type: 'user',
         });
 
@@ -80,6 +81,7 @@ describePostgres18('BadgesRepository integration', () => {
     const badge = await repository.createBadge({
       title: 'Contributor',
       description: 'Awarded for completing core work',
+      xp_reward: 0,
       subject_type: 'user',
     });
     await repository.insertBadgeCriteria(badge.id, [
@@ -105,11 +107,13 @@ describePostgres18('BadgesRepository integration', () => {
     const badgeA = await repository.createBadge({
       title: 'Badge A',
       description: 'First badge',
+      xp_reward: 0,
       subject_type: 'user',
     });
     const badgeB = await repository.createBadge({
       title: 'Badge B',
       description: 'Second badge',
+      xp_reward: 0,
       subject_type: 'user',
     });
 
@@ -138,6 +142,7 @@ describePostgres18('BadgesRepository integration', () => {
     const badge = await repository.createBadge({
       title: 'Original Badge',
       description: 'Original description',
+      xp_reward: 0,
       subject_type: 'user',
     });
     await repository.insertBadgeCriteria(badge.id, [
@@ -168,11 +173,13 @@ describePostgres18('BadgesRepository integration', () => {
     const activeBadge = await repository.createBadge({
       title: 'Platform Reviewer',
       description: 'Active badge',
+      xp_reward: 0,
       subject_type: 'user',
     });
     const archivedBadge = await repository.createBadge({
       title: 'Legacy Reviewer',
       description: 'Archived badge',
+      xp_reward: 0,
       subject_type: 'user',
     });
 
@@ -228,6 +235,7 @@ describePostgres18('BadgesRepository integration', () => {
     const badge = await repository.createBadge({
       title: 'User Badge Only',
       description: 'Should not allow team quests',
+      xp_reward: 0,
       subject_type: 'user',
     });
 
@@ -247,6 +255,7 @@ describePostgres18('BadgesRepository integration', () => {
     const earnedBadge = await repository.createBadge({
       title: 'Earned Badge',
       description: 'Completed criteria',
+      xp_reward: 0,
       subject_type: 'team',
     });
     await repository.insertBadgeCriteria(earnedBadge.id, [
@@ -257,6 +266,7 @@ describePostgres18('BadgesRepository integration', () => {
     const unearnedBadge = await repository.createBadge({
       title: 'Unearned Badge',
       description: 'Missing progress',
+      xp_reward: 0,
       subject_type: 'team',
     });
     await repository.insertBadgeCriteria(unearnedBadge.id, [
@@ -347,9 +357,11 @@ describePostgres18('BadgesRepository integration', () => {
       },
     ]);
 
-    const badgeProgress = await listBadgeProgress(repository, [
-      'group:default/platform',
-    ]);
+    const badgeProgress = await listBadgeProgress(
+      repository,
+      ['group:default/platform'],
+      { status: 'all' },
+    );
 
     expect(
       badgeProgress.map(badge => ({
@@ -410,9 +422,11 @@ describePostgres18('BadgesRepository integration', () => {
         badge_id: badge.id,
       })
       .select(['badge_id', 'quest_id', 'xp_amount', 'source']);
-    const badgeProgress = await listBadgeProgress(repository, [
-      'user:default/alice',
-    ]);
+    const badgeProgress = await listBadgeProgress(
+      repository,
+      ['user:default/alice'],
+      { status: 'all' },
+    );
 
     expect(criteriaCompletion).toHaveLength(1);
     expect(earnedRows).toHaveLength(1);
@@ -491,6 +505,7 @@ describePostgres18('BadgesRepository integration', () => {
     const badge = await repository.createBadge({
       title: 'Team Earned Badge',
       description: 'Earned by a team membership',
+      xp_reward: 0,
       subject_type: 'team',
     });
     await repository.insertBadgeCriteria(badge.id, [
@@ -503,10 +518,11 @@ describePostgres18('BadgesRepository integration', () => {
       completion_count: 1,
     });
 
-    const badgeProgress = await listBadgeProgress(repository, [
-      'user:default/alice',
-      'group:default/platform',
-    ]);
+    const badgeProgress = await listBadgeProgress(
+      repository,
+      ['user:default/alice', 'group:default/platform'],
+      { status: 'all' },
+    );
 
     expect(badgeProgress).toHaveLength(1);
     expect(badgeProgress[0].title).toBe('Team Earned Badge');
@@ -524,6 +540,7 @@ describePostgres18('BadgesRepository integration', () => {
     const badge = await repository.createBadge({
       title: 'Progress Badge',
       description: 'Badge with per-subject progress rows',
+      xp_reward: 0,
       subject_type: 'user',
     });
     await repository.insertBadgeCriteria(badge.id, [
@@ -576,11 +593,13 @@ describePostgres18('BadgesRepository integration', () => {
     const userBadge = await repository.createBadge({
       title: 'User Badge Visible',
       description: 'Visible for user refs only',
+      xp_reward: 0,
       subject_type: 'user',
     });
     const teamBadge = await repository.createBadge({
       title: 'Team Badge Visible',
       description: 'Visible for team refs only',
+      xp_reward: 0,
       subject_type: 'team',
     });
 
@@ -790,6 +809,7 @@ describePostgres18('BadgesRepository integration', () => {
       {
         sortBy: 'earned_at',
         order: 'asc',
+        status: 'all',
         page: 1,
         limit: 10,
       },
@@ -799,6 +819,7 @@ describePostgres18('BadgesRepository integration', () => {
       {
         sortBy: 'earned_at',
         order: 'desc',
+        status: 'all',
         page: 1,
         limit: 10,
       },
@@ -824,6 +845,7 @@ describePostgres18('BadgesRepository integration', () => {
     const badge = await repository.createBadge({
       title: 'Delete Badge',
       description: 'To be removed',
+      xp_reward: 0,
       subject_type: 'team',
     });
     await repository.insertBadgeCriteria(badge.id, [
@@ -843,9 +865,11 @@ describePostgres18('BadgesRepository integration', () => {
     const earnedRows = await knex('earned_badges')
       .where({ badge_id: badge.id })
       .select('*');
-    const badgeProgress = await listBadgeProgress(repository, [
-      'group:default/platform',
-    ]);
+    const badgeProgress = await listBadgeProgress(
+      repository,
+      ['group:default/platform'],
+      { status: 'all' },
+    );
 
     expect(deleted).toBe(true);
     expect(activeBadge).toBeUndefined();
