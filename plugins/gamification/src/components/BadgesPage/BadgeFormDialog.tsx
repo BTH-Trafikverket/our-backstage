@@ -188,14 +188,13 @@ export const BadgeFormDialog = ({
                 }
 
                 return (
-                  <Box key={`${criteria.quest_id}-${index}`} p="4">
+                  <Box key={index} p="4">
                     <Flex direction="column" gap="3">
                       <Flex gap="3" style={{ flexWrap: 'wrap' }}>
                         <Box style={{ flex: '1 1 18rem', minWidth: '16rem' }}>
                           <Select
                             label="Quest"
                             size="medium"
-                            searchable
                             selectedKey={criteria.quest_id || undefined}
                             onSelectionChange={key =>
                               onCriteriaChange(
@@ -211,11 +210,7 @@ export const BadgeFormDialog = ({
                               },
                               ...compatibleQuests.map(quest => ({
                                 value: quest.id,
-                                label: `${quest.title} • ${
-                                  quest.completion_policy === 'ONE_TIME'
-                                    ? 'One-time'
-                                    : 'Repeatable'
-                                }`,
+                                label: quest.title,
                               })),
                             ]}
                           />
