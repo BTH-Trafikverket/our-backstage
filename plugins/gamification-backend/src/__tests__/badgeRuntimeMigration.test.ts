@@ -7,7 +7,7 @@ const { describePostgres18, initDb, migrationsDir } =
   createPostgres18TestHarness(__dirname);
 
 describePostgres18('badge runtime persistence migration', () => {
-  const runtimeMigration = '012_create_badge_triggers.ts';
+  const runtimeMigration = '013_fix_badge_quest_completion_thresholds.ts';
 
   async function migrateThroughLegacySchema(knex: Knex): Promise<void> {
     const migrationNames = fs
