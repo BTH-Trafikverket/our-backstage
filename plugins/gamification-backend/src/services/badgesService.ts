@@ -69,9 +69,17 @@ export type BadgeProgressResponse = {
   pagination: BadgePagination;
 };
 
-type BadgePaginationOpts = BadgeServiceOpts & {
+type BadgeAdminPaginationOpts = BadgeServiceOpts & {
   searchTitle?: string;
-  sortBy?: BadgeProgressSortField | BadgeAdminSortField;
+  sortBy?: BadgeAdminSortField;
+  order?: BadgeSortOrder;
+  page?: number;
+  limit?: number;
+};
+
+type BadgeProgressPaginationOpts = BadgeServiceOpts & {
+  searchTitle?: string;
+  sortBy?: BadgeProgressSortField;
   order?: BadgeSortOrder;
   status?: BadgeProgressStatusFilter;
   page?: number;
@@ -304,19 +312,12 @@ export class BadgesService {
 
   async getBadges(
     searchTitle?: string,
-    opts?: BadgePaginationOpts,
+    opts?: BadgeAdminPaginationOpts,
   ): Promise<PaginatedBadgeResponse> {
     const paginated = await this.badgesRepo.getPaginatedBadges({
       searchTitle,
       includeArchived: true,
-      sortBy:
-        opts?.sortBy === 'title' ||
-        opts?.sortBy === 'xp_reward' ||
-        opts?.sortBy === 'created_at' ||
-        opts?.sortBy === 'criteria_count' ||
-        opts?.sortBy === 'status'
-          ? opts.sortBy
-          : undefined,
+      sortBy: opts?.sortBy,
       order: opts?.order,
       page: opts?.page,
       limit: opts?.limit,
@@ -342,23 +343,14 @@ export class BadgesService {
 
   async getBadgeProgress(
     subjectRefs: string[],
-    opts?: BadgePaginationOpts,
+    opts?: BadgeProgressPaginationOpts,
   ): Promise<BadgeProgressResponse> {
     const refs = [
       ...new Set(subjectRefs.map(ref => ref.trim()).filter(Boolean)),
     ];
-    const progressSortBy: BadgeProgressSortField =
-      opts?.sortBy === 'title' ||
-      opts?.sortBy === 'xp_reward' ||
-      opts?.sortBy === 'created_at' ||
-      opts?.sortBy === 'progress_percent' ||
-      opts?.sortBy === 'earned_at'
-        ? opts.sortBy
-        : 'earned_at';
-
     const paginated = await this.badgesRepo.getPaginatedBadgeProgress(refs, {
       searchTitle: opts?.searchTitle,
-      sortBy: progressSortBy,
+      sortBy: opts?.sortBy,
       order: opts?.order,
       status: opts?.status,
       page: opts?.page,
