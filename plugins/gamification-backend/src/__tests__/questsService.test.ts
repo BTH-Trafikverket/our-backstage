@@ -707,6 +707,93 @@ describe('QuestsService', () => {
     });
   });
 
+  describe('listGithubUsers', () => {
+    it('returns sorted GitHub-linked users from the catalog', async () => {
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: [
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'User',
+            metadata: {
+              name: 'zoe',
+              namespace: 'default',
+              annotations: {
+                'github.com/user-login': 'zoe',
+                'github.com/user-id': '200',
+              },
+            },
+            spec: {
+              profile: {
+                displayName: 'Zoe Zebra',
+                email: 'zoe@example.com',
+              },
+            },
+          },
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'User',
+            metadata: {
+              name: 'alice',
+              namespace: 'default',
+              annotations: {
+                'github.com/user-login': 'alice',
+                'github.com/user-id': '100',
+              },
+            },
+            spec: {
+              profile: {
+                displayName: 'Alice Adams',
+                email: 'alice@example.com',
+                picture: 'https://example.com/alice.png',
+              },
+            },
+          },
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'User',
+            metadata: {
+              name: 'bob',
+              namespace: 'default',
+            },
+          },
+        ],
+      });
+
+      const result = await service.listGithubUsers({
+        credentials: {} as any,
+      });
+
+      expect(mockAuthService.getPluginRequestToken).toHaveBeenCalledWith({
+        onBehalfOf: {},
+        targetPluginId: 'catalog',
+      });
+      expect(mockCatalogClient.getEntities).toHaveBeenCalledWith(
+        {
+          filter: [{ kind: 'User' }],
+        },
+        { token: 'catalog-token' },
+      );
+      expect(result).toEqual([
+        {
+          entityRef: 'user:default/alice',
+          displayName: 'Alice Adams',
+          githubLogin: 'alice',
+          githubId: '100',
+          email: 'alice@example.com',
+          picture: 'https://example.com/alice.png',
+        },
+        {
+          entityRef: 'user:default/zoe',
+          displayName: 'Zoe Zebra',
+          githubLogin: 'zoe',
+          githubId: '200',
+          email: 'zoe@example.com',
+          picture: undefined,
+        },
+      ]);
+    });
+  });
+
   describe('handleQuestEvent policy enforcement', () => {
     beforeEach(() => {
       mockRepo.tryInsertReceipt.mockResolvedValue(true);

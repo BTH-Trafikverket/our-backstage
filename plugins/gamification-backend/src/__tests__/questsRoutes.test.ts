@@ -20,6 +20,15 @@ describe('quests routes auth', () => {
     completion_policy: 'REPEATABLE' as const,
   };
 
+  const testEventPayload = {
+    eventId: 'evt-ui-1',
+    questId: '11111111-1111-4111-8111-111111111111',
+    actor: {
+      provider: 'github',
+      login: 'alice',
+    },
+  };
+
   function makeApp(options?: {
     userInfo?: UserInfoService;
     adminGroups?: string[];
@@ -58,6 +67,15 @@ describe('quests routes auth', () => {
         pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
       })),
       getQuestsWithProgress: jest.fn(async () => []),
+      listGithubUsers: jest.fn(async () => [
+        {
+          entityRef: 'user:default/alice',
+          displayName: 'Alice',
+          githubLogin: 'alice',
+          githubId: '1234',
+          email: 'alice@example.com',
+        },
+      ]),
       handleQuestEvent: jest.fn(async () => ({
         duplicate: false,
         subjectRef: 'user:default/alice',
@@ -84,7 +102,9 @@ describe('quests routes auth', () => {
 
   test.each([
     ['get', '/quests', undefined],
+    ['get', '/quests/test/users', undefined],
     ['post', '/quests', createQuestPayload],
+    ['post', '/quests/test/events', testEventPayload],
     ['patch', '/quests/quest-1', { title: 'Updated Quest' }],
     ['delete', '/quests/quest-1', undefined],
   ] as const)(
@@ -111,6 +131,8 @@ describe('quests routes auth', () => {
       expect(questsService.editQuest).not.toHaveBeenCalled();
       expect(questsService.deleteQuest).not.toHaveBeenCalled();
       expect(questsService.getQuests).not.toHaveBeenCalled();
+      expect(questsService.listGithubUsers).not.toHaveBeenCalled();
+      expect(questsService.handleQuestEvent).not.toHaveBeenCalled();
     },
   );
 
@@ -213,6 +235,39 @@ describe('quests routes auth', () => {
     expect(res.body).toEqual({
       data: [{ id: 'quest-1', title: 'Quest 1', subject_type: 'team' }],
       pagination: { page: 2, limit: 5, total: 7, totalPages: 2 },
+    });
+  });
+
+  it('allows admin users to list GitHub catalog users for the test panel', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, questsService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .get('/quests/test/users')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(questsService.listGithubUsers).toHaveBeenCalledWith({
+      credentials: expect.objectContaining({
+        principal: expect.objectContaining({
+          type: 'user',
+          userEntityRef: userRef,
+        }),
+      }),
+    });
+    expect(res.body).toEqual({
+      users: [
+        {
+          entityRef: 'user:default/alice',
+          displayName: 'Alice',
+          githubLogin: 'alice',
+          githubId: '1234',
+          email: 'alice@example.com',
+        },
+      ],
     });
   });
 
@@ -341,6 +396,39 @@ describe('quests routes auth', () => {
           principal: expect.objectContaining({
             type: 'service',
             subject: 'external:test-service',
+          }),
+        }),
+      },
+    });
+  });
+
+  it('allows admin users to post test quest events from the UI', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, questsService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .post('/quests/test/events')
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send(testEventPayload);
+
+    expect(res.status).toBe(200);
+    expect(questsService.handleQuestEvent).toHaveBeenCalledWith({
+      eventId: 'evt-ui-1',
+      questId: '11111111-1111-4111-8111-111111111111',
+      subjectRef: undefined,
+      actor: {
+        provider: 'github',
+        login: 'alice',
+      },
+      callerSubject: 'internal:backstage-ui-test',
+      opts: {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'user',
+            userEntityRef: userRef,
           }),
         }),
       },

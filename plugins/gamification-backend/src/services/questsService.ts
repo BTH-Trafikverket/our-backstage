@@ -31,6 +31,15 @@ export type ActorResolutionProviders = Record<
   ActorResolutionProviderConfig
 >;
 
+export type GithubCatalogUser = {
+  entityRef: string;
+  displayName: string;
+  githubLogin: string;
+  githubId?: string;
+  email?: string;
+  picture?: string;
+};
+
 const DEFAULT_ACTOR_RESOLUTION_PROVIDERS: ActorResolutionProviders = {
   github: {
     idAnnotations: ['metadata.annotations.github.com/user-id'],
@@ -61,6 +70,13 @@ export class QuestsService {
 
   private normalizeQuestSubjectType(subjectType: QuestSubjectType | undefined) {
     return subjectType ?? ('user' as const);
+  }
+
+  private async getCatalogToken(credentials: QuestServiceOpts['credentials']) {
+    return this.auth.getPluginRequestToken({
+      onBehalfOf: credentials,
+      targetPluginId: 'catalog',
+    });
   }
 
   async createQuest(data: QuestCreationInput, _opts: QuestServiceOpts) {
@@ -293,6 +309,63 @@ export class QuestsService {
     return undefined;
   }
 
+  async listGithubUsers(params: {
+    credentials: QuestServiceOpts['credentials'];
+  }): Promise<GithubCatalogUser[]> {
+    const { token } = await this.getCatalogToken(params.credentials);
+    const res = await this.catalogClient.getEntities(
+      {
+        filter: [{ kind: 'User' }],
+      },
+      { token },
+    );
+
+    return (res.items ?? [])
+      .map(entity => {
+        const annotations = entity.metadata.annotations ?? {};
+        const profile = (
+          entity.spec as
+            | {
+                profile?: {
+                  displayName?: string;
+                  email?: string;
+                  picture?: string;
+                };
+              }
+            | undefined
+        )?.profile;
+        const githubLogin = annotations['github.com/user-login']?.trim();
+        const githubId = annotations['github.com/user-id']?.trim();
+
+        if (!githubLogin && !githubId) {
+          return undefined;
+        }
+
+        const displayName =
+          profile?.displayName?.trim() ||
+          entity.metadata.title?.trim() ||
+          profile?.email?.trim() ||
+          entity.metadata.name;
+
+        return {
+          entityRef: stringifyEntityRef(entity),
+          displayName,
+          githubLogin: githubLogin || entity.metadata.name,
+          githubId: githubId || undefined,
+          email: profile?.email || undefined,
+          picture: profile?.picture || undefined,
+        };
+      })
+      .filter((user): user is GithubCatalogUser => Boolean(user))
+      .sort((left, right) =>
+        `${left.displayName} ${left.githubLogin}`.localeCompare(
+          `${right.displayName} ${right.githubLogin}`,
+          'en-US',
+          { sensitivity: 'base' },
+        ),
+      );
+  }
+
   async resolveActorToUserRef(params: {
     actor: QuestEventActor;
     credentials: QuestServiceOpts['credentials'];
@@ -301,10 +374,7 @@ export class QuestsService {
 
     if (actor.entityRef) return actor.entityRef;
 
-    const { token } = await this.auth.getPluginRequestToken({
-      onBehalfOf: credentials,
-      targetPluginId: 'catalog',
-    });
+    const { token } = await this.getCatalogToken(credentials);
 
     if (actor.email) {
       const normalizedEmail = actor.email.trim().toLowerCase();

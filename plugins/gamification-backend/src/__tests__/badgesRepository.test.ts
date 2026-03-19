@@ -62,12 +62,13 @@ describePostgres18('BadgesRepository integration', () => {
     knex: Knex,
     title: string,
     subjectType: QuestSubjectType = 'user',
+    targetCount = 1,
   ) {
     const questsRepo = new QuestsRepository(knex);
     return questsRepo.createQuest({
       title,
       description: `${title} description`,
-      target_count: 1,
+      target_count: targetCount,
       xp_reward: 100,
       subject_type: subjectType,
     });
@@ -440,6 +441,86 @@ describePostgres18('BadgesRepository integration', () => {
     ]);
     expect(badgeProgress).toHaveLength(1);
     expect(badgeProgress[0].is_earned).toBe(true);
+
+    await knex.destroy();
+  });
+
+  it('does not award a badge until the quest reaches its own completion threshold', async () => {
+    const knex = await initDb();
+    const repository = new BadgesRepository(knex);
+    const quest = await createQuest(knex, 'Quest With Milestone', 'user', 5);
+
+    const badge = await repository.createBadge({
+      title: 'Milestone Badge',
+      description: 'Awarded after one full quest completion',
+      xp_reward: 40,
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(badge.id, [
+      { quest_id: quest.id, target_count: 1 },
+    ]);
+
+    await knex('quest_progress').insert({
+      subject_ref: 'user:default/alice',
+      quest_id: quest.id,
+      completion_count: 1,
+    });
+
+    expect(
+      await knex('badge_criteria_completion').where({ badge_id: badge.id }),
+    ).toEqual([]);
+    expect(await knex('earned_badges').where({ badge_id: badge.id })).toEqual(
+      [],
+    );
+
+    await knex('quest_progress')
+      .where({
+        subject_ref: 'user:default/alice',
+        quest_id: quest.id,
+      })
+      .update({ completion_count: 4 });
+
+    expect(
+      await knex('badge_criteria_completion').where({ badge_id: badge.id }),
+    ).toEqual([]);
+    expect(await knex('earned_badges').where({ badge_id: badge.id })).toEqual(
+      [],
+    );
+
+    await knex('quest_progress')
+      .where({
+        subject_ref: 'user:default/alice',
+        quest_id: quest.id,
+      })
+      .update({ completion_count: 5 });
+
+    const criteriaCompletion = await knex('badge_criteria_completion')
+      .where({
+        subject_ref: 'user:default/alice',
+        badge_id: badge.id,
+        quest_id: quest.id,
+      })
+      .select(['subject_ref', 'badge_id', 'quest_id']);
+    const earnedRows = await knex('earned_badges')
+      .where({
+        subject_ref: 'user:default/alice',
+        badge_id: badge.id,
+      })
+      .select(['subject_ref', 'badge_id']);
+
+    expect(criteriaCompletion).toEqual([
+      {
+        subject_ref: 'user:default/alice',
+        badge_id: badge.id,
+        quest_id: quest.id,
+      },
+    ]);
+    expect(earnedRows).toEqual([
+      {
+        subject_ref: 'user:default/alice',
+        badge_id: badge.id,
+      },
+    ]);
 
     await knex.destroy();
   });

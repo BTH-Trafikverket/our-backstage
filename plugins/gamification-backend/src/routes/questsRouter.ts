@@ -15,6 +15,8 @@ import {
   createRequireAdminCredentials,
 } from './adminAccess';
 
+const UI_TEST_CALLER_SUBJECT = 'internal:backstage-ui-test';
+
 export function QuestsRouter({
   httpAuth,
   userInfo,
@@ -42,6 +44,33 @@ export function QuestsRouter({
   router.get('/admin-status', async (req, res) => {
     const { isAdmin } = await readAdminAccess(req);
     res.status(200).json({ isAdmin });
+  });
+
+  router.get('/test/users', async (req, res) => {
+    const credentials = await requireAdminCredentials(req);
+    const users = await questsService.listGithubUsers({ credentials });
+
+    res.status(200).json({ users });
+  });
+
+  router.post('/test/events', async (req, res) => {
+    const parsed = questEventSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new InputError(parsed.error.toString());
+    }
+
+    const credentials = await requireAdminCredentials(req);
+
+    const result = await questsService.handleQuestEvent({
+      eventId: parsed.data.eventId,
+      questId: parsed.data.questId,
+      subjectRef: parsed.data.subjectRef,
+      actor: parsed.data.actor,
+      callerSubject: UI_TEST_CALLER_SUBJECT,
+      opts: { credentials },
+    });
+
+    res.status(200).json(result);
   });
 
   router.post('/', async (req, res) => {
