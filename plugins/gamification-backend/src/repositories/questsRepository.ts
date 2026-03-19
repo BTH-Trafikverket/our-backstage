@@ -16,6 +16,7 @@ export type QuestRow = {
   cooldown_days: number | null;
   created_at: Date;
   updated_at: Date;
+  archived_at: Date | null;
 };
 
 export type CreateQuestRow = {
@@ -80,6 +81,11 @@ export type PaginatedQuestsResult = {
   pagination: PaginationResult;
 };
 
+export type BadgeCriteriaUsageRow = {
+  badge_id: string;
+  badge_title: string;
+};
+
 export class QuestsRepository {
   private readonly db: Knex | Knex.Transaction;
 
@@ -123,6 +129,7 @@ export class QuestsRepository {
     audience?: QuestAudienceFilter;
     sortBy?: QuestSortField;
     order?: SortOrder;
+    includeArchived?: boolean;
     page?: number;
     limit?: number;
   }): Promise<PaginatedQuestRowsResult> {
@@ -131,6 +138,7 @@ export class QuestsRepository {
       audience = 'all',
       sortBy = 'created_at',
       order = 'desc',
+      includeArchived = false,
       page = 1,
       limit = 10,
     } = params ?? {};
@@ -141,6 +149,10 @@ export class QuestsRepository {
     const sortOrder = order === 'desc' ? 'desc' : 'asc';
 
     let query = this.db<QuestRow>('quests').select('*');
+
+    if (!includeArchived) {
+      query = query.whereNull('archived_at');
+    }
 
     if (searchTitle) {
       query = query.where('title', 'ilike', `%${searchTitle}%`);
@@ -191,7 +203,10 @@ export class QuestsRepository {
   }
 
   async getQuestById(id: string): Promise<QuestRow | undefined> {
-    return this.db<QuestRow>('quests').where({ id }).first();
+    return this.db<QuestRow>('quests')
+      .where({ id })
+      .whereNull('archived_at')
+      .first();
   }
 
   async getQuestsByIds(ids: string[]): Promise<QuestRow[]> {
@@ -199,7 +214,24 @@ export class QuestsRepository {
       return [];
     }
 
-    return this.db<QuestRow>('quests').whereIn('id', ids).select('*');
+    return this.db<QuestRow>('quests')
+      .whereIn('id', ids)
+      .whereNull('archived_at')
+      .select('*');
+  }
+
+  async getBadgeCriteriaUsage(
+    questId: string,
+  ): Promise<BadgeCriteriaUsageRow[]> {
+    return this.db('badge_criteria')
+      .join('badges', 'badges.id', 'badge_criteria.badge_id')
+      .where('badge_criteria.quest_id', questId)
+      .whereNull('badges.archived_at')
+      .select(
+        'badge_criteria.badge_id as badge_id',
+        'badges.title as badge_title',
+      )
+      .orderBy('badges.title', 'asc');
   }
 
   async getQuestsWithProgress(params: {
@@ -287,6 +319,7 @@ export class QuestsRepository {
           );
         })
         .where('quests.subject_type', 'user')
+        .whereNull('quests.archived_at')
         .modify(queryBuilder => {
           if (searchTitle) {
             queryBuilder.where('quests.title', 'ilike', `%${searchTitle}%`);
@@ -310,6 +343,7 @@ export class QuestsRepository {
           );
         })
         .where('quests.subject_type', 'team')
+        .whereNull('quests.archived_at')
         .modify(queryBuilder => {
           if (searchTitle) {
             queryBuilder.where('quests.title', 'ilike', `%${searchTitle}%`);
@@ -456,8 +490,13 @@ export class QuestsRepository {
   }
 
   async deleteQuest(id: string): Promise<boolean> {
-    const deletedCount = await this.db('quests').where({ id }).del();
-    return deletedCount > 0;
+    const rows = await this.db<QuestRow>('quests')
+      .where({ id })
+      .whereNull('archived_at')
+      .update({ archived_at: this.db.fn.now() })
+      .returning('id');
+
+    return rows.length > 0;
   }
 
   async getProgressForSubjectQuest(

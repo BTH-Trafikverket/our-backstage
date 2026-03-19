@@ -38,23 +38,23 @@ export const QuestDeleteDialog = ({
       }}
       width={520}
     >
-      <DialogHeader>Delete quest</DialogHeader>
+      <DialogHeader>Archive quest</DialogHeader>
       <DialogBody>
         <Flex direction="column" gap="4">
           {error ? (
             <Alert
               status="danger"
               icon
-              title="Could not delete quest"
+              title="Could not archive quest"
               description={error}
             />
           ) : null}
 
           <Box p="4">
             <Text>
-              Delete &quot;{quest?.title}&quot; permanently? Existing progress
-              rows and rewards tied to this quest definition may also be
-              affected.
+              Archive &quot;{quest?.title}&quot;? It will no longer appear as an
+              active quest or accept new progress, but existing progress and XP
+              history will be preserved.
             </Text>
           </Box>
         </Flex>
@@ -70,7 +70,7 @@ export const QuestDeleteDialog = ({
             onPress={onConfirm}
             loading={loading}
           >
-            Delete quest
+            Archive quest
           </Button>
         </Flex>
       </DialogFooter>

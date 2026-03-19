@@ -73,4 +73,31 @@ describe('QuestTable', () => {
     expect(screen.getByText('1/3')).toBeInTheDocument();
     expect(screen.getByText('In progress')).toBeInTheDocument();
   });
+
+  it('hides admin action buttons for archived quests', () => {
+    render(
+      <MemoryRouter>
+        <QuestTable
+          isAdmin
+          search=""
+          tableProps={createTableProps([
+            createQuestTableRow({
+              ...baseQuest,
+              archived_at: '2026-03-19T00:00:00Z',
+            }),
+          ])}
+          onEditQuest={jest.fn()}
+          onDeleteQuest={jest.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Archived')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Edit' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Archive' }),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -262,21 +262,27 @@ const getAdminColumns = (
       cell: (item: BadgeTableRow) => (
         <Cell>
           <Flex justify="end" gap="2" style={{ width: '100%' }}>
-            <Button
-              size="small"
-              variant="secondary"
-              onPress={() => onEditBadge(item.badge)}
-            >
-              Edit
-            </Button>
-            <Button
-              size="small"
-              variant="tertiary"
-              destructive
-              onPress={() => onDeleteBadge(item.badge)}
-            >
-              Archive
-            </Button>
+            {item.badge.archived_at ? (
+              <Text color="secondary">Archived</Text>
+            ) : (
+              <>
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onPress={() => onEditBadge(item.badge)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  size="small"
+                  variant="tertiary"
+                  destructive
+                  onPress={() => onDeleteBadge(item.badge)}
+                >
+                  Archive
+                </Button>
+              </>
+            )}
           </Flex>
         </Cell>
       ),

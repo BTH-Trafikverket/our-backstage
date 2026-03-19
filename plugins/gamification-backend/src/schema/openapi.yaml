@@ -102,7 +102,7 @@ paths:
             maximum: 100
       responses:
         '200':
-          description: Paginated quest list
+          description: Paginated quest list, including archived quests
           content:
             application/json:
               schema:
@@ -245,10 +245,10 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
-      operationId: deleteQuest
+      operationId: archiveQuest
       tags:
         - Quests
-      summary: Delete a quest
+      summary: Archive a quest
       parameters:
         - in: path
           name: id
@@ -258,13 +258,15 @@ paths:
             format: uuid
       responses:
         '204':
-          description: Quest deleted
+          description: Quest archived
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '404':
           $ref: '#/components/responses/NotFound'
   /quests/events:
@@ -519,6 +521,8 @@ components:
       description: Missing or invalid credentials
     NotFound:
       description: Resource not found
+    Conflict:
+      description: Request conflicts with the current resource state
   schemas:
     AdminStatusResponse:
       type: object
@@ -579,6 +583,7 @@ components:
         - cooldown_days
         - created_at
         - updated_at
+        - archived_at
       additionalProperties: false
       properties:
         id:
@@ -606,6 +611,8 @@ components:
           $ref: '#/components/schemas/Timestamp'
         updated_at:
           $ref: '#/components/schemas/Timestamp'
+        archived_at:
+          $ref: '#/components/schemas/NullableTimestamp'
     QuestWithProgress:
       allOf:
         - $ref: '#/components/schemas/Quest'

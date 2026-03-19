@@ -21,6 +21,7 @@ export type Quest = {
   cooldown_days: number | null;
   created_at?: string;
   updated_at?: string;
+  archived_at?: string | null;
   subject_ref?: string | null;
   completion_count: number;
   progress_toward_target: number;

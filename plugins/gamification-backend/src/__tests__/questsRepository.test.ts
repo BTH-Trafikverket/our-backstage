@@ -1,3 +1,4 @@
+import { BadgesRepository } from '../repositories/badgesRepository';
 import { QuestsRepository } from '../repositories/questsRepository';
 import { createPostgres18TestHarness } from '../../tests/helpers/postgres18TestHarness';
 
@@ -978,6 +979,10 @@ describePostgres18('QuestsRepository integration', () => {
       });
       const deleted = await repository.deleteQuest(created.id);
       const missing = await repository.deleteQuest(created.id);
+      const archivedRow = await knex('quests')
+        .where({ id: created.id })
+        .first();
+      const hiddenQuest = await repository.getQuestById(created.id);
 
       expect(updated).toEqual(
         expect.objectContaining({
@@ -993,6 +998,98 @@ describePostgres18('QuestsRepository integration', () => {
       );
       expect(deleted).toBe(true);
       expect(missing).toBe(false);
+      expect(archivedRow.archived_at).toBeTruthy();
+      expect(hiddenQuest).toBeUndefined();
+
+      await knex.destroy();
+    });
+
+    it('includes archived quests in admin reads but excludes them from user reads', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const activeQuest = await repository.createQuest({
+        title: 'Active Quest',
+        description: 'Visible quest',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+      });
+      const archivedQuest = await repository.createQuest({
+        title: 'Archived Quest',
+        description: 'Hidden quest',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+      });
+
+      await repository.deleteQuest(archivedQuest.id);
+      await repository.incrementQuestProgress({
+        subject_ref: 'user:default/alice',
+        quest_id: activeQuest.id,
+        by: 1,
+      });
+      await knex('quest_progress').insert({
+        subject_ref: 'user:default/alice',
+        quest_id: archivedQuest.id,
+        completion_count: 1,
+      });
+
+      const adminResult = await repository.getQuests({
+        includeArchived: true,
+      });
+      const progressResult = await repository.getQuestsWithProgress({
+        user_ref: 'user:default/alice',
+        ownership_refs: ['user:default/alice'],
+      });
+
+      expect(adminResult.data.map(quest => quest.title).sort()).toEqual([
+        'Active Quest',
+        'Archived Quest',
+      ]);
+      expect(
+        adminResult.data.find(quest => quest.title === 'Archived Quest')
+          ?.archived_at,
+      ).toBeTruthy();
+      expect(progressResult.data.map(quest => quest.title)).toEqual([
+        'Active Quest',
+      ]);
+
+      await knex.destroy();
+    });
+
+    it('lists badge usage for quests referenced by badge criteria', async () => {
+      const knex = await initDb();
+      const questsRepository = new QuestsRepository(knex);
+      const badgesRepository = new BadgesRepository(knex);
+
+      const quest = await questsRepository.createQuest({
+        title: 'Quest Used By Badge',
+        description: 'Referenced by a badge',
+        target_count: 1,
+        xp_reward: 10,
+      });
+      const badge = await badgesRepository.createBadge({
+        title: 'Quest Dependency Badge',
+        description: 'Depends on the quest',
+        xp_reward: 25,
+        subject_type: 'user',
+      });
+
+      await badgesRepository.insertBadgeCriteria(badge.id, [
+        { quest_id: quest.id, target_count: 1 },
+      ]);
+
+      await expect(
+        questsRepository.getBadgeCriteriaUsage(quest.id),
+      ).resolves.toEqual([
+        { badge_id: badge.id, badge_title: 'Quest Dependency Badge' },
+      ]);
+
+      await badgesRepository.deleteBadge(badge.id);
+      await expect(
+        questsRepository.getBadgeCriteriaUsage(quest.id),
+      ).resolves.toEqual([]);
 
       await knex.destroy();
     });

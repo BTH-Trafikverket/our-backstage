@@ -197,6 +197,7 @@ export function QuestsRouter({
         audience,
         sortBy,
         order,
+        includeArchived: true,
         page,
         limit,
       },
