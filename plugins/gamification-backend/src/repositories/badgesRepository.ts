@@ -22,6 +22,11 @@ export type BadgeProgressRow = BadgeRow & {
   earned_at: Date | null;
   is_earned: boolean;
   progress_percent: number;
+  completed_requirements?: number;
+  total_requirements?: number;
+  progress_percent_total?: number;
+  criteria_progress_percent?: number;
+  progress_subject_ref?: string | null;
 };
 
 export type BadgeProgressSortField =
@@ -285,11 +290,14 @@ export class BadgesRepository {
       .clearSelect()
       .select('badges.id');
 
+    const completedMilestonesExpr = `FLOOR(COALESCE(quest_progress.completion_count, 0)::numeric / GREATEST(1, quests.target_count))`;
+
     const subjectProgressQuery = this.db('badge_criteria as badge_criteria')
       .joinRaw(
         'CROSS JOIN unnest(?::text[]) as requested_subjects(subject_ref)',
         [refs],
       )
+      .join('quests', 'quests.id', 'badge_criteria.quest_id')
       .leftJoin('quest_progress', function joinProgress() {
         this.on(
           'quest_progress.quest_id',
@@ -311,14 +319,14 @@ export class BadgesRepository {
         'badge_criteria.badge_id',
         'requested_subjects.subject_ref',
         this.db.raw(
-          'SUM(CASE WHEN COALESCE(quest_progress.completion_count, 0) >= badge_criteria.target_count THEN 1 ELSE 0 END)::int as completed_requirements',
+          `SUM(CASE WHEN ${completedMilestonesExpr} >= badge_criteria.target_count THEN 1 ELSE 0 END)::int as completed_requirements`,
         ),
         this.db.raw('COUNT(*)::int as total_requirements'),
         this.db.raw(
-          'SUM(CASE WHEN badge_criteria.target_count > 0 THEN LEAST(100, ROUND((COALESCE(quest_progress.completion_count, 0)::numeric * 100) / badge_criteria.target_count)) ELSE 0 END)::int as progress_percent_total',
+          `SUM(CASE WHEN badge_criteria.target_count > 0 THEN LEAST(100, ROUND((${completedMilestonesExpr} * 100) / badge_criteria.target_count)) ELSE 0 END)::int as progress_percent_total`,
         ),
         this.db.raw(
-          'SUM(COALESCE(quest_progress.completion_count, 0))::bigint as completion_count_total',
+          `SUM(${completedMilestonesExpr})::bigint as completion_count_total`,
         ),
       )
       .groupBy(['badge_criteria.badge_id', 'requested_subjects.subject_ref']);
@@ -327,15 +335,23 @@ export class BadgesRepository {
       .from(subjectProgressQuery.as('subject_progress'))
       .select(
         'subject_progress.badge_id',
+        'subject_progress.subject_ref',
+        'subject_progress.completed_requirements',
+        'subject_progress.total_requirements',
+        'subject_progress.progress_percent_total',
+        'subject_progress.completion_count_total',
         this.db.raw(
           'CASE WHEN subject_progress.total_requirements > 0 THEN ROUND((subject_progress.completed_requirements::numeric * 100) / subject_progress.total_requirements) ELSE 0 END::int as progress_percent',
         ),
         this.db.raw(
-          'ROW_NUMBER() OVER (PARTITION BY subject_progress.badge_id ORDER BY subject_progress.completed_requirements DESC, subject_progress.progress_percent_total DESC, subject_progress.completion_count_total DESC, subject_progress.subject_ref ASC) as progress_rank',
+          'CASE WHEN subject_progress.total_requirements > 0 THEN ROUND((subject_progress.progress_percent_total::numeric) / subject_progress.total_requirements) ELSE 0 END::int as criteria_progress_percent',
+        ),
+        this.db.raw(
+          'ROW_NUMBER() OVER (PARTITION BY subject_progress.badge_id ORDER BY subject_progress.completed_requirements DESC, CASE WHEN subject_progress.total_requirements > 0 THEN ROUND((subject_progress.progress_percent_total::numeric) / subject_progress.total_requirements) ELSE 0 END DESC, CASE WHEN subject_progress.total_requirements > 0 THEN ROUND((subject_progress.completed_requirements::numeric * 100) / subject_progress.total_requirements) ELSE 0 END DESC, subject_progress.progress_percent_total DESC, subject_progress.completion_count_total DESC, subject_progress.subject_ref ASC) as progress_rank',
         ),
       );
 
-    const resultsQuery = this.db
+    const filteredResultsQuery = this.db
       .from(baseQuery.as('badge_rows'))
       .leftJoin(rankedProgressQuery.as('ranked_progress'), join => {
         join
@@ -345,45 +361,70 @@ export class BadgesRepository {
       .select(
         'badge_rows.*',
         this.db.raw(
+          'COALESCE(ranked_progress.completed_requirements, 0) as completed_requirements',
+        ),
+        this.db.raw(
+          'COALESCE(ranked_progress.total_requirements, 0) as total_requirements',
+        ),
+        this.db.raw(
           'COALESCE(ranked_progress.progress_percent, 0) as progress_percent',
         ),
-        this.db.raw('COUNT(*) OVER() as full_count'),
+        this.db.raw(
+          'COALESCE(ranked_progress.progress_percent_total, 0) as progress_percent_total',
+        ),
+        this.db.raw(
+          'COALESCE(ranked_progress.criteria_progress_percent, 0) as criteria_progress_percent',
+        ),
+        'ranked_progress.subject_ref as progress_subject_ref',
       );
 
     if (status === 'active') {
-      resultsQuery.where('badge_rows.is_earned', false);
+      filteredResultsQuery.where('badge_rows.is_earned', false);
     } else if (status === 'earned') {
-      resultsQuery.where('badge_rows.is_earned', true);
+      filteredResultsQuery.where('badge_rows.is_earned', true);
     }
 
     if (sortBy === 'earned_at') {
-      resultsQuery.orderByRaw(
+      filteredResultsQuery.orderByRaw(
         `badge_rows.earned_at ${
           order === 'asc' ? 'ASC NULLS FIRST' : 'DESC NULLS LAST'
         }`,
       );
-      resultsQuery.orderBy('badge_rows.created_at', order);
-      resultsQuery.orderBy('badge_rows.id', order);
+      filteredResultsQuery.orderBy('badge_rows.created_at', order);
+      filteredResultsQuery.orderBy('badge_rows.id', order);
     } else if (sortBy === 'progress_percent') {
-      resultsQuery.orderBy('progress_percent', order);
-      resultsQuery.orderBy('badge_rows.created_at', order);
-      resultsQuery.orderBy('badge_rows.id', order);
+      filteredResultsQuery.orderBy('completed_requirements', order);
+      filteredResultsQuery.orderBy('criteria_progress_percent', order);
+      filteredResultsQuery.orderBy('progress_percent', order);
+      filteredResultsQuery.orderBy('progress_percent_total', order);
+      filteredResultsQuery.orderBy('badge_rows.created_at', order);
+      filteredResultsQuery.orderBy('badge_rows.id', order);
     } else {
-      resultsQuery.orderBy(`badge_rows.${sortBy}`, order);
+      filteredResultsQuery.orderBy(`badge_rows.${sortBy}`, order);
       if (sortBy !== 'created_at') {
-        resultsQuery.orderBy('badge_rows.created_at', order);
+        filteredResultsQuery.orderBy('badge_rows.created_at', order);
       }
-      resultsQuery.orderBy('badge_rows.id', order);
+      filteredResultsQuery.orderBy('badge_rows.id', order);
     }
 
-    const results = await resultsQuery.limit(safeLimit).offset(offset);
+    const results = await filteredResultsQuery
+      .clone()
+      .select(this.db.raw('COUNT(*) OVER() as full_count'))
+      .limit(safeLimit)
+      .offset(offset);
 
     let total =
       results.length > 0 ? Number((results[0] as any).full_count || 0) : 0;
 
     if (results.length === 0 && safePage > 1) {
       const countRow = await this.db
-        .from(baseQuery.as('badge_rows'))
+        .from(
+          filteredResultsQuery
+            .clone()
+            .clearSelect()
+            .clearOrder()
+            .as('filtered_badge_rows'),
+        )
         .count<{ count: string }[]>({ count: '*' })
         .first();
 

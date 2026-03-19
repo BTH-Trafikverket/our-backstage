@@ -79,7 +79,9 @@ export const getBadgeSort = (
     column === 'title' ||
     column === 'xp_reward' ||
     column === 'created_at' ||
-    column === 'earned_at'
+    column === 'earned_at' ||
+    column === 'progress_percent' ||
+    column === 'criteria_count'
   ) {
     sortBy = column;
   } else if (isAdmin && column === 'criteria') {

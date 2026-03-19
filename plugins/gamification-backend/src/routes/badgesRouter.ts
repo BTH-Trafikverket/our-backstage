@@ -3,7 +3,7 @@ import {
   RootConfigService,
   UserInfoService,
 } from '@backstage/backend-plugin-api';
-import { InputError, NotFoundError } from '@backstage/errors';
+import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import express from 'express';
 import Router from 'express-promise-router';
 import { badgeCreationSchema } from '../schemas/badges/badgeCreationSchema';
@@ -23,6 +23,49 @@ export function BadgesRouter({
   config: RootConfigService;
 }): express.Router {
   const router = Router();
+  const parseBadgeProgressSort = (
+    sortByQuery: string | undefined,
+  ):
+    | 'earned_at'
+    | 'created_at'
+    | 'title'
+    | 'xp_reward'
+    | 'progress_percent' => {
+    if (sortByQuery === 'progress') {
+      return 'progress_percent';
+    }
+
+    if (
+      sortByQuery === 'created_at' ||
+      sortByQuery === 'title' ||
+      sortByQuery === 'xp_reward' ||
+      sortByQuery === 'progress_percent' ||
+      sortByQuery === 'earned_at'
+    ) {
+      return sortByQuery;
+    }
+
+    return 'earned_at';
+  };
+  const parseBadgeAdminSort = (
+    sortByQuery: string | undefined,
+  ): 'created_at' | 'title' | 'xp_reward' | 'criteria_count' | 'status' => {
+    if (sortByQuery === 'criteria') {
+      return 'criteria_count';
+    }
+
+    if (
+      sortByQuery === 'title' ||
+      sortByQuery === 'xp_reward' ||
+      sortByQuery === 'created_at' ||
+      sortByQuery === 'criteria_count' ||
+      sortByQuery === 'status'
+    ) {
+      return sortByQuery;
+    }
+
+    return 'created_at';
+  };
   const parsePagination = (req: express.Request) => {
     const pageQuery =
       typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
@@ -60,6 +103,22 @@ export function BadgesRouter({
     let subjectRefs: string[];
 
     if (requested) {
+      if (credentials.principal.type === 'user') {
+        const info = await userInfo.getUserInfo(credentials);
+        const allowedSubjectRefs = new Set(
+          [
+            credentials.principal.userEntityRef,
+            ...info.ownershipEntityRefs,
+          ].map(ref => ref.toLocaleLowerCase('en-US')),
+        );
+
+        if (!allowedSubjectRefs.has(requested.toLocaleLowerCase('en-US'))) {
+          throw new NotAllowedError(
+            'You can only view badge progress for yourself or your ownership groups',
+          );
+        }
+      }
+
       subjectRefs = [requested];
     } else {
       const principal = credentials.principal;
@@ -109,14 +168,7 @@ export function BadgesRouter({
       typeof req.query.order === 'string' ? req.query.order : undefined;
     const statusQuery =
       typeof req.query.status === 'string' ? req.query.status : undefined;
-    const sortBy =
-      sortByQuery === 'created_at' ||
-      sortByQuery === 'title' ||
-      sortByQuery === 'xp_reward' ||
-      sortByQuery === 'progress_percent' ||
-      sortByQuery === 'earned_at'
-        ? sortByQuery
-        : 'earned_at';
+    const sortBy = parseBadgeProgressSort(sortByQuery);
     const order = orderQuery === 'asc' ? 'asc' : 'desc';
     const status =
       statusQuery === 'earned' || statusQuery === 'all'
@@ -159,14 +211,7 @@ export function BadgesRouter({
     const orderQuery =
       typeof req.query.order === 'string' ? req.query.order : undefined;
     const { page, limit } = parsePagination(req);
-    const sortBy =
-      sortByQuery === 'title' ||
-      sortByQuery === 'xp_reward' ||
-      sortByQuery === 'created_at' ||
-      sortByQuery === 'criteria_count' ||
-      sortByQuery === 'status'
-        ? sortByQuery
-        : 'created_at';
+    const sortBy = parseBadgeAdminSort(sortByQuery);
     const order = orderQuery === 'asc' ? 'asc' : 'desc';
     const badges = await badgesService.getBadges(search, {
       credentials,
