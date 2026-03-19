@@ -252,6 +252,8 @@ export class BadgesService {
 
     let bestSubjectRef: string | null = null;
     let bestCompletedRequirements = -1;
+    let bestCriteriaPercentAverage = -1;
+    let bestCompletedRequirementsPercent = -1;
     let bestPercentTotal = -1;
     let bestCompletionCountTotal = -1;
 
@@ -265,10 +267,16 @@ export class BadgesService {
       const completedRequirements = criterias.filter(
         criteria => criteria.progress.done,
       ).length;
+      const completedRequirementsPercent =
+        criterias.length > 0
+          ? Math.round((completedRequirements / criterias.length) * 100)
+          : 0;
       const percentTotal = criterias.reduce(
         (total, criteria) => total + criteria.progress.percent,
         0,
       );
+      const criteriaPercentAverage =
+        criterias.length > 0 ? Math.round(percentTotal / criterias.length) : 0;
       const completionCountTotal = subjectRows.reduce(
         (total, row) => total + Number(row.completion_count),
         0,
@@ -277,14 +285,25 @@ export class BadgesService {
       const isBetterCandidate =
         completedRequirements > bestCompletedRequirements ||
         (completedRequirements === bestCompletedRequirements &&
+          criteriaPercentAverage > bestCriteriaPercentAverage) ||
+        (completedRequirements === bestCompletedRequirements &&
+          criteriaPercentAverage === bestCriteriaPercentAverage &&
+          completedRequirementsPercent > bestCompletedRequirementsPercent) ||
+        (completedRequirements === bestCompletedRequirements &&
+          criteriaPercentAverage === bestCriteriaPercentAverage &&
+          completedRequirementsPercent === bestCompletedRequirementsPercent &&
           percentTotal > bestPercentTotal) ||
         (completedRequirements === bestCompletedRequirements &&
+          criteriaPercentAverage === bestCriteriaPercentAverage &&
+          completedRequirementsPercent === bestCompletedRequirementsPercent &&
           percentTotal === bestPercentTotal &&
           completionCountTotal > bestCompletionCountTotal);
 
       if (isBetterCandidate) {
         bestSubjectRef = subjectRef;
         bestCompletedRequirements = completedRequirements;
+        bestCriteriaPercentAverage = criteriaPercentAverage;
+        bestCompletedRequirementsPercent = completedRequirementsPercent;
         bestPercentTotal = percentTotal;
         bestCompletionCountTotal = completionCountTotal;
       }

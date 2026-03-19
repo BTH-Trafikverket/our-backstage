@@ -220,6 +220,24 @@ describe('badges routes auth and errors', () => {
     );
   });
 
+  it('returns 403 when a user requests badge progress for an unrelated subject', async () => {
+    const userRef = 'user:default/alice';
+    const { app, badgesService } = makeApp({
+      userInfo: mockServices.userInfo({
+        ownershipEntityRefs: [userRef, 'group:default/engineering'],
+      }),
+    });
+
+    const res = await request(app)
+      .get('/badges/progress')
+      .query({ subjectRef: 'group:default/platform' })
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(403);
+    expect(res.body?.error?.name).toBe('NotAllowedError');
+    expect(badgesService.getBadgeProgress).not.toHaveBeenCalled();
+  });
+
   it('requires subjectRef for service credentials on badge progress route', async () => {
     const { app, badgesService } = makeApp();
 
@@ -410,6 +428,32 @@ describe('badges routes auth and errors', () => {
         page: 2,
         limit: 5,
       },
+    );
+  });
+
+  it('maps progress sort alias to progress_percent on badge progress route', async () => {
+    const userRef = 'user:default/alice';
+    const { app, badgesService } = makeApp({
+      userInfo: mockServices.userInfo({
+        ownershipEntityRefs: [userRef, 'group:default/platform'],
+      }),
+    });
+
+    const res = await request(app)
+      .get('/badges/progress')
+      .query({
+        sortBy: 'progress',
+        order: 'desc',
+      })
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(badgesService.getBadgeProgress).toHaveBeenCalledWith(
+      [userRef, 'group:default/platform'],
+      expect.objectContaining({
+        sortBy: 'progress_percent',
+        order: 'desc',
+      }),
     );
   });
 

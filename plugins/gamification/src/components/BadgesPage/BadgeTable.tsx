@@ -227,7 +227,7 @@ const getAdminColumns = (
       ),
     },
     {
-      id: 'criteria',
+      id: 'criteria_count',
       label: 'Requirements',
       isSortable: true,
       defaultWidth: '2fr',
@@ -341,7 +341,7 @@ const getUserColumns = (showEarnedSort: boolean) =>
       ),
     },
     {
-      id: 'progress',
+      id: 'progress_percent',
       label: 'Progress',
       isSortable: true,
       defaultWidth: '2fr',

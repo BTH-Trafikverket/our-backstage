@@ -733,14 +733,20 @@ describePostgres18('BadgesRepository integration', () => {
     });
 
     await repository.insertBadgeCriteria(highXpBadge.id, [
-      { quest_id: quest.id, target_count: 1 },
+      { quest_id: quest.id, target_count: 2 },
     ]);
     await repository.insertBadgeCriteria(lowXpBadge.id, [
-      { quest_id: quest.id, target_count: 1 },
+      { quest_id: quest.id, target_count: 3 },
     ]);
     await repository.insertBadgeCriteria(unmatchedBadge.id, [
-      { quest_id: quest.id, target_count: 1 },
+      { quest_id: quest.id, target_count: 4 },
     ]);
+
+    await knex('quest_progress').insert({
+      subject_ref: 'user:default/alice',
+      quest_id: quest.id,
+      completion_count: 1,
+    });
 
     await knex('badges')
       .where({ id: highXpBadge.id })
@@ -819,6 +825,24 @@ describePostgres18('BadgesRepository integration', () => {
         limit: 10,
       },
     );
+    const progressAsc = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'progress_percent',
+        order: 'asc',
+        page: 1,
+        limit: 10,
+      },
+    );
+    const progressDesc = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'progress_percent',
+        order: 'desc',
+        page: 1,
+        limit: 10,
+      },
+    );
 
     expect(titleAsc.data.map(badge => badge.title)).toEqual([
       'Mentor Path',
@@ -836,6 +860,16 @@ describePostgres18('BadgesRepository integration', () => {
       'Reviewer Elite',
     ]);
     expect(createdDesc.data.map(badge => badge.title)).toEqual([
+      'Reviewer Elite',
+      'Reviewer Starter',
+      'Mentor Path',
+    ]);
+    expect(progressAsc.data.map(badge => badge.title)).toEqual([
+      'Mentor Path',
+      'Reviewer Starter',
+      'Reviewer Elite',
+    ]);
+    expect(progressDesc.data.map(badge => badge.title)).toEqual([
       'Reviewer Elite',
       'Reviewer Starter',
       'Mentor Path',
@@ -918,6 +952,399 @@ describePostgres18('BadgesRepository integration', () => {
     await knex.destroy();
   });
 
+  it('sorts badge progress by completed criteria before partial criteria progress', async () => {
+    const knex = await initDb();
+    const repository = new BadgesRepository(knex);
+    const earnedQuest = await createQuest(
+      knex,
+      'Quest Progress Earned',
+      'user',
+    );
+    const mixedQuestA = await createQuest(
+      knex,
+      'Quest Progress Mixed A',
+      'user',
+    );
+    const mixedQuestB = await createQuest(
+      knex,
+      'Quest Progress Mixed B',
+      'user',
+    );
+    const partialQuestA = await createQuest(
+      knex,
+      'Quest Progress Partial A',
+      'user',
+    );
+    const partialQuestB = await createQuest(
+      knex,
+      'Quest Progress Partial B',
+      'user',
+    );
+
+    const earnedBadge = await repository.createBadge({
+      title: 'Badge Earned First',
+      description: 'Should sort first when earned',
+      xp_reward: 10,
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(earnedBadge.id, [
+      { quest_id: earnedQuest.id, target_count: 1 },
+    ]);
+
+    const mixedBadge = await repository.createBadge({
+      title: 'Badge Mixed Second',
+      description: 'One completed criterion and one partial criterion',
+      xp_reward: 20,
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(mixedBadge.id, [
+      { quest_id: mixedQuestA.id, target_count: 1 },
+      { quest_id: mixedQuestB.id, target_count: 2 },
+    ]);
+
+    const partialBadge = await repository.createBadge({
+      title: 'Badge Partial Third',
+      description: 'No completed criteria but some raw progress',
+      xp_reward: 30,
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(partialBadge.id, [
+      { quest_id: partialQuestA.id, target_count: 3 },
+      { quest_id: partialQuestB.id, target_count: 5 },
+    ]);
+
+    await knex('quest_progress').insert([
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: earnedQuest.id,
+        completion_count: 1,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: mixedQuestA.id,
+        completion_count: 1,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: mixedQuestB.id,
+        completion_count: 1,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: partialQuestA.id,
+        completion_count: 1,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: partialQuestB.id,
+        completion_count: 1,
+      },
+    ]);
+
+    const descending = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'progress_percent',
+        order: 'desc',
+        status: 'all',
+        page: 1,
+        limit: 10,
+      },
+    );
+    const ascending = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'progress_percent',
+        order: 'asc',
+        status: 'all',
+        page: 1,
+        limit: 10,
+      },
+    );
+
+    expect(
+      descending.data.map(badge => ({
+        title: badge.title,
+        progress: badge.progress_percent,
+        completedRequirements: badge.completed_requirements,
+      })),
+    ).toEqual([
+      {
+        title: 'Badge Earned First',
+        progress: 100,
+        completedRequirements: 1,
+      },
+      {
+        title: 'Badge Mixed Second',
+        progress: 50,
+        completedRequirements: 1,
+      },
+      {
+        title: 'Badge Partial Third',
+        progress: 0,
+        completedRequirements: 0,
+      },
+    ]);
+    expect(ascending.data.map(badge => badge.title)).toEqual([
+      'Badge Partial Third',
+      'Badge Mixed Second',
+      'Badge Earned First',
+    ]);
+
+    await knex.destroy();
+  });
+
+  it('sorts badge progress by completed criteria count and then average criteria progress', async () => {
+    const knex = await initDb();
+    const repository = new BadgesRepository(knex);
+    const sharedQuestA = await createQuest(
+      knex,
+      'Quest Shared Release A',
+      'user',
+    );
+    const sharedQuestB = await createQuest(
+      knex,
+      'Quest Shared Release B',
+      'user',
+    );
+    const maintenanceQuestA = await createQuest(
+      knex,
+      'Quest Maintenance A',
+      'user',
+    );
+    const maintenanceQuestB = await createQuest(
+      knex,
+      'Quest Maintenance B',
+      'user',
+    );
+    const contributorQuestA = await createQuest(
+      knex,
+      'Quest Contributor A',
+      'user',
+    );
+    const contributorQuestB = await createQuest(
+      knex,
+      'Quest Contributor B',
+      'user',
+    );
+    const contributorQuestC = await createQuest(
+      knex,
+      'Quest Contributor C',
+      'user',
+    );
+    const reviewChampionQuest = await createQuest(
+      knex,
+      'Quest Review Champion',
+      'user',
+    );
+
+    const sharedBadge = await repository.createBadge({
+      title: 'Shared Release Readiness',
+      description: 'Two partially progressed criteria',
+      xp_reward: 5,
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(sharedBadge.id, [
+      { quest_id: sharedQuestA.id, target_count: 3 },
+      { quest_id: sharedQuestB.id, target_count: 5 },
+    ]);
+
+    const maintenanceBadge = await repository.createBadge({
+      title: 'Maintenance Crew',
+      description: 'Higher average partial progress',
+      xp_reward: 5,
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(maintenanceBadge.id, [
+      { quest_id: maintenanceQuestA.id, target_count: 2 },
+      { quest_id: maintenanceQuestB.id, target_count: 2 },
+    ]);
+
+    const contributorBadge = await repository.createBadge({
+      title: 'All-round Contributor',
+      description: 'One fully completed criterion',
+      xp_reward: 5,
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(contributorBadge.id, [
+      { quest_id: contributorQuestA.id, target_count: 2 },
+      { quest_id: contributorQuestB.id, target_count: 1 },
+      { quest_id: contributorQuestC.id, target_count: 3 },
+    ]);
+
+    const reviewBadge = await repository.createBadge({
+      title: 'Review Champion',
+      description: 'No progress',
+      xp_reward: 5,
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(reviewBadge.id, [
+      { quest_id: reviewChampionQuest.id, target_count: 3 },
+    ]);
+
+    await knex('quest_progress').insert([
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: sharedQuestA.id,
+        completion_count: 1,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: sharedQuestB.id,
+        completion_count: 1,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: maintenanceQuestA.id,
+        completion_count: 1,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: maintenanceQuestB.id,
+        completion_count: 1,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: contributorQuestA.id,
+        completion_count: 0,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: contributorQuestB.id,
+        completion_count: 1,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: contributorQuestC.id,
+        completion_count: 0,
+      },
+    ]);
+
+    const descending = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'progress_percent',
+        order: 'desc',
+        status: 'all',
+        page: 1,
+        limit: 10,
+      },
+    );
+
+    expect(
+      descending.data.map(badge => ({
+        title: badge.title,
+        completedRequirements: badge.completed_requirements,
+        criteriaProgress: badge.criteria_progress_percent,
+        ratio: badge.progress_percent,
+      })),
+    ).toEqual([
+      {
+        title: 'All-round Contributor',
+        completedRequirements: 1,
+        criteriaProgress: 33,
+        ratio: 33,
+      },
+      {
+        title: 'Maintenance Crew',
+        completedRequirements: 0,
+        criteriaProgress: 50,
+        ratio: 0,
+      },
+      {
+        title: 'Shared Release Readiness',
+        completedRequirements: 0,
+        criteriaProgress: 27,
+        ratio: 0,
+      },
+      {
+        title: 'Review Champion',
+        completedRequirements: 0,
+        criteriaProgress: 0,
+        ratio: 0,
+      },
+    ]);
+
+    await knex.destroy();
+  });
+
+  it('sorts badge progress using completed quest milestones instead of raw quest increments', async () => {
+    const knex = await initDb();
+    const repository = new BadgesRepository(knex);
+    const largeQuest = await createQuest(
+      knex,
+      'Quest Large Milestone',
+      'user',
+      5,
+    );
+    const smallQuest = await createQuest(knex, 'Quest Small Milestone', 'user');
+
+    const rawIncrementBadge = await repository.createBadge({
+      title: 'Raw Increment Badge',
+      description: 'Has raw quest progress but no completed quest milestones',
+      xp_reward: 5,
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(rawIncrementBadge.id, [
+      { quest_id: largeQuest.id, target_count: 1 },
+    ]);
+
+    const milestoneBadge = await repository.createBadge({
+      title: 'Milestone Badge',
+      description: 'Has one completed quest milestone',
+      xp_reward: 5,
+      subject_type: 'user',
+    });
+    await repository.insertBadgeCriteria(milestoneBadge.id, [
+      { quest_id: smallQuest.id, target_count: 1 },
+    ]);
+
+    await knex('quest_progress').insert([
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: largeQuest.id,
+        completion_count: 4,
+      },
+      {
+        subject_ref: 'user:default/alice',
+        quest_id: smallQuest.id,
+        completion_count: 1,
+      },
+    ]);
+
+    const descending = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        sortBy: 'progress_percent',
+        order: 'desc',
+        status: 'all',
+        page: 1,
+        limit: 10,
+      },
+    );
+
+    expect(
+      descending.data.map(badge => ({
+        title: badge.title,
+        completedRequirements: badge.completed_requirements,
+        criteriaProgress: badge.criteria_progress_percent,
+      })),
+    ).toEqual([
+      {
+        title: 'Milestone Badge',
+        completedRequirements: 1,
+        criteriaProgress: 100,
+      },
+      {
+        title: 'Raw Increment Badge',
+        completedRequirements: 0,
+        criteriaProgress: 0,
+      },
+    ]);
+
+    await knex.destroy();
+  });
+
   it('archives a badge instead of deleting it', async () => {
     const knex = await initDb();
     const repository = new BadgesRepository(knex);
@@ -961,5 +1388,49 @@ describePostgres18('BadgesRepository integration', () => {
     expect(badgeProgress[0].title).toBe('Delete Badge');
     expect(badgeProgress[0].archived_at).toBeTruthy();
     expect(badgeProgress[0].is_earned).toBe(true);
+  });
+
+  it('keeps pagination totals when a filtered badge progress page is out of range', async () => {
+    const knex = await initDb();
+    const repository = new BadgesRepository(knex);
+    const quest = await createQuest(knex, 'Earned Filter Quest', 'user');
+
+    const badge = await repository.createBadge({
+      title: 'Earned Filter Badge',
+      description: 'Used for pagination totals',
+      xp_reward: 10,
+      subject_type: 'user',
+    });
+
+    await repository.insertBadgeCriteria(badge.id, [
+      { quest_id: quest.id, target_count: 1 },
+    ]);
+
+    await knex('quest_progress').insert({
+      subject_ref: 'user:default/alice',
+      quest_id: quest.id,
+      completion_count: 1,
+    });
+
+    const result = await repository.getPaginatedBadgeProgress(
+      ['user:default/alice'],
+      {
+        status: 'earned',
+        page: 2,
+        limit: 1,
+      },
+    );
+
+    expect(result).toEqual({
+      data: [],
+      pagination: {
+        page: 2,
+        limit: 1,
+        total: 1,
+        totalPages: 1,
+      },
+    });
+
+    await knex.destroy();
   });
 });
