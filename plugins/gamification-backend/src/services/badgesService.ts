@@ -146,18 +146,29 @@ export class BadgesService {
   private buildCriteriaProgress(row: CriteriaProgressRow): CriteriaProgress {
     const completionCount = Number(row.completion_count);
     const targetCount = Number(row.target_count);
-    const questTargetCount = Number(row.quest_target_count);
-    const requirementCurrent = Math.min(completionCount, targetCount);
-    const requirementDone = completionCount >= targetCount;
-    const questDone =
-      row.completion_policy === 'ONE_TIME' &&
-      completionCount >= questTargetCount;
-    let questCurrent = 0;
+    const questTargetCount = Math.max(1, Number(row.quest_target_count));
+    const questCompletionCount = Math.floor(completionCount / questTargetCount);
+    const requirementCurrent = Math.min(questCompletionCount, targetCount);
+    const requirementDone = questCompletionCount >= targetCount;
+    const questRemainder = completionCount % questTargetCount;
+    const isOneTimeQuest = row.completion_policy === 'ONE_TIME';
 
-    if (questDone) {
+    let questDone = false;
+    if (isOneTimeQuest) {
+      questDone = completionCount >= questTargetCount;
+    } else {
+      questDone = completionCount >= questTargetCount && questRemainder === 0;
+    }
+
+    let questCurrent = 0;
+    if (completionCount === 0) {
+      questCurrent = 0;
+    } else if (isOneTimeQuest) {
+      questCurrent = Math.min(completionCount, questTargetCount);
+    } else if (questDone) {
       questCurrent = questTargetCount;
-    } else if (questTargetCount > 0) {
-      questCurrent = completionCount % questTargetCount;
+    } else {
+      questCurrent = questRemainder;
     }
 
     return {

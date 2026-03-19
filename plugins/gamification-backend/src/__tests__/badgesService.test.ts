@@ -569,6 +569,51 @@ describe('BadgesService', () => {
     expect(crit2.quest_progress.done).toBe(true);
   });
 
+  it('tracks badge criteria against completed quest milestones, not raw quest increments', async () => {
+    badgesRepo.getPaginatedBadgeProgress.mockResolvedValue({
+      data: [
+        {
+          ...makeBadge(),
+          is_earned: false,
+          earned_at: null,
+        },
+      ],
+      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+    } as any);
+    badgesRepo.getCriteriaProgressForBadges.mockResolvedValue([
+      {
+        badge_id: 'badge-1',
+        quest_id: 'quest-1',
+        target_count: 1,
+        quest_title: 'Large Quest',
+        quest_target_count: 5,
+        completion_policy: 'REPEATABLE',
+        subject_ref: 'user:default/alice',
+        completion_count: 4,
+      },
+    ] as any);
+
+    const result = await service.getBadgeProgress(['user:default/alice'], {
+      credentials: {} as any,
+    });
+
+    const badge = result.badges[0];
+    const criterion = badge.criterias[0] as any;
+
+    expect(criterion.progress).toEqual({
+      current: 0,
+      target: 1,
+      percent: 0,
+      done: false,
+    });
+    expect(criterion.quest_progress).toEqual({
+      current: 4,
+      target: 5,
+      percent: 80,
+      done: false,
+    });
+  });
+
   it('uses a single best-fit subject when multiple subjects exist', async () => {
     badgesRepo.getPaginatedBadgeProgress.mockResolvedValue({
       data: [

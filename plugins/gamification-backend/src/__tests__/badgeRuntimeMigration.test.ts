@@ -129,4 +129,54 @@ describePostgres18('badge runtime persistence migration', () => {
       },
     ]);
   });
+
+  it('does not backfill badge runtime rows from partial quest progress', async () => {
+    const knex = await initDb({ migrateLatest: false });
+
+    await migrateThroughLegacySchema(knex);
+
+    const questId = randomUUID();
+    const badgeId = randomUUID();
+    const subjectRef = 'user:default/alice';
+
+    await knex('quests').insert({
+      id: questId,
+      title: 'Legacy Multi-Step Quest',
+      description: '',
+      target_count: 5,
+      xp_reward: 100,
+    });
+
+    await knex('badges').insert({
+      id: badgeId,
+      title: 'Legacy Milestone Badge',
+      description: 'Should wait for a full quest completion',
+      xp_reward: 75,
+    });
+
+    await knex('badge_criteria').insert({
+      badge_id: badgeId,
+      quest_id: questId,
+      target_count: 1,
+    });
+
+    await knex('quest_progress').insert({
+      subject_ref: subjectRef,
+      quest_id: questId,
+      completion_count: 4,
+    });
+
+    await knex.migrate.up({
+      directory: migrationsDir,
+      name: runtimeMigration,
+    });
+
+    expect(
+      await knex('badge_criteria_completion').where({ badge_id: badgeId }),
+    ).toEqual([]);
+    expect(await knex('earned_badges').where({ badge_id: badgeId })).toEqual(
+      [],
+    );
+    expect(await knex('xp_awards').where({ badge_id: badgeId })).toEqual([]);
+  });
 });

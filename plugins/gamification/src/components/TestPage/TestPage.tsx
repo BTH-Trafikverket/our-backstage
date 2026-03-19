@@ -174,6 +174,14 @@ const buildPayload = (params: {
   };
 };
 
+const getPreferredUserRef = (users: GithubUser[]) => {
+  const preferredUser = users.find(
+    user => user.githubLogin.toLocaleLowerCase('en-US') === 'skz911',
+  );
+
+  return preferredUser?.entityRef ?? users[0]?.entityRef ?? '';
+};
+
 const sectionStyle: CSSProperties = {
   borderRadius: '0.75rem',
   border: '1px solid var(--bui-border)',
@@ -289,7 +297,7 @@ export const TestPage = ({ isAdmin }: TestPageProps) => {
     );
 
     if (!selectedUserStillExists) {
-      setSelectedUserRef(users[0].entityRef);
+      setSelectedUserRef(getPreferredUserRef(users));
     }
   }, [selectedUserRef, users]);
 
