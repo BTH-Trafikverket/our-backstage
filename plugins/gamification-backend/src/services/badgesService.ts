@@ -347,9 +347,18 @@ export class BadgesService {
     const refs = [
       ...new Set(subjectRefs.map(ref => ref.trim()).filter(Boolean)),
     ];
+    const progressSortBy: BadgeProgressSortField =
+      opts?.sortBy === 'title' ||
+      opts?.sortBy === 'xp_reward' ||
+      opts?.sortBy === 'created_at' ||
+      opts?.sortBy === 'progress_percent' ||
+      opts?.sortBy === 'earned_at'
+        ? opts.sortBy
+        : 'earned_at';
+
     const paginated = await this.badgesRepo.getPaginatedBadgeProgress(refs, {
       searchTitle: opts?.searchTitle,
-      sortBy: opts?.sortBy,
+      sortBy: progressSortBy,
       order: opts?.order,
       status: opts?.status,
       page: opts?.page,
