@@ -177,6 +177,18 @@ describePostgres18('badge runtime persistence migration', () => {
     expect(await knex('earned_badges').where({ badge_id: badgeId })).toEqual(
       [],
     );
-    expect(await knex('xp_awards').where({ badge_id: badgeId })).toEqual([]);
+    expect(
+      await knex('xp_awards')
+        .where({ badge_id: badgeId })
+        .select(['subject_ref', 'badge_id', 'quest_id', 'xp_amount', 'source']),
+    ).toEqual([
+      {
+        subject_ref: subjectRef,
+        badge_id: badgeId,
+        quest_id: null,
+        xp_amount: 75,
+        source: 'badge_completion_trigger',
+      },
+    ]);
   });
 });
