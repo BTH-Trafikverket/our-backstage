@@ -3,14 +3,16 @@ import type { InfoCardVariants } from '@backstage/core-components';
 import {
   Alert,
   Box,
+  ButtonIcon,
   Card,
   CardBody,
   CardHeader,
   Flex,
+  Grid,
   Skeleton,
-  Tag,
-  TagGroup,
   Text,
+  Tooltip,
+  TooltipTrigger,
 } from '@backstage/ui';
 import {
   discoveryApiRef,
@@ -70,14 +72,18 @@ export type BadgesCardProps = {
 
 export type EntityBadgesCardProps = Omit<BadgesCardProps, 'subjectRef'>;
 
+const BADGE_FETCH_LIMIT = 100;
+const BADGE_GRID_BUTTON_SIZE = '3.25rem';
+const BADGE_GRID_VIEWPORT_HEIGHT = `calc((${BADGE_GRID_BUTTON_SIZE} * 2) + var(--bui-space-3) + 4px)`;
+
 const formatBadgeDate = (value?: string | null) => {
   if (!value) {
-    return 'Not earned yet';
+    return undefined;
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return 'Not earned yet';
+    return undefined;
   }
 
   return new Intl.DateTimeFormat('en-US', {
@@ -87,114 +93,98 @@ const formatBadgeDate = (value?: string | null) => {
   }).format(date);
 };
 
-const renderProgressBar = (percent: number) => (
-  <Box
+const PrizeIcon = () => (
+  <svg
     aria-hidden
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
     style={{
-      width: '100%',
-      height: '0.5rem',
-      borderRadius: '999px',
-      overflow: 'hidden',
-      backgroundColor: 'var(--bui-bg-neutral-2)',
+      width: '1.375rem',
+      height: '1.375rem',
     }}
   >
-    <Box
-      style={{
-        width: `${Math.max(0, Math.min(100, percent))}%`,
-        height: '100%',
-        borderRadius: '999px',
-        backgroundColor: 'var(--bui-bg-solid)',
-      }}
-    />
-  </Box>
+    <path d="M8 21h8" />
+    <path d="M12 17v4" />
+    <path d="M8 4h8v4a4 4 0 0 1-8 0V4Z" />
+    <path d="M16 6h2a2 2 0 0 1 0 4h-2" />
+    <path d="M8 6H6a2 2 0 0 0 0 4h2" />
+  </svg>
 );
 
 const renderLoadingState = () => (
-  <Flex direction="column" gap="3">
-    {Array.from({ length: 3 }).map((_, index) => (
-      <Flex key={index} direction="column" gap="2">
-        <Skeleton height={22} width="45%" rounded />
-        <Skeleton height={18} width="100%" rounded />
-        <Skeleton height={8} width="100%" rounded />
-      </Flex>
-    ))}
-  </Flex>
+  <Box aria-hidden style={{ height: BADGE_GRID_VIEWPORT_HEIGHT }}>
+    <Grid.Root columns="4" gap="3" style={{ justifyItems: 'center' }}>
+      {Array.from({ length: 8 }).map((_, index) => (
+        <Grid.Item key={index}>
+          <Skeleton height={52} width={52} rounded />
+        </Grid.Item>
+      ))}
+    </Grid.Root>
+  </Box>
 );
 
-const renderBadgeRow = (badge: BadgeProgressBadge, isLast: boolean) => {
-  const completedRequirements = badge.progress?.completedRequirements ?? 0;
-  const totalRequirements = badge.progress?.totalRequirements ?? 0;
-  const percent = badge.progress?.percent ?? 0;
-  const statusLabel = badge.isEarned ? 'Earned' : 'In progress';
-  const hasProgress = totalRequirements > 0;
+const getBadgeCompletionText = (value?: string | null) => {
+  const formatted = formatBadgeDate(value);
 
-  return (
-    <Flex
-      key={badge.id}
-      direction="column"
-      gap="3"
-      style={{
-        paddingBottom: isLast ? 0 : 'var(--bui-space-4)',
-        borderBottom: isLast ? 'none' : '1px solid var(--bui-border-1)',
-      }}
-    >
-      <Flex justify="between" align="start" gap="3">
-        <Flex direction="column" gap="1" style={{ minWidth: 0, flex: 1 }}>
-          <Text weight="bold">{badge.title}</Text>
-          <Text color="secondary">{badge.description}</Text>
-        </Flex>
-
-        <Flex direction="column" align="end" gap="1">
-          <Text weight="bold">{badge.xp_reward} XP</Text>
-          <Text variant="body-small" color="secondary">
-            Reward
-          </Text>
-        </Flex>
-      </Flex>
-
-      <TagGroup aria-label={`Status for ${badge.title}`}>
-        <Tag id={`${badge.id}-status`}>{statusLabel}</Tag>
-        {badge.archived_at ? (
-          <Tag id={`${badge.id}-archived`}>Archived</Tag>
-        ) : null}
-        {badge.progressSubjectRef ? (
-          <Tag id={`${badge.id}-subject`}>
-            {badge.progressSubjectRef.split('/').pop() ??
-              badge.progressSubjectRef}
-          </Tag>
-        ) : null}
-      </TagGroup>
-
-      {hasProgress ? (
-        <Flex direction="column" gap="2">
-          {renderProgressBar(percent)}
-          <Flex justify="between" gap="3" style={{ flexWrap: 'wrap' }}>
-            <Text variant="body-small" color="secondary">
-              {completedRequirements}/{totalRequirements} requirements
-            </Text>
-            <Text variant="body-small" color="secondary">
-              {badge.isEarned
-                ? `Earned ${formatBadgeDate(badge.earnedAt)}`
-                : `${percent}% complete`}
-            </Text>
-          </Flex>
-        </Flex>
-      ) : (
-        <Text variant="body-small" color="secondary">
-          {badge.isEarned
-            ? `Earned ${formatBadgeDate(badge.earnedAt)}`
-            : 'No criteria progress yet.'}
-        </Text>
-      )}
-    </Flex>
-  );
+  return formatted ? `Completed ${formatted}` : 'Completion date unavailable';
 };
+
+const renderEarnedBadgesGrid = (badges: BadgeProgressBadge[]) => (
+  <Box
+    role="region"
+    aria-label="Earned badges list"
+    style={{
+      height: BADGE_GRID_VIEWPORT_HEIGHT,
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      paddingRight: 'var(--bui-space-1)',
+      scrollbarGutter: 'stable',
+    }}
+  >
+    <Grid.Root columns="4" gap="3" style={{ justifyItems: 'center' }}>
+      {badges.map(badge => (
+        <Grid.Item key={badge.id}>
+          <TooltipTrigger delay={0}>
+            <ButtonIcon
+              aria-label={`${badge.title} badge`}
+              variant="secondary"
+              size="medium"
+              icon={<PrizeIcon />}
+              style={{
+                width: BADGE_GRID_BUTTON_SIZE,
+                height: BADGE_GRID_BUTTON_SIZE,
+                borderRadius: '999px',
+                border: '1px solid var(--bui-border-1)',
+                backgroundColor: 'var(--bui-bg-neutral-2)',
+                color: 'var(--bui-bg-solid)',
+                opacity: badge.archived_at ? 0.72 : 1,
+              }}
+            />
+            <Tooltip placement="top">
+              <Flex direction="column" gap="1">
+                <Text weight="bold">{badge.title}</Text>
+                <Text variant="body-small">{badge.xp_reward} XP</Text>
+                <Text variant="body-small" color="secondary">
+                  {getBadgeCompletionText(badge.earnedAt)}
+                </Text>
+              </Flex>
+            </Tooltip>
+          </TooltipTrigger>
+        </Grid.Item>
+      ))}
+    </Grid.Root>
+  </Box>
+);
 
 export const BadgesCard = ({
   subjectRef,
-  title = 'Badge progress',
+  title = 'Earned badges',
   variant: _variant = 'gridItem',
-  emptyMessage = 'No badge progress yet.',
+  emptyMessage = 'No earned badges yet.',
 }: BadgesCardProps) => {
   const discoveryApi = useApi(discoveryApiRef);
   const fetchApi = useApi(fetchApiRef);
@@ -213,20 +203,54 @@ export const BadgesCard = ({
         setError(undefined);
 
         const baseUrl = await discoveryApi.getBaseUrl('gamification');
-        const url = new URL(`${baseUrl}/badges/progress`);
-        url.searchParams.set('subjectRef', subjectRef);
-
         const { token } = await identityApi.getCredentials();
-        const resp = await fetchApi.fetch(url.toString(), {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
+        const headers = token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined;
+        const fetchPage = async (page: number) => {
+          const url = new URL(`${baseUrl}/badges/progress`);
+          url.searchParams.set('subjectRef', subjectRef);
+          url.searchParams.set('status', 'earned');
+          url.searchParams.set('sortBy', 'earned_at');
+          url.searchParams.set('order', 'desc');
+          url.searchParams.set('limit', String(BADGE_FETCH_LIMIT));
+          url.searchParams.set('page', String(page));
 
-        if (!resp.ok) {
-          const text = await resp.text();
-          throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
-        }
+          const response = await fetchApi.fetch(url.toString(), {
+            headers,
+          });
 
-        const json = (await resp.json()) as BadgeProgressResponse;
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(
+              `${response.status} ${response.statusText}: ${text}`,
+            );
+          }
+
+          return (await response.json()) as BadgeProgressResponse;
+        };
+
+        const firstPage = await fetchPage(1);
+        const remainingPageNumbers = Array.from(
+          { length: Math.max(0, firstPage.pagination.pages - 1) },
+          (_, index) => index + 2,
+        );
+        const remainingPages =
+          remainingPageNumbers.length > 0
+            ? await Promise.all(remainingPageNumbers.map(fetchPage))
+            : [];
+        const badges = [firstPage, ...remainingPages].flatMap(
+          page => page.badges,
+        );
+        const json: BadgeProgressResponse = {
+          ...firstPage,
+          badges,
+          pagination: {
+            ...firstPage.pagination,
+            total: badges.length,
+          },
+        };
+
         if (!cancelled) {
           setData(json);
         }
@@ -247,34 +271,50 @@ export const BadgesCard = ({
     };
   }, [discoveryApi, fetchApi, identityApi, subjectRef]);
 
+  const earnedBadges = data?.badges.filter(badge => badge.isEarned) ?? [];
+
   return (
-    <Card style={{ height: '100%' }}>
+    <Card
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       <CardHeader>
         <Text weight="bold">{title}</Text>
       </CardHeader>
-      <CardBody>
+      <CardBody
+        style={{
+          display: 'flex',
+          flex: 1,
+          flexDirection: 'column',
+        }}
+      >
         {loading ? renderLoadingState() : null}
 
         {!loading && error ? (
           <Alert
             status="danger"
             icon
-            title="Unable to load badge progress"
+            title="Unable to load earned badges"
             description={error}
           />
         ) : null}
 
-        {!loading && !error && (!data || data.badges.length === 0) ? (
-          <Text color="secondary">{emptyMessage}</Text>
-        ) : null}
-
-        {!loading && !error && data && data.badges.length > 0 ? (
-          <Flex direction="column" gap="4">
-            {data.badges.map((badge, index) =>
-              renderBadgeRow(badge, index === data.badges.length - 1),
-            )}
+        {!loading && !error && earnedBadges.length === 0 ? (
+          <Flex
+            align="center"
+            justify="center"
+            style={{ minHeight: BADGE_GRID_VIEWPORT_HEIGHT }}
+          >
+            <Text color="secondary">{emptyMessage}</Text>
           </Flex>
         ) : null}
+
+        {!loading && !error && earnedBadges.length > 0
+          ? renderEarnedBadgesGrid(earnedBadges)
+          : null}
       </CardBody>
     </Card>
   );

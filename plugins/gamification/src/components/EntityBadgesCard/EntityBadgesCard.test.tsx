@@ -21,23 +21,26 @@ describe('BadgesCard', () => {
       getCredentials: jest.fn(async () => ({ token: 'test-token' })),
     };
 
-    return render(
-      <TestApiProvider
-        apis={[
-          [discoveryApiRef, discoveryApi as any],
-          [fetchApiRef, fetchApi as any],
-          [identityApiRef, identityApi as any],
-        ]}
-      >
-        <BadgesCard subjectRef="group:default/platform" />
-      </TestApiProvider>,
-    );
+    return {
+      ...render(
+        <TestApiProvider
+          apis={[
+            [discoveryApiRef, discoveryApi as any],
+            [fetchApiRef, fetchApi as any],
+            [identityApiRef, identityApi as any],
+          ]}
+        >
+          <BadgesCard subjectRef="group:default/platform" />
+        </TestApiProvider>,
+      ),
+      fetchApi,
+    };
   }
 
   it('shows a loading state while badges are loading', async () => {
     let resolveResponse!: (value: Response) => void;
 
-    const { container } = renderCard(
+    const { container, fetchApi } = renderCard(
       () =>
         new Promise<Response>(resolve => {
           resolveResponse = resolve;
@@ -46,13 +49,20 @@ describe('BadgesCard', () => {
 
     expect(container.querySelector('.bui-Skeleton')).toBeInTheDocument();
     await waitFor(() => expect(resolveResponse).toBeDefined());
+    expect(fetchApi.fetch).toHaveBeenCalledTimes(1);
+
+    const requestUrl = String(fetchApi.fetch.mock.calls[0][0]);
+    expect(requestUrl).toContain('status=earned');
+    expect(requestUrl).toContain('sortBy=earned_at');
+    expect(requestUrl).toContain('order=desc');
+    expect(requestUrl).toContain('limit=100');
 
     resolveResponse(
       new Response(
         JSON.stringify({
           subjectRefs: ['group:default/platform'],
           badges: [],
-          pagination: { total: 0, page: 1, limit: 10, pages: 0 },
+          pagination: { total: 0, page: 1, limit: 100, pages: 0 },
         }),
         {
           status: 200,
@@ -61,17 +71,17 @@ describe('BadgesCard', () => {
       ),
     );
 
-    await screen.findByText('No badge progress yet.');
+    await screen.findByText('No earned badges yet.');
   });
 
-  it('shows the empty state when no badge progress exists', async () => {
+  it('shows the empty state when no earned badges exist', async () => {
     renderCard(
       async () =>
         new Response(
           JSON.stringify({
             subjectRefs: ['group:default/platform'],
             badges: [],
-            pagination: { total: 0, page: 1, limit: 10, pages: 0 },
+            pagination: { total: 0, page: 1, limit: 100, pages: 0 },
           }),
           {
             status: 200,
@@ -81,48 +91,20 @@ describe('BadgesCard', () => {
     );
 
     expect(
-      await screen.findByText('No badge progress yet.'),
+      await screen.findByText('No earned badges yet.'),
     ).toBeInTheDocument();
   });
 
-  it('renders all badges returned by the badge progress endpoint, including archived earned badges', async () => {
-    renderCard(
-      async () =>
-        new Response(
+  it('renders earned badges in a scrollable grid across paginated responses', async () => {
+    const { fetchApi } = renderCard(async (input: any) => {
+      const url = new URL(String(input));
+      const page = url.searchParams.get('page');
+
+      if (page === '2') {
+        return new Response(
           JSON.stringify({
             subjectRefs: ['group:default/platform'],
             badges: [
-              {
-                id: 'badge-1',
-                title: 'Contributor',
-                description: 'Awarded for completing core work',
-                xp_reward: 25,
-                isEarned: true,
-                earnedAt: '2026-01-03T00:00:00Z',
-                progressSubjectRef: 'group:default/platform',
-                progress: {
-                  completedRequirements: 1,
-                  totalRequirements: 1,
-                  percent: 100,
-                },
-                criterias: [{ quest_id: 'quest-1', target_count: 1 }],
-              },
-              {
-                id: 'badge-2',
-                title: 'Reviewer',
-                description: 'Awarded for code review work',
-                xp_reward: 40,
-                isEarned: false,
-                earnedAt: null,
-                progressSubjectRef: 'group:default/platform',
-                progress: {
-                  completedRequirements: 1,
-                  totalRequirements: 3,
-                  percent: 33,
-                },
-                criterias: [{ quest_id: 'quest-2', target_count: 2 }],
-                archived_at: null,
-              },
               {
                 id: 'badge-3',
                 title: 'Legacy Hero',
@@ -140,23 +122,79 @@ describe('BadgesCard', () => {
                 criterias: [{ quest_id: 'quest-3', target_count: 1 }],
               },
             ],
-            pagination: { total: 3, page: 1, limit: 10, pages: 1 },
+            pagination: { total: 101, page: 2, limit: 100, pages: 2 },
           }),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           },
-        ),
-    );
+        );
+      }
 
-    await waitFor(() => {
-      expect(screen.getByText('Contributor')).toBeInTheDocument();
-      expect(screen.getByText('Reviewer')).toBeInTheDocument();
-      expect(screen.getByText('Legacy Hero')).toBeInTheDocument();
+      return new Response(
+        JSON.stringify({
+          subjectRefs: ['group:default/platform'],
+          badges: [
+            {
+              id: 'badge-1',
+              title: 'Contributor',
+              description: 'Awarded for completing core work',
+              xp_reward: 25,
+              isEarned: true,
+              earnedAt: '2026-01-03T00:00:00Z',
+              progressSubjectRef: 'group:default/platform',
+              progress: {
+                completedRequirements: 1,
+                totalRequirements: 1,
+                percent: 100,
+              },
+              criterias: [{ quest_id: 'quest-1', target_count: 1 }],
+            },
+            {
+              id: 'badge-2',
+              title: 'Mentor',
+              description: 'Awarded for supporting others',
+              xp_reward: 40,
+              isEarned: true,
+              earnedAt: '2026-01-02T00:00:00Z',
+              progressSubjectRef: 'group:default/platform',
+              progress: {
+                completedRequirements: 1,
+                totalRequirements: 1,
+                percent: 100,
+              },
+              criterias: [{ quest_id: 'quest-2', target_count: 1 }],
+              archived_at: null,
+            },
+          ],
+          pagination: { total: 101, page: 1, limit: 100, pages: 2 },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
     });
 
-    expect(screen.getByText('25 XP')).toBeInTheDocument();
-    expect(screen.getByText('1/3 requirements')).toBeInTheDocument();
-    expect(screen.getByText('Archived')).toBeInTheDocument();
+    await waitFor(() => expect(fetchApi.fetch).toHaveBeenCalledTimes(2));
+    expect(String(fetchApi.fetch.mock.calls[1][0])).toContain('page=2');
+
+    const badgesRegion = await screen.findByRole('region', {
+      name: 'Earned badges list',
+    });
+    expect(badgesRegion).toHaveStyle({ overflowY: 'auto' });
+
+    const contributorBadge = await screen.findByRole('button', {
+      name: 'Contributor badge',
+    });
+    expect(contributorBadge).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Mentor badge' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Legacy Hero badge' }),
+    ).toBeInTheDocument();
+
+    expect(contributorBadge).toBeInTheDocument();
   });
 });
