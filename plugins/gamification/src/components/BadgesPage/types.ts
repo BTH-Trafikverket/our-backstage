@@ -1,6 +1,14 @@
 export type BadgeSubjectType = 'user' | 'team';
 export type BadgeAudienceFilter = 'all' | 'individual' | 'team';
-export type BadgeSortField = 'earned_at' | 'created_at' | 'title' | 'xp_reward';
+export type BadgeStatusFilter = 'active' | 'earned' | 'all';
+export type BadgeSortField =
+  | 'earned_at'
+  | 'created_at'
+  | 'title'
+  | 'xp_reward'
+  | 'progress_percent'
+  | 'criteria_count'
+  | 'status';
 export type BadgeSortOrder = 'asc' | 'desc';
 
 export type QuestLite = {
@@ -73,6 +81,7 @@ export type BadgeFormData = {
 
 export type BadgeFilterState = {
   audience: BadgeAudienceFilter;
+  status: BadgeStatusFilter;
   team: string;
 };
 

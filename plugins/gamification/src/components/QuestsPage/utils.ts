@@ -181,8 +181,12 @@ export const getQuestSort = (
   }
 
   const column = String(descriptor.column);
-  const sortBy: QuestSortField =
-    column === 'title' || column === 'xp_reward' ? column : 'created_at';
+  let sortBy: QuestSortField = 'created_at';
+  if (column === 'title' || column === 'xp_reward' || column === 'updated_at') {
+    sortBy = column;
+  } else if (column === 'progress') {
+    sortBy = 'progress_toward_target';
+  }
   const order: QuestSortOrder =
     descriptor.direction === 'ascending' ? 'asc' : 'desc';
 

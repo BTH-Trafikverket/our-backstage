@@ -21,14 +21,23 @@ export type BadgeCriteriaRow = {
 export type BadgeProgressRow = BadgeRow & {
   earned_at: Date | null;
   is_earned: boolean;
+  progress_percent: number;
 };
 
 export type BadgeProgressSortField =
   | 'earned_at'
   | 'created_at'
   | 'title'
-  | 'xp_reward';
+  | 'xp_reward'
+  | 'progress_percent';
+export type BadgeAdminSortField =
+  | 'created_at'
+  | 'title'
+  | 'xp_reward'
+  | 'criteria_count'
+  | 'status';
 export type BadgeSortOrder = 'asc' | 'desc';
+export type BadgeProgressStatusFilter = 'active' | 'earned' | 'all';
 
 export type BadgePagination = {
   page: number;
@@ -99,11 +108,21 @@ export class BadgesRepository {
   async getPaginatedBadges(params?: {
     searchTitle?: string;
     includeArchived?: boolean;
+    sortBy?: BadgeAdminSortField;
+    order?: BadgeSortOrder;
     page?: number;
     limit?: number;
   }): Promise<PaginatedBadgesResult<BadgeRow>> {
-    const { searchTitle, includeArchived, page = 1, limit = 10 } = params ?? {};
+    const {
+      searchTitle,
+      includeArchived,
+      sortBy = 'created_at',
+      order = 'desc',
+      page = 1,
+      limit = 10,
+    } = params ?? {};
     const { safePage, safeLimit, offset } = this.getSafePagination(page, limit);
+    const sortOrder = order === 'asc' ? 'asc' : 'desc';
 
     let query = this.db<BadgeRow>('badges').select('*');
 
@@ -115,12 +134,36 @@ export class BadgesRepository {
       query = query.where('title', 'ilike', `%${searchTitle}%`);
     }
 
-    const results = await query
+    const resultsQuery = query
       .clone()
-      .select(this.db.raw('COUNT(*) OVER() as full_count'))
-      .orderBy('created_at', 'desc')
-      .limit(safeLimit)
-      .offset(offset);
+      .select(this.db.raw('COUNT(*) OVER() as full_count'));
+
+    if (sortBy === 'criteria_count') {
+      resultsQuery.orderByRaw(
+        `(SELECT COUNT(*) FROM badge_criteria WHERE badge_criteria.badge_id = badges.id) ${
+          sortOrder === 'asc' ? 'ASC' : 'DESC'
+        }`,
+      );
+      resultsQuery.orderBy('badges.created_at', sortOrder);
+      resultsQuery.orderBy('badges.id', sortOrder);
+    } else if (sortBy === 'status') {
+      resultsQuery.orderByRaw(
+        `CASE WHEN badges.archived_at IS NULL THEN 0 ELSE 1 END ${
+          sortOrder === 'asc' ? 'ASC' : 'DESC'
+        }`,
+      );
+      resultsQuery.orderBy('badges.archived_at', sortOrder);
+      resultsQuery.orderBy('badges.created_at', sortOrder);
+      resultsQuery.orderBy('badges.id', sortOrder);
+    } else {
+      resultsQuery.orderBy(`badges.${sortBy}`, sortOrder);
+      if (sortBy !== 'created_at') {
+        resultsQuery.orderBy('badges.created_at', sortOrder);
+      }
+      resultsQuery.orderBy('badges.id', sortOrder);
+    }
+
+    const results = await resultsQuery.limit(safeLimit).offset(offset);
 
     let total =
       results.length > 0 ? Number((results[0] as any).full_count || 0) : 0;
@@ -157,6 +200,7 @@ export class BadgesRepository {
       searchTitle?: string;
       sortBy?: BadgeProgressSortField;
       order?: BadgeSortOrder;
+      status?: BadgeProgressStatusFilter;
       page?: number;
       limit?: number;
     },
@@ -181,6 +225,7 @@ export class BadgesRepository {
       searchTitle,
       sortBy = 'earned_at',
       order = 'desc',
+      status = 'active',
       page = 1,
       limit = 10,
     } = params ?? {};
@@ -235,9 +280,81 @@ export class BadgesRepository {
         'badges.archived_at',
       ]);
 
+    const visibleBadgeIdsQuery = baseQuery
+      .clone()
+      .clearSelect()
+      .select('badges.id');
+
+    const subjectProgressQuery = this.db('badge_criteria as badge_criteria')
+      .joinRaw(
+        'CROSS JOIN unnest(?::text[]) as requested_subjects(subject_ref)',
+        [refs],
+      )
+      .leftJoin('quest_progress', function joinProgress() {
+        this.on(
+          'quest_progress.quest_id',
+          '=',
+          'badge_criteria.quest_id',
+        ).andOn(
+          'quest_progress.subject_ref',
+          '=',
+          'requested_subjects.subject_ref',
+        );
+      })
+      .whereExists(query => {
+        query
+          .select(this.db.raw('1'))
+          .from(visibleBadgeIdsQuery.as('visible'))
+          .whereRaw('visible.id = badge_criteria.badge_id');
+      })
+      .select(
+        'badge_criteria.badge_id',
+        'requested_subjects.subject_ref',
+        this.db.raw(
+          'SUM(CASE WHEN COALESCE(quest_progress.completion_count, 0) >= badge_criteria.target_count THEN 1 ELSE 0 END)::int as completed_requirements',
+        ),
+        this.db.raw('COUNT(*)::int as total_requirements'),
+        this.db.raw(
+          'SUM(CASE WHEN badge_criteria.target_count > 0 THEN LEAST(100, ROUND((COALESCE(quest_progress.completion_count, 0)::numeric * 100) / badge_criteria.target_count)) ELSE 0 END)::int as progress_percent_total',
+        ),
+        this.db.raw(
+          'SUM(COALESCE(quest_progress.completion_count, 0))::bigint as completion_count_total',
+        ),
+      )
+      .groupBy(['badge_criteria.badge_id', 'requested_subjects.subject_ref']);
+
+    const rankedProgressQuery = this.db
+      .from(subjectProgressQuery.as('subject_progress'))
+      .select(
+        'subject_progress.badge_id',
+        this.db.raw(
+          'CASE WHEN subject_progress.total_requirements > 0 THEN ROUND((subject_progress.completed_requirements::numeric * 100) / subject_progress.total_requirements) ELSE 0 END::int as progress_percent',
+        ),
+        this.db.raw(
+          'ROW_NUMBER() OVER (PARTITION BY subject_progress.badge_id ORDER BY subject_progress.completed_requirements DESC, subject_progress.progress_percent_total DESC, subject_progress.completion_count_total DESC, subject_progress.subject_ref ASC) as progress_rank',
+        ),
+      );
+
     const resultsQuery = this.db
       .from(baseQuery.as('badge_rows'))
-      .select('badge_rows.*', this.db.raw('COUNT(*) OVER() as full_count'));
+      .leftJoin(rankedProgressQuery.as('ranked_progress'), join => {
+        join
+          .on('ranked_progress.badge_id', '=', 'badge_rows.id')
+          .andOn(this.db.raw('ranked_progress.progress_rank = 1'));
+      })
+      .select(
+        'badge_rows.*',
+        this.db.raw(
+          'COALESCE(ranked_progress.progress_percent, 0) as progress_percent',
+        ),
+        this.db.raw('COUNT(*) OVER() as full_count'),
+      );
+
+    if (status === 'active') {
+      resultsQuery.where('badge_rows.is_earned', false);
+    } else if (status === 'earned') {
+      resultsQuery.where('badge_rows.is_earned', true);
+    }
 
     if (sortBy === 'earned_at') {
       resultsQuery.orderByRaw(
@@ -245,6 +362,10 @@ export class BadgesRepository {
           order === 'asc' ? 'ASC NULLS FIRST' : 'DESC NULLS LAST'
         }`,
       );
+      resultsQuery.orderBy('badge_rows.created_at', order);
+      resultsQuery.orderBy('badge_rows.id', order);
+    } else if (sortBy === 'progress_percent') {
+      resultsQuery.orderBy('progress_percent', order);
       resultsQuery.orderBy('badge_rows.created_at', order);
       resultsQuery.orderBy('badge_rows.id', order);
     } else {

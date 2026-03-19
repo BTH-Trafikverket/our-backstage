@@ -128,6 +128,7 @@ const getAdminColumns = (
     {
       id: 'updated_at',
       label: 'Updated',
+      isSortable: true,
       width: 180,
       cell: (item: QuestTableRow) => (
         <CellText
@@ -206,6 +207,7 @@ const userColumns = [
   {
     id: 'progress',
     label: 'Progress',
+    isSortable: true,
     defaultWidth: '2.2fr',
     minWidth: 240,
     cell: renderProgressCell,

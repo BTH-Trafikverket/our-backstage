@@ -55,7 +55,12 @@ export type QuestWithProgressRow = QuestRow & {
 
 export type QuestAudienceFilter = 'all' | 'individual' | 'team';
 export type QuestStatusFilter = 'active' | 'completed' | 'all';
-export type QuestSortField = 'created_at' | 'title' | 'xp_reward';
+export type QuestSortField =
+  | 'created_at'
+  | 'updated_at'
+  | 'title'
+  | 'xp_reward'
+  | 'progress_toward_target';
 export type SortOrder = 'asc' | 'desc';
 
 export type PaginationResult = {

@@ -14,7 +14,7 @@ import {
   type TableProps,
 } from '@backstage/ui';
 import EmojiEventsIcon from '@material-ui/icons/EmojiEvents';
-import type { BadgeTableRow, QuestLite } from './types';
+import type { BadgeStatusFilter, BadgeTableRow, QuestLite } from './types';
 import {
   formatBadgeDate,
   getBadgeProgressText,
@@ -25,6 +25,7 @@ import {
 
 type BadgeTableProps = {
   isAdmin: boolean;
+  statusFilter: BadgeStatusFilter;
   search: string;
   quests: QuestLite[];
   tableProps: Omit<TableProps<BadgeTableRow>, 'columnConfig' | 'emptyState'>;
@@ -197,6 +198,7 @@ const getAdminColumns = (
       id: 'title',
       label: 'Badge',
       isRowHeader: true,
+      isSortable: true,
       defaultWidth: '3fr',
       minWidth: 320,
       cell: (item: BadgeTableRow) => (
@@ -215,6 +217,7 @@ const getAdminColumns = (
     {
       id: 'xp_reward',
       label: 'Reward',
+      isSortable: true,
       width: 160,
       cell: (item: BadgeTableRow) => (
         <CellText
@@ -226,6 +229,7 @@ const getAdminColumns = (
     {
       id: 'criteria',
       label: 'Requirements',
+      isSortable: true,
       defaultWidth: '2fr',
       minWidth: 240,
       cell: (item: BadgeTableRow) => (
@@ -238,6 +242,7 @@ const getAdminColumns = (
     {
       id: 'status',
       label: 'Status',
+      isSortable: true,
       width: 160,
       cell: (item: BadgeTableRow) => (
         <CellText title={getBadgeStatusLabel(item.badge, true)} />
@@ -278,7 +283,7 @@ const getAdminColumns = (
     },
   ] as const;
 
-const getUserColumns = () =>
+const getUserColumns = (showEarnedSort: boolean) =>
   [
     {
       id: 'title',
@@ -332,6 +337,7 @@ const getUserColumns = () =>
     {
       id: 'progress',
       label: 'Progress',
+      isSortable: true,
       defaultWidth: '2fr',
       minWidth: 240,
       cell: renderProgressCell,
@@ -339,7 +345,7 @@ const getUserColumns = () =>
     {
       id: 'earned_at',
       label: 'Earned',
-      isSortable: true,
+      isSortable: showEarnedSort,
       width: 170,
       cell: (item: BadgeTableRow) => (
         <CellText
@@ -356,6 +362,7 @@ const getUserColumns = () =>
 
 export const BadgeTable = ({
   isAdmin,
+  statusFilter,
   search,
   quests,
   tableProps,
@@ -392,7 +399,7 @@ export const BadgeTable = ({
       columnConfig={
         isAdmin
           ? getAdminColumns(quests, onEditBadge, onDeleteBadge)
-          : getUserColumns()
+          : getUserColumns(statusFilter === 'all')
       }
       emptyState={emptyState}
       {...tableProps}
