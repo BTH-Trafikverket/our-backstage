@@ -85,6 +85,7 @@ export class QuestsService {
       audience?: QuestAudienceFilter;
       sortBy?: QuestSortField;
       order?: SortOrder;
+      includeArchived?: boolean;
       page?: number;
       limit?: number;
     },
@@ -95,6 +96,7 @@ export class QuestsService {
       audience: filters?.audience,
       sortBy: filters?.sortBy,
       order: filters?.order,
+      includeArchived: filters?.includeArchived,
       page: filters?.page,
       limit: filters?.limit,
     });
@@ -132,6 +134,20 @@ export class QuestsService {
   }
 
   async deleteQuest(id: string, _opts: QuestServiceOpts) {
+    const badgeUsage = await this.questsRepo.getBadgeCriteriaUsage(id);
+    if (badgeUsage.length > 0) {
+      const referencedBadges = badgeUsage.map(row => row.badge_title);
+      const preview = referencedBadges.slice(0, 3).join(', ');
+      const suffix =
+        referencedBadges.length > 3
+          ? ` and ${referencedBadges.length - 3} more`
+          : '';
+
+      throw new ConflictError(
+        `Quest cannot be deleted because it is used by badge criteria: ${preview}${suffix}`,
+      );
+    }
+
     return this.questsRepo.deleteQuest(id);
   }
 

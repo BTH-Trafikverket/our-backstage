@@ -27,6 +27,7 @@ export async function up(knex: Knex): Promise<void> {
       .timestamp('updated_at', { useTz: true })
       .notNullable()
       .defaultTo(knex.fn.now());
+    table.timestamp('archived_at', { useTz: true }).nullable();
 
     table.check('target_count >= 1', [], 'quest_target_count_check');
     table.check('xp_reward >= 0', [], 'quest_xp_reward_check');
@@ -38,6 +39,7 @@ export async function up(knex: Knex): Promise<void> {
 
     table.unique(['title'], { indexName: 'quests_title_unique' });
     table.index(['subject_type'], 'quests_subject_type_idx');
+    table.index(['archived_at'], 'quests_archived_at_idx');
   });
 }
 

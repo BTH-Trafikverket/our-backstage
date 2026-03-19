@@ -6,6 +6,7 @@ import {
   mockErrorHandler,
   mockServices,
 } from '@backstage/backend-test-utils';
+import { ConflictError } from '@backstage/errors';
 import { QuestsRouter } from '../routes/questsRouter';
 
 describe('quests routes auth', () => {
@@ -198,6 +199,7 @@ describe('quests routes auth', () => {
         audience: 'team',
         sortBy: 'xp_reward',
         order: 'desc',
+        includeArchived: true,
         page: 2,
         limit: 5,
       },
@@ -310,6 +312,24 @@ describe('quests routes auth', () => {
 
     expect(res.status).toBe(404);
     expect(res.body?.error?.name).toBe('NotFoundError');
+  });
+
+  it('returns 409 when deleting a quest that is used by badge criteria', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, questsService } = makeApp({ userInfo });
+    (questsService.deleteQuest as jest.Mock).mockRejectedValue(
+      new ConflictError('Quest is used by badge criteria'),
+    );
+
+    const res = await request(app)
+      .delete('/quests/quest-1')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(409);
+    expect(res.body?.error?.name).toBe('ConflictError');
   });
 
   it('allows approved services to post quest events', async () => {

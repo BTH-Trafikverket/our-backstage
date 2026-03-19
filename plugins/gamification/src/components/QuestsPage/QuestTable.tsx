@@ -152,21 +152,27 @@ const getAdminColumns = (
       cell: (item: QuestTableRow) => (
         <Cell>
           <Flex justify="end" gap="2" style={{ width: '100%' }}>
-            <Button
-              size="small"
-              variant="secondary"
-              onPress={() => onEditQuest(item.quest)}
-            >
-              Edit
-            </Button>
-            <Button
-              size="small"
-              variant="tertiary"
-              destructive
-              onPress={() => onDeleteQuest(item.quest)}
-            >
-              Delete
-            </Button>
+            {item.quest.archived_at ? (
+              <Text color="secondary">Archived</Text>
+            ) : (
+              <>
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onPress={() => onEditQuest(item.quest)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  size="small"
+                  variant="tertiary"
+                  destructive
+                  onPress={() => onDeleteQuest(item.quest)}
+                >
+                  Archive
+                </Button>
+              </>
+            )}
           </Flex>
         </Cell>
       ),

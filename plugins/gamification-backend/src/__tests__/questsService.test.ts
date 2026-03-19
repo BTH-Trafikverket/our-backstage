@@ -1,7 +1,7 @@
 import { QuestsService } from '../services/questsService';
 import { QuestsRepository } from '../repositories/questsRepository';
 import { QuestCreationInput } from '../schemas/quests/questCreationSchema';
-import { InputError, NotFoundError } from '@backstage/errors';
+import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
 
 jest.mock('../repositories/questsRepository');
 
@@ -16,6 +16,7 @@ describe('QuestsService', () => {
       createQuest: jest.fn(),
       getQuests: jest.fn(),
       getQuestById: jest.fn(),
+      getBadgeCriteriaUsage: jest.fn(),
       editQuest: jest.fn(),
       deleteQuest: jest.fn(),
       withTransaction: jest.fn(async fn => fn(mockRepo)),
@@ -467,6 +468,7 @@ describe('QuestsService', () => {
         audience: 'team',
         sortBy: 'xp_reward',
         order: 'desc',
+        includeArchived: undefined,
         page: 2,
         limit: 5,
       });
@@ -591,6 +593,7 @@ describe('QuestsService', () => {
 
   describe('deleteQuest', () => {
     it('delegates quest deletion to the repository', async () => {
+      mockRepo.getBadgeCriteriaUsage.mockResolvedValue([]);
       mockRepo.deleteQuest.mockResolvedValue(true);
 
       await expect(
@@ -598,6 +601,18 @@ describe('QuestsService', () => {
       ).resolves.toBe(true);
 
       expect(mockRepo.deleteQuest).toHaveBeenCalledWith('quest-1');
+    });
+
+    it('blocks deletion when the quest is referenced by badge criteria', async () => {
+      mockRepo.getBadgeCriteriaUsage.mockResolvedValue([
+        { badge_id: 'badge-1', badge_title: 'Review Champion' },
+      ]);
+
+      await expect(
+        service.deleteQuest('quest-1', { credentials: {} as any }),
+      ).rejects.toThrow(ConflictError);
+
+      expect(mockRepo.deleteQuest).not.toHaveBeenCalled();
     });
   });
 
