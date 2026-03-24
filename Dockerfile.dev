@@ -1,0 +1,29 @@
+FROM node:24-trixie-slim
+
+ENV PYTHON=/usr/bin/python3
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      bash \
+      build-essential \
+      ca-certificates \
+      git \
+      libsqlite3-dev \
+      python3 && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable && corepack prepare yarn@4.4.1 --activate
+
+RUN mkdir -p \
+      /workspace/node_modules \
+      /workspace/packages/backend/node_modules \
+      /workspace/plugins/gamification/node_modules \
+      /workspace/plugins/gamification-backend/node_modules \
+      /home/node/.cache/yarn && \
+    chown -R node:node /workspace /home/node
+
+WORKDIR /workspace
+
+USER node
+
+CMD ["bash"]
