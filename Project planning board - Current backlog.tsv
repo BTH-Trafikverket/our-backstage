@@ -1,0 +1,18 @@
+Title	URL	Assignees	Status	Linked pull requests	Sub-issues progress	Sprint	Estimate	Actual	Size
+As a user, I want a leaderboard that compares my XP and my teams' XP with other users and teams in the current gamification system	https://github.com/BTH-Trafikverket/our-backstage/issues/44		Todo		0 / 4 (0%)	Sprint 3			
+As a user, I want monthly progress updates to be available through a webhook interface based on current quest, badge, and XP data	https://github.com/BTH-Trafikverket/our-backstage/issues/50		Todo		0 / 6 (0%)	Sprint 3			
+As an admin, I want to track developer progress over time from the current gamification data so I can measure system impact	https://github.com/BTH-Trafikverket/our-backstage/issues/51		Todo		0 / 4 (0%)	Sprint 3			
+Define leaderboard scope, ranking rules, and access rules using existing XP awards and team ownership data	https://github.com/BTH-Trafikverket/our-backstage/issues/55		Todo			Sprint 3			
+Add leaderboard support to the gamification backend with repository, service, route, and OpenAPI updates for user and team rankings	https://github.com/BTH-Trafikverket/our-backstage/issues/56		Todo			Sprint 3			
+Implement leaderboard UI with filters, sorting, pagination, and visibility handling	https://github.com/BTH-Trafikverket/our-backstage/issues/57		Todo			Sprint 3			
+Test leaderboard UI behavior and visibility rules	https://github.com/BTH-Trafikverket/our-backstage/issues/152		Todo			Sprint 3			
+Define the monthly digest content from current gamification data: XP earned, quests completed, badges earned, and team progress	https://github.com/BTH-Trafikverket/our-backstage/issues/81		Todo			Sprint 3			
+Implement backend aggregation for monthly digest data using existing XP, quest progress, and earned badge records	https://github.com/BTH-Trafikverket/our-backstage/issues/82		Todo			Sprint 3			
+Integrate monthly digest delivery through a reusable webhook interface and required configuration	https://github.com/BTH-Trafikverket/our-backstage/issues/83		Todo			Sprint 3			
+Add a trigger mechanism for monthly progress webhook generation, including scheduling and rerun safety	https://github.com/BTH-Trafikverket/our-backstage/issues/151		Todo			Sprint 3			
+Test monthly digest generation and webhook delivery for both user and team-facing scenarios	https://github.com/BTH-Trafikverket/our-backstage/issues/84		Todo			Sprint 3			
+Emit a badge-earned webhook by reusing the same webhook interface as the monthly digest	https://github.com/BTH-Trafikverket/our-backstage/issues/85		Todo			Sprint 3			
+Persist or derive progress metrics from current quest events, XP awards, and earned badges for time-based reporting	https://github.com/BTH-Trafikverket/our-backstage/issues/86		Todo			Sprint 3			
+Implement an admin reporting API for progress metrics with filters for user, team, and time range	https://github.com/BTH-Trafikverket/our-backstage/issues/87		Todo			Sprint 3			
+Expose admin progress metrics in the gamification UI	https://github.com/BTH-Trafikverket/our-backstage/issues/153		Todo			Sprint 3			
+Test progress tracking accuracy, aggregation behavior, and admin access rules for the reporting flow	https://github.com/BTH-Trafikverket/our-backstage/issues/88		Todo			Sprint 3			
