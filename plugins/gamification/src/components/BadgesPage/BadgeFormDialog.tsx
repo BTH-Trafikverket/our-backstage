@@ -25,12 +25,13 @@ const QuestSelectPopoverStyles = () => (
   <style>
     {`
       body.${QUEST_SELECT_BODY_CLASS} .bui-SelectPopover {
-        max-height: 15rem;
+        height: 15rem;
         overflow: hidden;
       }
 
       body.${QUEST_SELECT_BODY_CLASS} .bui-SelectList {
-        max-height: 12.5rem;
+        flex: 1 1 auto;
+        min-height: 0;
         overflow-y: auto;
       }
     `}
