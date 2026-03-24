@@ -29,6 +29,32 @@ yarn install
 yarn start
 ```
 
+## Docker development
+
+If you want the full app in containers with hot reload from your local checkout:
+
+```sh
+docker compose up --build
+```
+
+This starts:
+
+- `backstage` on `http://localhost:3000`
+- backend API on `http://localhost:7007`
+- `postgres` on `localhost:5432`
+
+Notes:
+
+- The repo is bind-mounted into the `backstage` container, so source changes reload without rebuilding the image.
+- Container `node_modules` live in Docker volumes, so the container does not overwrite your host dependencies.
+- The first `docker compose up --build` will spend a while installing dependencies inside Docker-managed volumes before Backstage starts.
+- If `3000` or `7007` are already in use, stop your local `yarn start` process before running Compose.
+- `pgadmin` is still available, but only when explicitly requested:
+
+```sh
+docker compose --profile tools up --build
+```
+
 ## Gamification quality checks
 
 - `pre-commit` only checks staged files under `plugins/gamification` and `plugins/gamification-backend`. It runs Prettier write, Prettier check, and strict ESLint with autofix for fixable issues.

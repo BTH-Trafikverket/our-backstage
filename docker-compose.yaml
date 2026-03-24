@@ -1,16 +1,60 @@
 services:
+  backstage:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: ["bash", "scripts/docker-dev-start.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.local
+    environment:
+      APP_BASE_URL: http://localhost:${APP_PORT:-3000}
+      BACKEND_BASE_URL: http://localhost:${BACKEND_PORT_HOST:-7007}
+      BACKEND_PORT: "${BACKEND_PORT_HOST:-7007}"
+      CORS_ORIGIN: http://localhost:${APP_PORT:-3000}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: backstage
+      DB_PASSWORD: backstage
+      DB_NAME: backstage
+      HOST: 0.0.0.0
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      NODE_OPTIONS: --no-node-snapshot
+    init: true
+    ports:
+      - ${APP_PORT:-3000}:3000
+      - ${BACKEND_PORT_HOST:-7007}:${BACKEND_PORT_HOST:-7007}
+    tty: true
+    stdin_open: true
+    volumes:
+      - .:/workspace
+      - root_node_modules:/workspace/node_modules
+      - backend_node_modules:/workspace/packages/backend/node_modules
+      - gamification_node_modules:/workspace/plugins/gamification/node_modules
+      - gamification_backend_node_modules:/workspace/plugins/gamification-backend/node_modules
+      - yarn_cache:/home/node/.cache/yarn
+
   postgres:
     image: postgres:18-trixie
     environment:
       POSTGRES_USER: backstage
       POSTGRES_PASSWORD: backstage
       POSTGRES_DB: backstage
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backstage -d backstage"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     ports:
       - 5432:5432
     volumes:
       - postgres_data:/var/lib/postgresql
 
   pgadmin:
+    profiles: ["tools"]
     image: dpage/pgadmin4
     depends_on:
       - postgres
@@ -23,5 +67,10 @@ services:
       - pgadmin_data:/var/lib/pgadmin
 
 volumes:
+  root_node_modules:
+  backend_node_modules:
+  gamification_node_modules:
+  gamification_backend_node_modules:
+  yarn_cache:
   postgres_data:
   pgadmin_data:
