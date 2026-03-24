@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
@@ -17,6 +18,82 @@ import {
   getCompatibleQuests,
   getQuestById,
 } from './utils';
+
+const QUEST_SELECT_BODY_CLASS = 'gamification-badge-quest-select-open';
+
+const QuestSelectPopoverStyles = () => (
+  <style>
+    {`
+      body.${QUEST_SELECT_BODY_CLASS} .bui-SelectPopover {
+        max-height: 15rem;
+        overflow: hidden;
+      }
+
+      body.${QUEST_SELECT_BODY_CLASS} .bui-SelectList {
+        max-height: 12.5rem;
+        overflow-y: auto;
+      }
+    `}
+  </style>
+);
+
+type QuestCriteriaSelectProps = {
+  criteriaIndex: number;
+  subjectType: BadgeSubjectType;
+  selectedQuestId: string;
+  quests: QuestLite[];
+  loading: boolean;
+  onSelectionChange: (value: string) => void;
+};
+
+const QuestCriteriaSelect = ({
+  criteriaIndex,
+  subjectType,
+  selectedQuestId,
+  quests,
+  loading,
+  onSelectionChange,
+}: QuestCriteriaSelectProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      document.body.classList.remove(QUEST_SELECT_BODY_CLASS);
+      return undefined;
+    }
+
+    document.body.classList.add(QUEST_SELECT_BODY_CLASS);
+
+    return () => {
+      document.body.classList.remove(QUEST_SELECT_BODY_CLASS);
+    };
+  }, [isOpen]);
+
+  const subjectLabel =
+    getBadgeSubjectTypeLabel(subjectType).toLocaleLowerCase('en-US');
+
+  return (
+    <>
+      <QuestSelectPopoverStyles />
+      <Select
+        label="Quest"
+        size="medium"
+        searchable
+        searchPlaceholder={`Search ${subjectLabel} quests`}
+        selectedKey={selectedQuestId || undefined}
+        placeholder={`Select a ${subjectLabel} quest`}
+        aria-label={`Quest for criterion ${criteriaIndex + 1}`}
+        isDisabled={loading || quests.length === 0}
+        onOpenChange={setIsOpen}
+        onSelectionChange={key => onSelectionChange(key ? String(key) : '')}
+        options={quests.map(quest => ({
+          value: quest.id,
+          label: quest.title,
+        }))}
+      />
+    </>
+  );
+};
 
 type BadgeFormDialogProps = {
   isOpen: boolean;
@@ -192,27 +269,15 @@ export const BadgeFormDialog = ({
                     <Flex direction="column" gap="3">
                       <Flex gap="3" style={{ flexWrap: 'wrap' }}>
                         <Box style={{ flex: '1 1 18rem', minWidth: '16rem' }}>
-                          <Select
-                            label="Quest"
-                            size="medium"
-                            selectedKey={criteria.quest_id || undefined}
-                            onSelectionChange={key =>
-                              onCriteriaChange(
-                                index,
-                                'quest_id',
-                                key ? String(key) : '',
-                              )
+                          <QuestCriteriaSelect
+                            criteriaIndex={index}
+                            subjectType={formData.subject_type}
+                            selectedQuestId={criteria.quest_id}
+                            quests={compatibleQuests}
+                            loading={loading}
+                            onSelectionChange={value =>
+                              onCriteriaChange(index, 'quest_id', value)
                             }
-                            options={[
-                              {
-                                value: '',
-                                label: 'Select a quest',
-                              },
-                              ...compatibleQuests.map(quest => ({
-                                value: quest.id,
-                                label: quest.title,
-                              })),
-                            ]}
                           />
                         </Box>
 
