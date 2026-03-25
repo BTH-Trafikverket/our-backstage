@@ -87,7 +87,7 @@ export function QuestsRouter({
 
     res.status(201).json(result);
   });
-
+  // test
   router.patch('/:id', async (req, res) => {
     const { id } = req.params;
     if (!id) {
