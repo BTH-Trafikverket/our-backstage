@@ -139,6 +139,7 @@ export class BadgesService {
       description: badge.description,
       xp_reward: badge.xp_reward,
       subject_type: badge.subject_type,
+      image_id: badge.image_id,
       created_at: badge.created_at,
       updated_at: badge.updated_at,
       archived_at: badge.archived_at,
@@ -220,6 +221,7 @@ export class BadgesService {
       description: badge.description,
       xp_reward: badge.xp_reward,
       subject_type: badge.subject_type,
+      image_id: badge.image_id,
       created_at: badge.created_at,
       updated_at: badge.updated_at,
       archived_at: badge.archived_at,
@@ -312,8 +314,13 @@ export class BadgesService {
     return bestSubjectRef;
   }
 
-  async createBadge(data: BadgeCreationInput, _opts: BadgeServiceOpts) {
+  async createBadge(
+    data: BadgeCreationInput & { image_id?: number | null },
+    _opts: BadgeServiceOpts,
+  ) {
     await this.validateCriterias(data.subject_type, data.criterias);
+
+    const defaultImageId = 1;
 
     return this.badgesRepo.withTransaction(async repo => {
       const badge = await repo.createBadge({
@@ -321,6 +328,7 @@ export class BadgesService {
         description: data.description,
         xp_reward: data.xp_reward,
         subject_type: data.subject_type,
+        image_id: data.image_id ?? defaultImageId,
       });
 
       await repo.insertBadgeCriteria(badge.id, data.criterias);
@@ -461,13 +469,15 @@ export class BadgesService {
         data.title !== undefined ||
         data.description !== undefined ||
         data.xp_reward !== undefined ||
-        data.subject_type !== undefined
+        data.subject_type !== undefined ||
+        data.image_id !== undefined
       ) {
         const updated = await repo.updateBadge(id, {
           title: data.title,
           description: data.description,
           xp_reward: data.xp_reward,
           subject_type: data.subject_type,
+          image_id: data.image_id,
         });
 
         if (!updated) {
@@ -500,5 +510,13 @@ export class BadgesService {
 
   async deleteBadge(id: string, _opts: BadgeServiceOpts): Promise<boolean> {
     return this.badgesRepo.deleteBadge(id);
+  }
+
+  async createBadgeImage(image: string) {
+    return this.badgesRepo.createBadgeImage(image);
+  }
+
+  async getBadgeImages() {
+    return this.badgesRepo.getBadgeImages();
   }
 }
