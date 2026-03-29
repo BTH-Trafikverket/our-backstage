@@ -82,8 +82,7 @@ describePostgres18('leaderboard routes', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       subjectType: 'user',
-      limit: 25,
-      entries: [
+      data: [
         {
           rank: 1,
           subjectRef: 'user:default/alice',
@@ -97,6 +96,12 @@ describePostgres18('leaderboard routes', () => {
           totalXp: 120,
         },
       ],
+      pagination: {
+        page: 1,
+        limit: 25,
+        total: 2,
+        totalPages: 1,
+      },
     });
   });
 
@@ -116,8 +121,7 @@ describePostgres18('leaderboard routes', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       subjectType: 'group',
-      limit: 25,
-      entries: [
+      data: [
         {
           rank: 1,
           subjectRef: 'group:default/core',
@@ -131,6 +135,48 @@ describePostgres18('leaderboard routes', () => {
           totalXp: 250,
         },
       ],
+      pagination: {
+        page: 1,
+        limit: 25,
+        total: 2,
+        totalPages: 1,
+      },
+    });
+  });
+
+  it('GET /leaderboard supports page and limit query params', async () => {
+    const knex = await initDb();
+    const { app } = makeApp(knex);
+
+    for (let i = 1; i <= 31; i += 1) {
+      const username = `user${String(i).padStart(2, '0')}`;
+      await seedXpAwards(knex, `user:default/${username}`, [1000 - i]);
+    }
+
+    const res = await request(app)
+      .get('/api/backstage-backend-gamification/leaderboard')
+      .query({ subjectType: 'user', page: 2, limit: 15 })
+      .set('authorization', mockCredentials.user.header('user:default/alice'));
+
+    expect(res.status).toBe(200);
+    expect(res.body.pagination).toEqual({
+      page: 2,
+      limit: 15,
+      total: 31,
+      totalPages: 3,
+    });
+    expect(res.body.data).toHaveLength(15);
+    expect(res.body.data[0]).toEqual({
+      rank: 16,
+      subjectRef: 'user:default/user16',
+      subjectType: 'user',
+      totalXp: 984,
+    });
+    expect(res.body.data[14]).toEqual({
+      rank: 30,
+      subjectRef: 'user:default/user30',
+      subjectType: 'user',
+      totalXp: 970,
     });
   });
 

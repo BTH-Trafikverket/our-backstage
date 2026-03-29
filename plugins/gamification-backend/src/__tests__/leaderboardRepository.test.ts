@@ -46,34 +46,53 @@ describePostgres18('LeaderboardRepository integration', () => {
     await seedXpAwards(knex, 'group:default/platform', [999]);
 
     await expect(
-      repository.getTopSubjectsByXp({
+      repository.getLeaderboardPage({
         subjectType: 'user',
+        page: 1,
         limit: 25,
       }),
-    ).resolves.toEqual([
-      { subject_ref: 'user:default/alice', total_xp: 250 },
-      { subject_ref: 'user:default/zoe', total_xp: 250 },
-      { subject_ref: 'user:default/bob', total_xp: 90 },
-    ]);
+    ).resolves.toEqual({
+      data: [
+        { subject_ref: 'user:default/alice', total_xp: 250 },
+        { subject_ref: 'user:default/zoe', total_xp: 250 },
+        { subject_ref: 'user:default/bob', total_xp: 90 },
+      ],
+      pagination: {
+        page: 1,
+        limit: 25,
+        total: 3,
+        totalPages: 1,
+      },
+    });
   });
 
-  it('filters to groups and respects the requested limit', async () => {
+  it('filters to groups and respects page and limit offsets', async () => {
     const knex = await initDb();
     const repository = new LeaderboardRepository(knex);
 
-    await seedXpAwards(knex, 'group:default/core', [400]);
-    await seedXpAwards(knex, 'group:default/platform', [300]);
-    await seedXpAwards(knex, 'group:default/payments', [200]);
+    await seedXpAwards(knex, 'group:default/core', [500]);
+    await seedXpAwards(knex, 'group:default/platform', [400]);
+    await seedXpAwards(knex, 'group:default/payments', [300]);
+    await seedXpAwards(knex, 'group:default/ops', [200]);
     await seedXpAwards(knex, 'user:default/alice', [999]);
 
     await expect(
-      repository.getTopSubjectsByXp({
+      repository.getLeaderboardPage({
         subjectType: 'group',
+        page: 2,
         limit: 2,
       }),
-    ).resolves.toEqual([
-      { subject_ref: 'group:default/core', total_xp: 400 },
-      { subject_ref: 'group:default/platform', total_xp: 300 },
-    ]);
+    ).resolves.toEqual({
+      data: [
+        { subject_ref: 'group:default/payments', total_xp: 300 },
+        { subject_ref: 'group:default/ops', total_xp: 200 },
+      ],
+      pagination: {
+        page: 2,
+        limit: 2,
+        total: 4,
+        totalPages: 2,
+      },
+    });
   });
 });

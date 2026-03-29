@@ -23,6 +23,18 @@ function parseSubjectType(
   throw new InputError('subjectType must be one of: user, group, team');
 }
 
+function parsePagination(req: { query: Record<string, unknown> }) {
+  const pageQuery =
+    typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
+  const limitQuery =
+    typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 25;
+
+  return {
+    page: Number.isFinite(pageQuery) && pageQuery > 0 ? pageQuery : 1,
+    limit: Number.isFinite(limitQuery) && limitQuery > 0 ? limitQuery : 25,
+  };
+}
+
 export function LeaderboardRouter(options: {
   httpAuth: HttpAuthService;
   leaderboardService: LeaderboardService;
@@ -41,8 +53,13 @@ export function LeaderboardRouter(options: {
         ? req.query.subjectType
         : undefined,
     );
+    const { page, limit } = parsePagination(req);
 
-    const leaderboard = await leaderboardService.getLeaderboard(subjectType);
+    const leaderboard = await leaderboardService.getLeaderboard({
+      subjectType,
+      page,
+      limit,
+    });
     res.status(200).json(leaderboard);
   });
 
