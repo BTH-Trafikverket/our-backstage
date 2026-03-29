@@ -6,10 +6,35 @@ info:
 servers:
   - url: /api/gamification
 tags:
+  - name: Leaderboard
   - name: XP
   - name: Quests
   - name: Badges
 paths:
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags:
+        - Leaderboard
+      summary: Get the top 25 subjects ranked by total XP
+      parameters:
+        - in: query
+          name: subjectType
+          required: false
+          schema:
+            $ref: '#/components/schemas/LeaderboardSubjectType'
+          description: Ranking scope. Use group to return Backstage teams. Defaults to user.
+      responses:
+        '200':
+          description: Top XP leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /xp:
     get:
       operationId: getXpStatus
@@ -560,6 +585,47 @@ components:
         totalPages:
           type: integer
           minimum: 0
+    LeaderboardSubjectType:
+      type: string
+      enum:
+        - user
+        - group
+    LeaderboardEntry:
+      type: object
+      required:
+        - rank
+        - subjectRef
+        - subjectType
+        - totalXp
+      additionalProperties: false
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+        subjectRef:
+          type: string
+        subjectType:
+          $ref: '#/components/schemas/LeaderboardSubjectType'
+        totalXp:
+          type: integer
+          minimum: 0
+    LeaderboardResponse:
+      type: object
+      required:
+        - subjectType
+        - limit
+        - entries
+      additionalProperties: false
+      properties:
+        subjectType:
+          $ref: '#/components/schemas/LeaderboardSubjectType'
+        limit:
+          type: integer
+          minimum: 1
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
     CompletionPolicy:
       type: string
       enum:
