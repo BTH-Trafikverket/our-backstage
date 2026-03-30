@@ -15,6 +15,7 @@ describe('LeaderboardService', () => {
       25,
       100,
       () => new Date('2026-04-03T12:00:00Z'),
+      'Europe/Stockholm',
     );
   });
 
@@ -124,6 +125,7 @@ describe('LeaderboardService', () => {
       25,
       100,
       () => new Date('2026-04-03T12:00:00Z'),
+      'Europe/Stockholm',
     );
     mockRepo.getLeaderboardPage.mockResolvedValue({
       data: [],
@@ -168,8 +170,8 @@ describe('LeaderboardService', () => {
       subjectType: 'user',
       page: 1,
       limit: 25,
-      createdAtGte: new Date('2026-04-01T00:00:00.000Z'),
-      createdAtLt: new Date('2026-05-01T00:00:00.000Z'),
+      createdAtGte: new Date('2026-03-31T22:00:00.000Z'),
+      createdAtLt: new Date('2026-04-30T22:00:00.000Z'),
     });
   });
 
@@ -193,8 +195,8 @@ describe('LeaderboardService', () => {
       subjectType: 'group',
       page: 1,
       limit: 25,
-      createdAtGte: new Date('2026-03-30T00:00:00.000Z'),
-      createdAtLt: new Date('2026-04-06T00:00:00.000Z'),
+      createdAtGte: new Date('2026-03-29T22:00:00.000Z'),
+      createdAtLt: new Date('2026-04-05T22:00:00.000Z'),
     });
   });
 });

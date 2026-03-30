@@ -116,7 +116,7 @@ describePostgres18('LeaderboardRepository integration', () => {
       knex,
       'user:default/previous-month',
       [300],
-      new Date('2026-03-31T23:00:00Z'),
+      new Date('2026-03-31T21:00:00Z'),
     );
     await seedXpAwards(
       knex,

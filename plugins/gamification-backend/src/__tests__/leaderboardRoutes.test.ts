@@ -225,7 +225,7 @@ describePostgres18('leaderboard routes', () => {
       knex,
       'user:default/march-user',
       [250],
-      new Date('2026-03-31T23:00:00Z'),
+      new Date('2026-03-31T21:00:00Z'),
     );
 
     const res = await request(app)

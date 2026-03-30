@@ -93,7 +93,16 @@ export function createRouter({
   const xpRepo = new XpRepository(knex);
   const xpService = new XpService(xpRepo, 100);
   const leaderboardRepo = new LeaderboardRepository(knex);
-  const leaderboardService = new LeaderboardService(leaderboardRepo, 25);
+  const leaderboardTimeZone =
+    config.getOptionalString('gamification.leaderboard.timeZone') ??
+    'Europe/Stockholm';
+  const leaderboardService = new LeaderboardService(
+    leaderboardRepo,
+    25,
+    100,
+    () => new Date(),
+    leaderboardTimeZone,
+  );
 
   router.use(
     '/badges',
