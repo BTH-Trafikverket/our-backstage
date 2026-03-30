@@ -19,7 +19,7 @@ export interface Config {
     leaderboard?: {
       /**
        * IANA timezone used when calculating weekly and monthly leaderboard windows.
-       * Defaults to Europe/Stockholm.
+       * Defaults to Europe/Stockholm!
        * @visibility backend
        */
       timeZone?: string;
