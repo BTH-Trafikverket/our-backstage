@@ -7,6 +7,7 @@ import {
 } from '@backstage/core-plugin-api';
 import { Route, Routes } from 'react-router-dom';
 import { BadgesPage } from './BadgesPage';
+import { LeaderboardPage } from './LeaderboardPage';
 import { QuestsPage } from './QuestsPage';
 import { TestPage } from './TestPage';
 
@@ -54,6 +55,11 @@ export const GamificationRootPage = () => {
             href: '/gamification/badges',
           },
           {
+            id: 'leaderboard',
+            label: 'Leaderboard',
+            href: '/gamification/leaderboard',
+          },
+          {
             id: 'test',
             label: 'Test',
             href: '/gamification/test',
@@ -70,7 +76,7 @@ export const GamificationRootPage = () => {
         <Box style={{ paddingTop: '1.5rem', paddingBottom: '1.5rem' }}>
           <Routes>
             <Route
-              path="/"
+              index
               element={
                 <QuestsPage
                   isAdmin={effectiveIsAdmin}
@@ -80,7 +86,7 @@ export const GamificationRootPage = () => {
               }
             />
             <Route
-              path="/badges"
+              path="badges"
               element={
                 <BadgesPage
                   isAdmin={effectiveIsAdmin}
@@ -89,7 +95,8 @@ export const GamificationRootPage = () => {
                 />
               }
             />
-            <Route path="/test" element={<TestPage isAdmin={isAdmin} />} />
+            <Route path="leaderboard" element={<LeaderboardPage />} />
+            <Route path="test" element={<TestPage isAdmin={isAdmin} />} />
           </Routes>
         </Box>
       </Container>
