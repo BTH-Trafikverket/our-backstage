@@ -320,15 +320,13 @@ export class BadgesService {
   ) {
     await this.validateCriterias(data.subject_type, data.criterias);
 
-    const defaultImageId = 1;
-
     return this.badgesRepo.withTransaction(async repo => {
       const badge = await repo.createBadge({
         title: data.title,
         description: data.description,
         xp_reward: data.xp_reward,
         subject_type: data.subject_type,
-        image_id: data.image_id ?? defaultImageId,
+        image_id: data.image_id ?? null,
       });
 
       await repo.insertBadgeCriteria(badge.id, data.criterias);

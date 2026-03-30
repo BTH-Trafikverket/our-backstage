@@ -16,6 +16,7 @@ export const createEmptyBadgeForm = (): BadgeFormData => ({
   description: '',
   xp_reward: '0',
   subject_type: 'user',
+  image_id: '',
   criterias: [{ quest_id: '', target_count: '1' }],
 });
 
@@ -114,6 +115,7 @@ export const buildBadgePayload = (form: BadgeFormData) => ({
   description: form.description.trim(),
   xp_reward: parseInt(form.xp_reward, 10),
   subject_type: form.subject_type,
+  image_id: form.image_id.trim() ? parseInt(form.image_id, 10) : null,
   criterias: form.criterias.map(criteria => ({
     quest_id: criteria.quest_id,
     target_count: parseInt(criteria.target_count, 10),

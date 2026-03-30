@@ -53,7 +53,7 @@ export const BadgesPage = ({
   const [sort, setSort] = useState<SortDescriptor | null>(null);
   const [teamOptions, setTeamOptions] = useState<string[]>([]);
   const [quests, setQuests] = useState<QuestLite[]>([]);
-
+  const [images, setImages] = useState<{ id: number; image: string }[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -201,6 +201,26 @@ export const BadgesPage = ({
     fetchQuests();
   }, [fetchQuests]);
 
+  useEffect(() => {
+    const fetchImages = async () => {
+      try {
+        const url = await buildGamificationUrl('/badges/badge-images');
+        const res = await fetchApi.fetch(url);
+        if (!res.ok) {
+          throw new Error(await readErrorMessage(res));
+        }
+
+        const data = await res.json();
+        setImages(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error('Failed to fetch images', e);
+        setImages([]);
+      }
+    };
+
+    fetchImages();
+  }, [buildGamificationUrl, fetchApi]);
+
   const getData = useCallback(
     async ({
       offset,
@@ -221,24 +241,20 @@ export const BadgesPage = ({
       const { sortBy, order } = getBadgeSort(sortDescriptor, isAdmin);
       const page = Math.floor(offset / pageSize) + 1;
 
-      const query = isAdmin
-        ? {
-            search: searchValue.trim(),
-            sortBy,
-            order,
-            page: String(page),
-            limit: String(pageSize),
-          }
-        : {
-            search: searchValue.trim(),
-            audience: currentFilter.audience,
-            status: currentFilter.status,
-            team: currentFilter.audience === 'team' ? currentFilter.team : '',
-            sortBy,
-            order,
-            page: String(page),
-            limit: String(pageSize),
-          };
+      const query: Record<string, string> = {
+        search: searchValue.trim(),
+        sortBy,
+        order,
+        page: String(page),
+        limit: String(pageSize),
+      };
+
+      if (!isAdmin) {
+        query.audience = currentFilter.audience;
+        query.status = currentFilter.status;
+        query.team =
+          currentFilter.audience === 'team' ? currentFilter.team : '';
+      }
 
       const url = await buildGamificationUrl(
         isAdmin ? '/badges' : '/badges/progress',
@@ -285,20 +301,24 @@ export const BadgesPage = ({
       pageSizeOptions: [10, 20, 30, 50],
       showPageSizeOptions: false,
       getLabel: ({ offset, pageSize, totalCount }) => {
-        if (!totalCount) {
+        const safeOffset = offset ?? 0;
+        const safePageSize = pageSize ?? 10;
+        const safeTotalCount = totalCount ?? 0;
+
+        if (!safeTotalCount) {
           return '0 results';
         }
 
-        const from = offset + 1;
-        const to = Math.min(offset + pageSize, totalCount);
-        return `${from}-${to} of ${totalCount}`;
+        const from = safeOffset + 1;
+        const to = Math.min(safeOffset + safePageSize, safeTotalCount);
+        return `${from}-${to} of ${safeTotalCount}`;
       },
     },
   });
 
   const totalCount =
     tableProps.pagination.type === 'page'
-      ? tableProps.pagination.totalCount
+      ? Number(tableProps.pagination.totalCount ?? 0)
       : 0;
   const visibleCount = tableProps.data?.length ?? 0;
   let demoToggleAction: {
@@ -475,6 +495,10 @@ export const BadgesPage = ({
       description: badge.description,
       xp_reward: String(badge.xp_reward),
       subject_type: badge.subject_type,
+      image_id:
+        badge.image_id !== null && badge.image_id !== undefined
+          ? String(badge.image_id)
+          : '',
       criterias: badge.criterias.map(criteria => ({
         quest_id: criteria.quest_id,
         target_count: String(criteria.target_count),
@@ -655,7 +679,7 @@ export const BadgesPage = ({
 
         <BadgeToolbar
           isAdmin={isAdmin}
-          isLoading={tableProps.loading || tableProps.isStale}
+          isLoading={tableProps.loading || !!tableProps.isStale}
           search={search}
           audienceFilter={filter.audience}
           statusFilter={filter.status}
@@ -692,6 +716,7 @@ export const BadgesPage = ({
           search={search}
           quests={quests}
           tableProps={tableProps}
+          images={images}
           onEditBadge={handleOpenEditDialog}
           onDeleteBadge={handleOpenDeleteDialog}
         />
