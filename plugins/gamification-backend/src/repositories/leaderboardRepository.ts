@@ -1,6 +1,7 @@
 import type { Knex } from 'knex';
 
 export type LeaderboardSubjectType = 'user' | 'group';
+export type LeaderboardTimeRange = 'weekly' | 'monthly' | 'alltime';
 
 export type LeaderboardRow = {
   subject_ref: string;
@@ -26,6 +27,8 @@ export class LeaderboardRepository {
     subjectType: LeaderboardSubjectType;
     page: number;
     limit: number;
+    createdAtGte?: Date;
+    createdAtLt?: Date;
   }): Promise<LeaderboardPage> {
     const prefix = options.subjectType === 'group' ? 'group:' : 'user:';
     const offset = (options.page - 1) * options.limit;
@@ -36,6 +39,14 @@ export class LeaderboardRepository {
       })
       .where('subject_ref', 'like', `${prefix}%`)
       .groupBy('subject_ref');
+
+    if (options.createdAtGte) {
+      groupedQuery.andWhere('created_at', '>=', options.createdAtGte);
+    }
+
+    if (options.createdAtLt) {
+      groupedQuery.andWhere('created_at', '<', options.createdAtLt);
+    }
 
     const rows = await groupedQuery
       .clone()

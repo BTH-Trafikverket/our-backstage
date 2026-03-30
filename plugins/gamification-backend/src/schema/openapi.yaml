@@ -25,6 +25,12 @@ paths:
             $ref: '#/components/schemas/LeaderboardSubjectType'
           description: Ranking scope. Use group to return Backstage teams. Defaults to user.
         - in: query
+          name: timeRange
+          required: false
+          schema:
+            $ref: '#/components/schemas/LeaderboardTimeRange'
+          description: Time range filter. monthly means the current UTC calendar month, weekly means the current UTC week, and alltime disables date filtering.
+        - in: query
           name: page
           required: false
           schema:
@@ -605,6 +611,12 @@ components:
       enum:
         - user
         - group
+    LeaderboardTimeRange:
+      type: string
+      enum:
+        - weekly
+        - monthly
+        - alltime
     LeaderboardEntry:
       type: object
       required:
@@ -628,12 +640,15 @@ components:
       type: object
       required:
         - subjectType
+        - timeRange
         - data
         - pagination
       additionalProperties: false
       properties:
         subjectType:
           $ref: '#/components/schemas/LeaderboardSubjectType'
+        timeRange:
+          $ref: '#/components/schemas/LeaderboardTimeRange'
         data:
           type: array
           items:

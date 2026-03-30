@@ -1,7 +1,10 @@
 import type { HttpAuthService } from '@backstage/backend-plugin-api';
 import { InputError } from '@backstage/errors';
 import Router from 'express-promise-router';
-import type { LeaderboardSubjectType } from '../repositories/leaderboardRepository';
+import type {
+  LeaderboardSubjectType,
+  LeaderboardTimeRange,
+} from '../repositories/leaderboardRepository';
 import type { LeaderboardService } from '../services/leaderboardService';
 
 function parseSubjectType(
@@ -21,6 +24,25 @@ function parseSubjectType(
   }
 
   throw new InputError('subjectType must be one of: user, group, team');
+}
+
+function parseTimeRange(
+  timeRangeQuery: string | undefined,
+): LeaderboardTimeRange {
+  if (!timeRangeQuery) {
+    return 'alltime';
+  }
+
+  const normalized = timeRangeQuery.trim().toLocaleLowerCase('en-US');
+  if (
+    normalized === 'weekly' ||
+    normalized === 'monthly' ||
+    normalized === 'alltime'
+  ) {
+    return normalized;
+  }
+
+  throw new InputError('timeRange must be one of: weekly, monthly, alltime');
 }
 
 function parsePagination(req: { query: Record<string, unknown> }) {
@@ -53,10 +75,14 @@ export function LeaderboardRouter(options: {
         ? req.query.subjectType
         : undefined,
     );
+    const timeRange = parseTimeRange(
+      typeof req.query.timeRange === 'string' ? req.query.timeRange : undefined,
+    );
     const { page, limit } = parsePagination(req);
 
     const leaderboard = await leaderboardService.getLeaderboard({
       subjectType,
+      timeRange,
       page,
       limit,
     });

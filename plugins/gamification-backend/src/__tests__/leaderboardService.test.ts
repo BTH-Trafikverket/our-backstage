@@ -10,7 +10,12 @@ describe('LeaderboardService', () => {
       getLeaderboardPage: jest.fn(),
     } as unknown as jest.Mocked<LeaderboardRepository>;
 
-    service = new LeaderboardService(mockRepo, 25);
+    service = new LeaderboardService(
+      mockRepo,
+      25,
+      100,
+      () => new Date('2026-04-03T12:00:00Z'),
+    );
   });
 
   it('returns ranked user leaderboard entries with pagination metadata', async () => {
@@ -31,6 +36,7 @@ describe('LeaderboardService', () => {
       service.getLeaderboard({ subjectType: 'user' }),
     ).resolves.toEqual({
       subjectType: 'user',
+      timeRange: 'alltime',
       data: [
         {
           rank: 1,
@@ -82,6 +88,7 @@ describe('LeaderboardService', () => {
       }),
     ).resolves.toEqual({
       subjectType: 'group',
+      timeRange: 'alltime',
       data: [
         {
           rank: 16,
@@ -112,7 +119,12 @@ describe('LeaderboardService', () => {
   });
 
   it('clamps the requested limit to the configured bounds', async () => {
-    const customService = new LeaderboardService(mockRepo, 25, 100);
+    const customService = new LeaderboardService(
+      mockRepo,
+      25,
+      100,
+      () => new Date('2026-04-03T12:00:00Z'),
+    );
     mockRepo.getLeaderboardPage.mockResolvedValue({
       data: [],
       pagination: {
@@ -135,4 +147,61 @@ describe('LeaderboardService', () => {
       limit: 100,
     });
   });
+
+  it('maps monthly to the current UTC calendar month window', async () => {
+    mockRepo.getLeaderboardPage.mockResolvedValue({
+      data: [],
+      pagination: {
+        page: 1,
+        limit: 25,
+        total: 0,
+        totalPages: 0,
+      },
+    });
+
+    await customCall(service, {
+      subjectType: 'user',
+      timeRange: 'monthly',
+    });
+
+    expect(mockRepo.getLeaderboardPage).toHaveBeenCalledWith({
+      subjectType: 'user',
+      page: 1,
+      limit: 25,
+      createdAtGte: new Date('2026-04-01T00:00:00.000Z'),
+      createdAtLt: new Date('2026-05-01T00:00:00.000Z'),
+    });
+  });
+
+  it('maps weekly to the current UTC week window', async () => {
+    mockRepo.getLeaderboardPage.mockResolvedValue({
+      data: [],
+      pagination: {
+        page: 1,
+        limit: 25,
+        total: 0,
+        totalPages: 0,
+      },
+    });
+
+    await customCall(service, {
+      subjectType: 'group',
+      timeRange: 'weekly',
+    });
+
+    expect(mockRepo.getLeaderboardPage).toHaveBeenCalledWith({
+      subjectType: 'group',
+      page: 1,
+      limit: 25,
+      createdAtGte: new Date('2026-03-30T00:00:00.000Z'),
+      createdAtLt: new Date('2026-04-06T00:00:00.000Z'),
+    });
+  });
 });
+
+async function customCall(
+  service: LeaderboardService,
+  options: Parameters<LeaderboardService['getLeaderboard']>[0],
+) {
+  return service.getLeaderboard(options);
+}

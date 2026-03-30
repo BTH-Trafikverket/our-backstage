@@ -13,6 +13,14 @@ import { createPostgres18TestHarness } from '../../tests/helpers/postgres18TestH
 const { describePostgres18, initDb } = createPostgres18TestHarness(__dirname);
 
 describePostgres18('leaderboard routes', () => {
+  beforeEach(() => {
+    jest.useRealTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   function makeApp(knex: Knex) {
     const httpAuth = mockServices.httpAuth();
     const userInfo = mockServices.userInfo();
@@ -51,6 +59,7 @@ describePostgres18('leaderboard routes', () => {
     knex: Knex,
     subjectRef: string,
     xpAmounts: number[],
+    createdAt?: Date,
   ) {
     const questId = randomUUID();
     await createQuest(knex, questId);
@@ -63,6 +72,7 @@ describePostgres18('leaderboard routes', () => {
         awarded_on_completion_count: index + 1,
         xp_amount: xpAmount,
         source: 'leaderboard_route_test',
+        ...(createdAt ? { created_at: createdAt } : {}),
       })),
     );
   }
@@ -82,6 +92,7 @@ describePostgres18('leaderboard routes', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       subjectType: 'user',
+      timeRange: 'alltime',
       data: [
         {
           rank: 1,
@@ -121,6 +132,7 @@ describePostgres18('leaderboard routes', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       subjectType: 'group',
+      timeRange: 'alltime',
       data: [
         {
           rank: 1,
@@ -166,6 +178,7 @@ describePostgres18('leaderboard routes', () => {
       totalPages: 3,
     });
     expect(res.body.data).toHaveLength(15);
+    expect(res.body.timeRange).toBe('alltime');
     expect(res.body.data[0]).toEqual({
       rank: 16,
       subjectRef: 'user:default/user16',
@@ -195,6 +208,110 @@ describePostgres18('leaderboard routes', () => {
     expect(res.body.subjectType).toBe('group');
   });
 
+  it('GET /leaderboard filters monthly results to the current month', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-04-03T12:00:00Z'));
+
+    const knex = await initDb();
+    const { app } = makeApp(knex);
+
+    await seedXpAwards(
+      knex,
+      'user:default/april-user',
+      [100],
+      new Date('2026-04-02T10:00:00Z'),
+    );
+    await seedXpAwards(
+      knex,
+      'user:default/march-user',
+      [250],
+      new Date('2026-03-31T23:00:00Z'),
+    );
+
+    const res = await request(app)
+      .get('/api/backstage-backend-gamification/leaderboard')
+      .query({ subjectType: 'user', timeRange: 'monthly' })
+      .set('authorization', mockCredentials.user.header('user:default/alice'));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      subjectType: 'user',
+      timeRange: 'monthly',
+      data: [
+        {
+          rank: 1,
+          subjectRef: 'user:default/april-user',
+          subjectType: 'user',
+          totalXp: 100,
+        },
+      ],
+      pagination: {
+        page: 1,
+        limit: 25,
+        total: 1,
+        totalPages: 1,
+      },
+    });
+  });
+
+  it('GET /leaderboard filters weekly results to the current week', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-04-03T12:00:00Z'));
+
+    const knex = await initDb();
+    const { app } = makeApp(knex);
+
+    await seedXpAwards(
+      knex,
+      'group:default/this-week',
+      [120],
+      new Date('2026-04-02T09:00:00Z'),
+    );
+    await seedXpAwards(
+      knex,
+      'group:default/also-this-week',
+      [90],
+      new Date('2026-03-31T08:00:00Z'),
+    );
+    await seedXpAwards(
+      knex,
+      'group:default/old-week',
+      [500],
+      new Date('2026-03-20T08:00:00Z'),
+    );
+
+    const res = await request(app)
+      .get('/api/backstage-backend-gamification/leaderboard')
+      .query({ subjectType: 'group', timeRange: 'weekly' })
+      .set('authorization', mockCredentials.service.header());
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      subjectType: 'group',
+      timeRange: 'weekly',
+      data: [
+        {
+          rank: 1,
+          subjectRef: 'group:default/this-week',
+          subjectType: 'group',
+          totalXp: 120,
+        },
+        {
+          rank: 2,
+          subjectRef: 'group:default/also-this-week',
+          subjectType: 'group',
+          totalXp: 90,
+        },
+      ],
+      pagination: {
+        page: 1,
+        limit: 25,
+        total: 2,
+        totalPages: 1,
+      },
+    });
+  });
+
   it('GET /leaderboard returns 400 for invalid subjectType values', async () => {
     const knex = await initDb();
     const { app } = makeApp(knex);
@@ -207,6 +324,20 @@ describePostgres18('leaderboard routes', () => {
     expect(res.status).toBe(400);
     expect(res.body?.error?.name).toBe('InputError');
     expect(String(res.body?.error?.message ?? '')).toMatch(/subjectType/i);
+  });
+
+  it('GET /leaderboard returns 400 for invalid timeRange values', async () => {
+    const knex = await initDb();
+    const { app } = makeApp(knex);
+
+    const res = await request(app)
+      .get('/api/backstage-backend-gamification/leaderboard')
+      .query({ timeRange: 'yearly' })
+      .set('authorization', mockCredentials.user.header('user:default/alice'));
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.name).toBe('InputError');
+    expect(String(res.body?.error?.message ?? '')).toMatch(/timeRange/i);
   });
 
   it('returns 401 when credentials are explicitly missing', async () => {

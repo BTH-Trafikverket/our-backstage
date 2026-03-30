@@ -20,6 +20,7 @@ describePostgres18('LeaderboardRepository integration', () => {
     knex: Knex,
     subjectRef: string,
     xpAmounts: number[],
+    createdAt?: Date,
   ) {
     const questId = randomUUID();
     await createQuest(knex, questId);
@@ -32,6 +33,7 @@ describePostgres18('LeaderboardRepository integration', () => {
         awarded_on_completion_count: index + 1,
         xp_amount: xpAmount,
         source: 'leaderboard_test',
+        ...(createdAt ? { created_at: createdAt } : {}),
       })),
     );
   }
@@ -50,6 +52,8 @@ describePostgres18('LeaderboardRepository integration', () => {
         subjectType: 'user',
         page: 1,
         limit: 25,
+        createdAtGte: undefined,
+        createdAtLt: undefined,
       }),
     ).resolves.toEqual({
       data: [
@@ -81,6 +85,8 @@ describePostgres18('LeaderboardRepository integration', () => {
         subjectType: 'group',
         page: 2,
         limit: 2,
+        createdAtGte: undefined,
+        createdAtLt: undefined,
       }),
     ).resolves.toEqual({
       data: [
@@ -92,6 +98,51 @@ describePostgres18('LeaderboardRepository integration', () => {
         limit: 2,
         total: 4,
         totalPages: 2,
+      },
+    });
+  });
+
+  it('filters leaderboard rows by created_at time windows', async () => {
+    const knex = await initDb();
+    const repository = new LeaderboardRepository(knex);
+
+    await seedXpAwards(
+      knex,
+      'user:default/current-month',
+      [200],
+      new Date('2026-04-02T12:00:00Z'),
+    );
+    await seedXpAwards(
+      knex,
+      'user:default/previous-month',
+      [300],
+      new Date('2026-03-31T23:00:00Z'),
+    );
+    await seedXpAwards(
+      knex,
+      'user:default/current-week',
+      [150],
+      new Date('2026-04-04T09:00:00Z'),
+    );
+
+    await expect(
+      repository.getLeaderboardPage({
+        subjectType: 'user',
+        page: 1,
+        limit: 25,
+        createdAtGte: new Date('2026-04-01T00:00:00Z'),
+        createdAtLt: new Date('2026-05-01T00:00:00Z'),
+      }),
+    ).resolves.toEqual({
+      data: [
+        { subject_ref: 'user:default/current-month', total_xp: 200 },
+        { subject_ref: 'user:default/current-week', total_xp: 150 },
+      ],
+      pagination: {
+        page: 1,
+        limit: 25,
+        total: 2,
+        totalPages: 1,
       },
     });
   });
