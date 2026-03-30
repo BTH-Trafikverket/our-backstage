@@ -13,6 +13,7 @@ import {
   Text,
   type TableProps,
 } from '@backstage/ui';
+
 import EmojiEventsIcon from '@material-ui/icons/EmojiEvents';
 import type { BadgeStatusFilter, BadgeTableRow, QuestLite } from './types';
 import {
@@ -29,6 +30,7 @@ type BadgeTableProps = {
   search: string;
   quests: QuestLite[];
   tableProps: Omit<TableProps<BadgeTableRow>, 'columnConfig' | 'emptyState'>;
+  images: { id: number; image: string }[];
   onEditBadge: (badge: BadgeTableRow['badge']) => void;
   onDeleteBadge: (badge: BadgeTableRow['badge']) => void;
 };
@@ -44,24 +46,39 @@ const renderAdminMeta = (item: BadgeTableRow) => (
   </TagGroup>
 );
 
-const renderBadgeIcon = () => (
-  <Box
-    aria-hidden
-    style={{
-      width: '2.25rem',
-      height: '2.25rem',
-      borderRadius: '999px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'var(--bui-bg-neutral-2)',
-      color: 'var(--bui-bg-solid)',
-      flexShrink: 0,
-    }}
-  >
-    <EmojiEventsIcon style={{ fontSize: 18 }} />
-  </Box>
-);
+const renderBadgeIcon = (image?: string | null) => {
+  if (image) {
+    return (
+      <img
+        src={image}
+        alt=""
+        style={{
+          width: '2.25rem',
+          height: '2.25rem',
+          borderRadius: '999px',
+          objectFit: 'cover',
+        }}
+      />
+    );
+  }
+
+  return (
+    <Box
+      aria-hidden
+      style={{
+        width: '2.25rem',
+        height: '2.25rem',
+        borderRadius: '999px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'var(--bui-bg-neutral-2)',
+      }}
+    >
+      <EmojiEventsIcon style={{ fontSize: 18 }} />
+    </Box>
+  );
+};
 
 const renderUserMeta = (item: BadgeTableRow) => (
   <TagGroup aria-label={`Metadata for ${item.badge.title}`}>
@@ -190,6 +207,7 @@ const renderCriteriaProgress = (item: BadgeTableRow) => {
 
 const getAdminColumns = (
   quests: QuestLite[],
+  images: { id: number; image: string }[],
   onEditBadge: (badge: BadgeTableRow['badge']) => void,
   onDeleteBadge: (badge: BadgeTableRow['badge']) => void,
 ) =>
@@ -201,18 +219,23 @@ const getAdminColumns = (
       isSortable: true,
       defaultWidth: '3fr',
       minWidth: 320,
-      cell: (item: BadgeTableRow) => (
-        <Cell>
-          <Flex gap="3" align="start">
-            {renderBadgeIcon()}
-            <Flex direction="column" gap="2" style={{ minWidth: 0 }}>
-              <Text weight="bold">{item.badge.title}</Text>
-              <Text color="secondary">{item.badge.description}</Text>
-              {renderAdminMeta(item)}
+      cell: (item: BadgeTableRow) => {
+        const image = images.find(img => img.id === item.badge.image_id);
+
+        return (
+          <Cell>
+            <Flex gap="3" align="start">
+              {renderBadgeIcon(image?.image)}
+
+              <Flex direction="column" gap="2" style={{ minWidth: 0 }}>
+                <Text weight="bold">{item.badge.title}</Text>
+                <Text color="secondary">{item.badge.description}</Text>
+                {renderAdminMeta(item)}
+              </Flex>
             </Flex>
-          </Flex>
-        </Cell>
-      ),
+          </Cell>
+        );
+      },
     },
     {
       id: 'xp_reward',
@@ -289,7 +312,10 @@ const getAdminColumns = (
     },
   ] as const;
 
-const getUserColumns = (showEarnedSort: boolean) =>
+const getUserColumns = (
+  images: { id: number; image: string }[],
+  showEarnedSort: boolean,
+) =>
   [
     {
       id: 'title',
@@ -298,35 +324,41 @@ const getUserColumns = (showEarnedSort: boolean) =>
       isSortable: true,
       defaultWidth: '3fr',
       minWidth: 320,
-      cell: (item: BadgeTableRow) => (
-        <Cell>
-          <Flex gap="3" align="start">
-            {renderBadgeIcon()}
-            <Flex direction="column" gap="2" style={{ minWidth: 0, flex: 1 }}>
-              <Text weight="bold">{item.badge.title}</Text>
-              <Text color="secondary">{item.badge.description}</Text>
-              {renderUserMeta(item)}
-              <DialogTrigger>
-                <Button size="small" variant="secondary">
-                  Criteria progress
-                </Button>
-                <Popover
-                  placement="bottom start"
-                  hideArrow
-                  style={{ width: 'var(--trigger-width)' }}
-                >
-                  <Box>
-                    <Flex direction="column" gap="3">
-                      <Text weight="bold">{item.badge.title}</Text>
-                      {renderCriteriaProgress(item)}
-                    </Flex>
-                  </Box>
-                </Popover>
-              </DialogTrigger>
+      cell: (item: BadgeTableRow) => {
+        const image = images.find(img => img.id === item.badge.image_id);
+
+        return (
+          <Cell>
+            <Flex gap="3" align="start">
+              {renderBadgeIcon(image?.image)}
+
+              <Flex direction="column" gap="2" style={{ minWidth: 0, flex: 1 }}>
+                <Text weight="bold">{item.badge.title}</Text>
+                <Text color="secondary">{item.badge.description}</Text>
+                {renderUserMeta(item)}
+
+                <DialogTrigger>
+                  <Button size="small" variant="secondary">
+                    Criteria progress
+                  </Button>
+                  <Popover
+                    placement="bottom start"
+                    hideArrow
+                    style={{ width: 'var(--trigger-width)' }}
+                  >
+                    <Box>
+                      <Flex direction="column" gap="3">
+                        <Text weight="bold">{item.badge.title}</Text>
+                        {renderCriteriaProgress(item)}
+                      </Flex>
+                    </Box>
+                  </Popover>
+                </DialogTrigger>
+              </Flex>
             </Flex>
-          </Flex>
-        </Cell>
-      ),
+          </Cell>
+        );
+      },
     },
     {
       id: 'xp_reward',
@@ -372,6 +404,7 @@ export const BadgeTable = ({
   search,
   quests,
   tableProps,
+  images,
   onEditBadge,
   onDeleteBadge,
 }: BadgeTableProps) => {
@@ -404,8 +437,8 @@ export const BadgeTable = ({
       key={isAdmin ? 'badges-admin' : 'badges-user'}
       columnConfig={
         isAdmin
-          ? getAdminColumns(quests, onEditBadge, onDeleteBadge)
-          : getUserColumns(statusFilter === 'all')
+          ? getAdminColumns(quests, images, onEditBadge, onDeleteBadge)
+          : getUserColumns(images, statusFilter === 'all')
       }
       emptyState={emptyState}
       {...tableProps}

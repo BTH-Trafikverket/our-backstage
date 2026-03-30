@@ -10,6 +10,8 @@ import { badgeCreationSchema } from '../schemas/badges/badgeCreationSchema';
 import { badgeEditSchema } from '../schemas/badges/badgeEditSchema';
 import { BadgesService } from '../services/badgesService';
 import { createRequireAdminCredentials } from './adminAccess';
+import { processImage } from '../services/imageService';
+import multer from 'multer';
 
 export function BadgesRouter({
   httpAuth,
@@ -23,6 +25,7 @@ export function BadgesRouter({
   config: RootConfigService;
 }): express.Router {
   const router = Router();
+  const upload = multer();
   const parseBadgeProgressSort = (
     sortByQuery: string | undefined,
   ):
@@ -222,6 +225,31 @@ export function BadgesRouter({
     });
 
     res.status(200).json(badges);
+  });
+
+  router.post(
+    '/badge-images',
+    upload.single('image') as any,
+    async (req, res) => {
+      if (!req.file) {
+        throw new InputError('No file uploaded');
+      }
+
+      if (!req.file.mimetype.startsWith('image/')) {
+        throw new InputError('Only image files are allowed');
+      }
+
+      const base64 = await processImage(req.file.buffer);
+
+      const [image] = await badgesService.createBadgeImage(base64);
+
+      res.status(201).json(image);
+    },
+  );
+
+  router.get('/badge-images', async (_req, res) => {
+    const images = await badgesService.getBadgeImages();
+    res.status(200).json(images);
   });
 
   router.get('/:id', async (req, res) => {

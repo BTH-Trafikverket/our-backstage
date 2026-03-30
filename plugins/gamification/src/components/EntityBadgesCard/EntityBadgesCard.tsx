@@ -31,6 +31,7 @@ export type BadgeProgressBadge = {
   isEarned: boolean;
   earnedAt?: string | null;
   progressSubjectRef?: string | null;
+  image_id?: number | null;
   progress?: {
     completedRequirements: number;
     totalRequirements: number;
@@ -133,7 +134,10 @@ const getBadgeCompletionText = (value?: string | null) => {
   return formatted ? `Completed ${formatted}` : 'Completion date unavailable';
 };
 
-const renderEarnedBadgesGrid = (badges: BadgeProgressBadge[]) => (
+const renderEarnedBadgesGrid = (
+  badges: BadgeProgressBadge[],
+  images: { id: number; image: string }[],
+) => (
   <Box
     role="region"
     aria-label="Earned badges list"
@@ -146,36 +150,62 @@ const renderEarnedBadgesGrid = (badges: BadgeProgressBadge[]) => (
     }}
   >
     <Grid.Root columns="4" gap="3" style={{ justifyItems: 'center' }}>
-      {badges.map(badge => (
-        <Grid.Item key={badge.id}>
-          <TooltipTrigger delay={0}>
-            <ButtonIcon
-              aria-label={`${badge.title} badge`}
-              variant="secondary"
-              size="medium"
-              icon={<PrizeIcon />}
-              style={{
-                width: BADGE_GRID_BUTTON_SIZE,
-                height: BADGE_GRID_BUTTON_SIZE,
-                borderRadius: '999px',
-                border: '1px solid var(--bui-border-1)',
-                backgroundColor: 'var(--bui-bg-neutral-2)',
-                color: 'var(--bui-bg-solid)',
-                opacity: badge.archived_at ? 0.72 : 1,
-              }}
-            />
-            <Tooltip placement="top">
-              <Flex direction="column" gap="1">
-                <Text weight="bold">{badge.title}</Text>
-                <Text variant="body-small">{badge.xp_reward} XP</Text>
-                <Text variant="body-small" color="secondary">
-                  {getBadgeCompletionText(badge.earnedAt)}
-                </Text>
-              </Flex>
-            </Tooltip>
-          </TooltipTrigger>
-        </Grid.Item>
-      ))}
+      {badges.map(badge => {
+        const badgeImage = badge.image_id
+          ? images.find(img => img.id === badge.image_id)
+          : undefined;
+
+        return (
+          <Grid.Item key={badge.id}>
+            <TooltipTrigger delay={0}>
+              <ButtonIcon
+                aria-label={`${badge.title} badge`}
+                variant="secondary"
+                size="medium"
+                icon={
+                  badgeImage ? (
+                    <img
+                      src={badgeImage.image}
+                      alt=""
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        borderRadius: '999px',
+                        display: 'block',
+                      }}
+                    />
+                  ) : (
+                    <PrizeIcon />
+                  )
+                }
+                style={{
+                  width: BADGE_GRID_BUTTON_SIZE,
+                  height: BADGE_GRID_BUTTON_SIZE,
+                  borderRadius: '999px',
+                  border: '1px solid var(--bui-border-1)',
+                  backgroundColor: badgeImage
+                    ? 'transparent'
+                    : 'var(--bui-bg-neutral-2)',
+                  color: 'var(--bui-bg-solid)',
+                  overflow: 'hidden',
+                  padding: 0,
+                  opacity: badge.archived_at ? 0.72 : 1,
+                }}
+              />
+              <Tooltip placement="top">
+                <Flex direction="column" gap="1">
+                  <Text weight="bold">{badge.title}</Text>
+                  <Text variant="body-small">{badge.xp_reward} XP</Text>
+                  <Text variant="body-small" color="secondary">
+                    {getBadgeCompletionText(badge.earnedAt)}
+                  </Text>
+                </Flex>
+              </Tooltip>
+            </TooltipTrigger>
+          </Grid.Item>
+        );
+      })}
     </Grid.Root>
   </Box>
 );
@@ -193,6 +223,7 @@ export const BadgesCard = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
   const [data, setData] = useState<BadgeProgressResponse | null>(null);
+  const [images, setImages] = useState<{ id: number; image: string }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -271,6 +302,24 @@ export const BadgesCard = ({
     };
   }, [discoveryApi, fetchApi, identityApi, subjectRef]);
 
+  useEffect(() => {
+    const fetchImages = async () => {
+      try {
+        const baseUrl = await discoveryApi.getBaseUrl('gamification');
+        const res = await fetchApi.fetch(`${baseUrl}/badges/badge-images`);
+        if (!res.ok) {
+          return;
+        }
+        const imageData = await res.json();
+        setImages(Array.isArray(imageData) ? imageData : []);
+      } catch {
+        // non-critical; fall back to icon
+      }
+    };
+
+    fetchImages();
+  }, [discoveryApi, fetchApi]);
+
   const earnedBadges = data?.badges.filter(badge => badge.isEarned) ?? [];
 
   return (
@@ -313,7 +362,7 @@ export const BadgesCard = ({
         ) : null}
 
         {!loading && !error && earnedBadges.length > 0
-          ? renderEarnedBadgesGrid(earnedBadges)
+          ? renderEarnedBadgesGrid(earnedBadges, images)
           : null}
       </CardBody>
     </Card>

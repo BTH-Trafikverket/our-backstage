@@ -10,6 +10,7 @@ export const badgeEditSchema = z
     description: z.string().trim().min(1).optional(),
     xp_reward: z.number().int().min(0).optional(),
     subject_type: questSubjectTypeSchema.optional(),
+    image_id: z.number().int().positive().nullable().optional(),
     criterias: z.array(badgeCriteriaSchema).min(1).optional(),
   })
   .strict()
@@ -19,6 +20,7 @@ export const badgeEditSchema = z
       value.description !== undefined ||
       value.xp_reward !== undefined ||
       value.subject_type !== undefined ||
+      value.image_id !== undefined ||
       value.criterias !== undefined,
     {
       message: 'At least one field must be provided',
