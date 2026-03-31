@@ -76,6 +76,15 @@ Badge runtime state is maintained in Postgres:
 Admin access is configured through `gamification.admin.groups`.
 Allowed event callers are configured through `gamification.quests.allowedCallers`.
 
+## Monthly progress period contract
+
+The first piece of the monthly progress trigger work defines the reporting period and rerun key:
+
+- default execution targets the previous fully completed calendar month
+- month boundaries are evaluated in the selected IANA timezone, with `Europe/Stockholm` as the default
+- manual reruns should resolve an explicit `YYYY-MM` month to the same period every time
+- the stable rerun/idempotency key contract is `monthly-progress:<timeZone>:<YYYY-MM>`
+
 ## OpenAPI
 
 The authoritative API contract is:
