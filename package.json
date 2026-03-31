@@ -7,8 +7,8 @@
   },
   "scripts": {
     "start": "dotenvx run --env-file=.env.local -- backstage-cli repo start",
-    "start:e2e": "dotenvx run --env-file=.env.local -- backstage-cli repo start --config $(pwd)/app-config.e2e.yaml",
-    "start:e2e:docker": "backstage-cli repo start --config $(pwd)/app-config.e2e.yaml",
+    "start:e2e": "dotenvx run --env-file=.env.local -- env BACKSTAGE_E2E_MODE=true backstage-cli repo start --config $(pwd)/app-config.e2e.yaml",
+    "start:e2e:docker": "env BACKSTAGE_E2E_MODE=true backstage-cli repo start --config $(pwd)/app-config.e2e.yaml",
     "start:raw": "backstage-cli repo start",
     "build:backend": "yarn workspace backend build",
     "build:all": "backstage-cli repo build --all",
@@ -38,9 +38,9 @@
     "gamification:test:frontend": "yarn workspace @internal/gamification test --runInBand --watch=false",
     "gamification:test:backend": "node ./scripts/run-with-temp-postgres.mjs yarn workspace @internal/gamification-backend test --runInBand --watch=false",
     "gamification:test": "yarn gamification:test:frontend && yarn gamification:test:backend",
-    "gamification:verify": "yarn gamification:openapi:check && yarn gamification:prettier:check && yarn gamification:lint && yarn gamification:test && yarn test:e2e",
+    "gamification:verify": "bash scripts/gamification-verify.sh",
     "verify:ci": "yarn gamification:verify",
-    "verify:prepush": "yarn gamification:verify",
+    "verify:prepush": "bash scripts/gamification-pre-push.sh",
     "new": "backstage-cli new",
     "prepare": "husky"
   },
