@@ -26,13 +26,18 @@ type LeaderboardEntry = {
   points: number;
 };
 
+type LeaderboardSubjectType = 'user' | 'group';
+
 type LeaderboardApiRow = {
   rank: number;
   subjectRef: string;
+  subjectType: LeaderboardSubjectType;
   totalXp: number;
 };
 
 type LeaderboardResponse = {
+  subjectType: LeaderboardSubjectType;
+  timeRange: 'weekly' | 'monthly' | 'alltime';
   data: LeaderboardApiRow[];
   pagination: {
     page: number;
@@ -221,6 +226,7 @@ const sortLeaderboardEntries = (
 };
 
 export const LeaderboardPage = (_props: LeaderboardPageProps) => {
+  const { isAdmin = false } = _props;
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
 
@@ -230,6 +236,8 @@ export const LeaderboardPage = (_props: LeaderboardPageProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
   const [page, setPage] = useState(DEFAULT_PAGE);
+  const [subjectType, setSubjectType] =
+    useState<LeaderboardSubjectType>('user');
   const [pagination, setPagination] = useState<LeaderboardPagination>(
     createDefaultPagination(),
   );
@@ -255,6 +263,19 @@ export const LeaderboardPage = (_props: LeaderboardPageProps) => {
   );
 
   useEffect(() => {
+    if (!isAdmin && subjectType !== 'user') {
+      setSubjectType('user');
+      setPage(DEFAULT_PAGE);
+    }
+  }, [isAdmin, subjectType]);
+
+  // The leaderboard contract only exposes the global subject type for the
+  // response and does not include per-team visibility metadata. Keep team
+  // rankings admin-only in the UI until the backend exposes finer-grained
+  // visibility information.
+  const visibleSubjectType = isAdmin ? subjectType : 'user';
+
+  useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
 
@@ -263,7 +284,7 @@ export const LeaderboardPage = (_props: LeaderboardPageProps) => {
         setLoading(true);
         setError(undefined);
         const url = await buildGamificationUrl('/leaderboard', {
-          subjectType: 'user',
+          subjectType: visibleSubjectType,
           page: String(page),
           limit: String(DEFAULT_PAGE_SIZE),
         });
@@ -304,7 +325,7 @@ export const LeaderboardPage = (_props: LeaderboardPageProps) => {
       cancelled = true;
       controller.abort();
     };
-  }, [buildGamificationUrl, fetchApi, page]);
+  }, [buildGamificationUrl, fetchApi, page, visibleSubjectType]);
 
   const canGoToPreviousPage = pagination.page > 1;
   const canGoToNextPage =
@@ -314,19 +335,38 @@ export const LeaderboardPage = (_props: LeaderboardPageProps) => {
   const hasActiveSearch = search.trim().length > 0;
   const tableEmptyState =
     hasActiveSearch && entries.length > 0 ? filteredEmptyState : emptyState;
+  const handleSubjectTypeChange = (value: LeaderboardSubjectType) => {
+    if (value === subjectType) {
+      return;
+    }
+
+    setSubjectType(value);
+    setPage(DEFAULT_PAGE);
+  };
+  let leaderboardDescription = 'Ranked by total XP across users.';
+
+  if (!isAdmin) {
+    leaderboardDescription =
+      'Ranked by total XP across users. Team rankings are only available in admin view.';
+  } else if (visibleSubjectType === 'group') {
+    leaderboardDescription = 'Ranked by total XP across teams.';
+  }
 
   return (
     <Flex direction="column" gap="4">
       <HeaderPage title="Leaderboard" />
-      <Text color="secondary">Ranked by total XP.</Text>
+      <Text color="secondary">{leaderboardDescription}</Text>
 
       {!error ? (
         <LeaderboardToolbar
+          isAdmin={isAdmin}
           isLoading={loading}
           search={search}
+          subjectType={visibleSubjectType}
           totalCount={entries.length}
           visibleCount={visibleEntries.length}
           onSearchChange={setSearch}
+          onSubjectTypeChange={handleSubjectTypeChange}
         />
       ) : null}
 
