@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Box,
   Button,
   CellText,
   Flex,
   HeaderPage,
+  SearchField,
   Skeleton,
   Table,
   Text,
@@ -22,6 +24,7 @@ type LeaderboardEntry = {
   rank: number;
   name: string;
   points: number;
+  subjectType: LeaderboardApiRow['subjectType'];
 };
 
 type LeaderboardApiRow = {
@@ -44,9 +47,63 @@ type LeaderboardResponse = {
 };
 
 type LeaderboardPagination = LeaderboardResponse['pagination'];
+type LeaderboardPageProps = {
+  isAdmin?: boolean;
+};
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
+const TEMPORARY_LEADERBOARD_UI_MOCK_ENABLED = true;
+const TEMPORARY_LEADERBOARD_UI_MOCK_PAGE_SIZE = 3;
+
+// TEMPORARY UI VERIFICATION LOGIC:
+// Keep a small in-memory leaderboard dataset here until the backend route is
+// available again in the running environment. Switch the flag above back to
+// false to restore real API loading.
+const TEMPORARY_LEADERBOARD_UI_MOCK_ROWS: readonly LeaderboardApiRow[] = [
+  {
+    rank: 1,
+    subjectRef: 'user:default/alice-andersson',
+    subjectType: 'user',
+    totalXp: 1480,
+  },
+  {
+    rank: 2,
+    subjectRef: 'group:default/platform-team',
+    subjectType: 'group',
+    totalXp: 1325,
+  },
+  {
+    rank: 3,
+    subjectRef: 'user:default/bob-berg',
+    subjectType: 'user',
+    totalXp: 1260,
+  },
+  {
+    rank: 4,
+    subjectRef: 'group:default/search-and-discovery',
+    subjectType: 'group',
+    totalXp: 1180,
+  },
+  {
+    rank: 5,
+    subjectRef: 'user:default/charlie-dahl',
+    subjectType: 'user',
+    totalXp: 1090,
+  },
+  {
+    rank: 6,
+    subjectRef: 'user:default/dana-ek',
+    subjectType: 'user',
+    totalXp: 980,
+  },
+  {
+    rank: 7,
+    subjectRef: 'group:default/ops-guild',
+    subjectType: 'group',
+    totalXp: 930,
+  },
+];
 
 const leaderboardColumns: readonly ColumnConfig<LeaderboardEntry>[] = [
   {
@@ -81,6 +138,34 @@ const emptyState = (
   >
     <Text weight="bold">No leaderboard entries to show.</Text>
     <Text color="secondary">No one has earned any points yet.</Text>
+  </Flex>
+);
+
+const filteredEmptyState = (
+  <Flex
+    direction="column"
+    align="center"
+    justify="center"
+    gap="2"
+    style={{ minHeight: '12rem' }}
+  >
+    <Text weight="bold">No leaderboard entries match your search.</Text>
+  </Flex>
+);
+
+const visibilityEmptyState = (
+  <Flex
+    direction="column"
+    align="center"
+    justify="center"
+    gap="2"
+    style={{ minHeight: '12rem' }}
+  >
+    <Text weight="bold">No visible leaderboard entries to show.</Text>
+    <Text color="secondary">
+      Non-admin view uses a frontend fallback that hides team rows because the
+      current leaderboard response has no row-level visibility field.
+    </Text>
   </Flex>
 );
 
@@ -147,14 +232,69 @@ const normalizeLeaderboardEntries = (
       rank: row.rank,
       name: formatSubjectName(row.subjectRef) ?? row.subjectRef,
       points: row.totalXp,
+      subjectType: row.subjectType,
     }));
 };
 
-export const LeaderboardPage = () => {
+const createTemporaryMockLeaderboardResponse = (
+  page: number,
+  limit: number,
+): LeaderboardResponse => {
+  const total = TEMPORARY_LEADERBOARD_UI_MOCK_ROWS.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const normalizedPage = Math.min(Math.max(page, DEFAULT_PAGE), totalPages);
+  const startIndex = (normalizedPage - 1) * limit;
+
+  return {
+    subjectType: 'user',
+    timeRange: 'alltime',
+    data: TEMPORARY_LEADERBOARD_UI_MOCK_ROWS.slice(
+      startIndex,
+      startIndex + limit,
+    ),
+    pagination: {
+      page: normalizedPage,
+      limit,
+      total,
+      totalPages,
+    },
+  };
+};
+
+const applyLeaderboardVisibility = (
+  entries: LeaderboardEntry[],
+  isAdmin: boolean,
+): LeaderboardEntry[] => {
+  // The current leaderboard row model has subjectType but no explicit
+  // visibility flag, so non-admins only see individual user rows.
+  if (isAdmin) {
+    return entries;
+  }
+
+  return entries.filter(entry => entry.subjectType === 'user');
+};
+
+const filterLeaderboardEntries = (
+  entries: LeaderboardEntry[],
+  search: string,
+): LeaderboardEntry[] => {
+  const normalizedSearch = search.trim().toLowerCase();
+
+  if (!normalizedSearch) {
+    return entries;
+  }
+
+  return entries.filter(entry =>
+    entry.name.toLowerCase().includes(normalizedSearch),
+  );
+};
+
+export const LeaderboardPage = ({ isAdmin = false }: LeaderboardPageProps) => {
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
 
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
   const [page, setPage] = useState(DEFAULT_PAGE);
@@ -191,6 +331,27 @@ export const LeaderboardPage = () => {
       try {
         setLoading(true);
         setError(undefined);
+
+        if (TEMPORARY_LEADERBOARD_UI_MOCK_ENABLED) {
+          // TEMPORARY UI VERIFICATION LOGIC:
+          // Keep the loading state visible briefly while paging through a local
+          // mock dataset that mirrors the real API response shape.
+          await new Promise(resolve => window.setTimeout(resolve, 0));
+
+          if (cancelled || controller.signal.aborted) {
+            return;
+          }
+
+          const result = createTemporaryMockLeaderboardResponse(
+            page,
+            TEMPORARY_LEADERBOARD_UI_MOCK_PAGE_SIZE,
+          );
+          const nextPagination = normalizePagination(result.pagination);
+          pageSizeRef.current = nextPagination.limit;
+          setEntries(normalizeLeaderboardEntries(result));
+          setPagination(nextPagination);
+          return;
+        }
 
         const url = await buildGamificationUrl('/leaderboard', {
           page: String(page),
@@ -240,11 +401,37 @@ export const LeaderboardPage = () => {
   const canGoToPreviousPage = pagination.page > 1;
   const canGoToNextPage =
     pagination.total > 0 && pagination.page < pagination.totalPages;
+  const visibleEntries = applyLeaderboardVisibility(entries, isAdmin);
+  const hasActiveSearch = search.trim().length > 0;
+  const filteredEntries = filterLeaderboardEntries(visibleEntries, search);
+  const pageTitle = isAdmin ? 'Leaderboard' : 'Your Leaderboard';
+  const leaderboardDescription = isAdmin
+    ? 'Ranked by total XP across users and teams.'
+    : 'Ranked by total XP for visible user entries.';
+  let tableEmptyState = emptyState;
+
+  if (!isAdmin && entries.length > 0 && visibleEntries.length === 0) {
+    tableEmptyState = visibilityEmptyState;
+  } else if (hasActiveSearch && visibleEntries.length > 0) {
+    tableEmptyState = filteredEmptyState;
+  }
 
   return (
     <Flex direction="column" gap="4">
-      <HeaderPage title="Leaderboard" />
-      <Text color="secondary">Ranked by total XP.</Text>
+      <HeaderPage title={pageTitle} />
+      <Text color="secondary">{leaderboardDescription}</Text>
+      {!isAdmin ? (
+        <Text color="secondary">
+          Frontend visibility fallback: team rows are hidden for non-admins
+          because the current leaderboard response does not include visibility
+          metadata.
+        </Text>
+      ) : null}
+      {TEMPORARY_LEADERBOARD_UI_MOCK_ENABLED ? (
+        <Text color="secondary">
+          Temporary mock data is enabled for UI verification.
+        </Text>
+      ) : null}
 
       {loading ? renderLoadingState() : null}
 
@@ -259,10 +446,25 @@ export const LeaderboardPage = () => {
 
       {!loading && !error ? (
         <Flex direction="column" gap="3">
+          <Box
+            style={{
+              width: '100%',
+              maxWidth: '24rem',
+            }}
+          >
+            <SearchField
+              aria-label="Filter leaderboard by name"
+              placeholder="Filter by name"
+              size="medium"
+              value={search}
+              onChange={setSearch}
+            />
+          </Box>
+
           <Table
             columnConfig={leaderboardColumns}
-            data={entries}
-            emptyState={emptyState}
+            data={filteredEntries}
+            emptyState={tableEmptyState}
             pagination={{ type: 'none' }}
           />
 

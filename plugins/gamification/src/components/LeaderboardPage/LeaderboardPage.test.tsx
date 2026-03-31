@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { TestApiProvider } from '@backstage/test-utils';
 import { discoveryApiRef, fetchApiRef } from '@backstage/core-plugin-api';
 import userEvent from '@testing-library/user-event';
@@ -7,12 +7,12 @@ import { LeaderboardPage } from './LeaderboardPage';
 describe('LeaderboardPage', () => {
   const baseUrl = 'http://example.test/api/gamification';
 
-  function renderPage(fetchImpl: (...args: any[]) => Promise<Response>) {
+  function renderPage(options?: { isAdmin?: boolean }) {
     const discoveryApi = {
       getBaseUrl: jest.fn(async () => baseUrl),
     };
     const fetchApi = {
-      fetch: jest.fn(fetchImpl),
+      fetch: jest.fn(async () => new Response(null, { status: 200 })),
     };
 
     return {
@@ -23,88 +23,36 @@ describe('LeaderboardPage', () => {
             [fetchApiRef, fetchApi as any],
           ]}
         >
-          <LeaderboardPage />
+          <LeaderboardPage isAdmin={options?.isAdmin} />
         </TestApiProvider>,
       ),
       fetchApi,
     };
   }
 
-  it('shows a loading state while leaderboard data is loading', async () => {
-    let resolveResponse!: (value: Response) => void;
-
-    renderPage(
-      () =>
-        new Promise<Response>(resolve => {
-          resolveResponse = resolve;
-        }),
-    );
+  it('shows a loading state before temporary mock rows render', async () => {
+    const { fetchApi } = renderPage({ isAdmin: true });
 
     expect(screen.getByText('Loading leaderboard...')).toBeInTheDocument();
-    await waitFor(() => expect(resolveResponse).toBeDefined());
-
-    resolveResponse(
-      new Response(
-        JSON.stringify({
-          subjectType: 'user',
-          timeRange: 'alltime',
-          data: [],
-          pagination: {
-            page: 1,
-            limit: 25,
-            total: 0,
-            totalPages: 0,
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      ),
-    );
-
-    expect(
-      await screen.findByText('No leaderboard entries to show.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+    expect(fetchApi.fetch).not.toHaveBeenCalled();
   });
 
-  it('renders leaderboard rows returned by the backend endpoint', async () => {
-    const { fetchApi } = renderPage(
-      async () =>
-        new Response(
-          JSON.stringify({
-            subjectType: 'user',
-            timeRange: 'alltime',
-            data: [
-              {
-                rank: 1,
-                subjectRef: 'user:default/alice-andersson',
-                subjectType: 'user',
-                totalXp: 1480,
-              },
-              {
-                rank: 2,
-                subjectRef: 'group:default/platform-team',
-                subjectType: 'group',
-                totalXp: 1325,
-              },
-            ],
-            pagination: {
-              page: 1,
-              limit: 25,
-              total: 2,
-              totalPages: 1,
-            },
-          }),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        ),
-    );
+  it('renders temporary mock leaderboard rows for UI verification', async () => {
+    const { fetchApi } = renderPage({ isAdmin: true });
 
+    expect(
+      await screen.findByRole('heading', { name: 'Leaderboard' }),
+    ).toBeInTheDocument();
     expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
     expect(screen.getByText('Platform Team')).toBeInTheDocument();
+    expect(screen.getByText('1480')).toBeInTheDocument();
+    expect(
+      screen.getByText('Ranked by total XP across users and teams.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Temporary mock data is enabled for UI verification.'),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('columnheader', { name: 'Rank' }),
     ).toBeInTheDocument();
@@ -114,136 +62,85 @@ describe('LeaderboardPage', () => {
     expect(
       screen.getByRole('columnheader', { name: 'Points' }),
     ).toBeInTheDocument();
-
-    expect(fetchApi.fetch).toHaveBeenCalledTimes(1);
-    expect(String(fetchApi.fetch.mock.calls[0][0])).toBe(
-      `${baseUrl}/leaderboard?page=1&limit=25`,
-    );
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+    expect(fetchApi.fetch).not.toHaveBeenCalled();
   });
 
-  it('requests the next page when the user clicks Next', async () => {
+  it('filters temporary mock rows by name on the client side', async () => {
     const user = userEvent.setup();
-    const { fetchApi } = renderPage(async (input: any) => {
-      const url = new URL(String(input));
-      const page = url.searchParams.get('page');
 
-      if (page === '2') {
-        return new Response(
-          JSON.stringify({
-            subjectType: 'user',
-            timeRange: 'alltime',
-            data: [
-              {
-                rank: 2,
-                subjectRef: 'user:default/bob-berg',
-                subjectType: 'user',
-                totalXp: 1325,
-              },
-            ],
-            pagination: {
-              page: 2,
-              limit: 1,
-              total: 2,
-              totalPages: 2,
-            },
-          }),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
-      }
+    renderPage({ isAdmin: true });
+    await screen.findByText('Alice Andersson');
 
-      return new Response(
-        JSON.stringify({
-          subjectType: 'user',
-          timeRange: 'alltime',
-          data: [
-            {
-              rank: 1,
-              subjectRef: 'user:default/alice-andersson',
-              subjectType: 'user',
-              totalXp: 1480,
-            },
-          ],
-          pagination: {
-            page: 1,
-            limit: 1,
-            total: 2,
-            totalPages: 2,
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'Filter leaderboard by name',
     });
 
+    await user.type(searchInput, 'platform');
+
+    expect(screen.getByText('Platform Team')).toBeInTheDocument();
+    expect(screen.queryByText('Alice Andersson')).not.toBeInTheDocument();
+
+    await user.clear(searchInput);
+    await user.type(searchInput, 'nomatch');
+
+    expect(
+      screen.getByText('No leaderboard entries match your search.'),
+    ).toBeInTheDocument();
+  });
+
+  it('hides group rows from the temporary mock leaderboard for non-admins', async () => {
+    renderPage();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Your Leaderboard' }),
+    ).toBeInTheDocument();
     expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
-    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+    expect(screen.getByText('Bob Berg')).toBeInTheDocument();
+    expect(screen.queryByText('Platform Team')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Ranked by total XP for visible user entries.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Frontend visibility fallback: team rows are hidden for non-admins because the current leaderboard response does not include visibility metadata.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('pages through the temporary mock leaderboard data', async () => {
+    const user = userEvent.setup();
+
+    renderPage({ isAdmin: true });
+    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Next' }));
 
-    expect(await screen.findByText('Bob Berg')).toBeInTheDocument();
-    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
-    expect(fetchApi.fetch).toHaveBeenCalledTimes(2);
-    expect(String(fetchApi.fetch.mock.calls[1][0])).toBe(
-      `${baseUrl}/leaderboard?page=2&limit=1`,
-    );
+    expect(await screen.findByText('Search And Discovery')).toBeInTheDocument();
+    expect(screen.getByText('Charlie Dahl')).toBeInTheDocument();
+    expect(screen.getByText('Dana Ek')).toBeInTheDocument();
+    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument();
   });
 
-  it('shows an error state when the leaderboard request fails', async () => {
-    renderPage(
-      async () =>
-        new Response(
-          JSON.stringify({
-            error: {
-              message: 'Leaderboard backend failed',
-            },
-          }),
-          {
-            status: 500,
-            statusText: 'Internal Server Error',
-            headers: { 'Content-Type': 'application/json' },
-          },
-        ),
-    );
+  it('shows the visibility empty state on a mock page with only hidden rows', async () => {
+    const user = userEvent.setup();
+
+    renderPage();
+    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByText('Charlie Dahl')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
 
     expect(
-      await screen.findByText('Unable to load leaderboard'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Leaderboard backend failed')).toBeInTheDocument();
-  });
-
-  it('shows an empty state when the backend returns no entries', async () => {
-    renderPage(
-      async () =>
-        new Response(
-          JSON.stringify({
-            subjectType: 'user',
-            timeRange: 'alltime',
-            data: [],
-            pagination: {
-              page: 1,
-              limit: 25,
-              total: 0,
-              totalPages: 0,
-            },
-          }),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        ),
-    );
-
-    expect(
-      await screen.findByText('No leaderboard entries to show.'),
+      await screen.findByText('No visible leaderboard entries to show.'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('No one has earned any points yet.'),
+      screen.getByText(
+        'Non-admin view uses a frontend fallback that hides team rows because the current leaderboard response has no row-level visibility field.',
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText('Page 1 of 1')).toBeInTheDocument();
+    expect(screen.getByText('Page 3 of 3')).toBeInTheDocument();
   });
 });
