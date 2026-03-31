@@ -42,6 +42,7 @@ This starts:
 - `backstage` on `http://localhost:3000`
 - backend API on `http://localhost:7007`
 - `postgres` on `localhost:5432`
+- `pgadmin` on `http://localhost:5050`
 
 Notes:
 
@@ -49,11 +50,7 @@ Notes:
 - Container `node_modules` live in Docker volumes, so the container does not overwrite your host dependencies.
 - The first `docker compose up --build` will spend a while installing dependencies inside Docker-managed volumes before Backstage starts.
 - If `3000` or `7007` are already in use, stop your local `yarn start` process before running Compose.
-- `pgadmin` is still available, but only when explicitly requested:
-
-```sh
-docker compose --profile tools up --build
-```
+- `pgadmin` uses `bth@trafikverket.se` / `admin`
 
 ## Gamification quality checks
 
