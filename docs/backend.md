@@ -42,6 +42,7 @@ Core badge data:
 Webhook data:
 
 - `webhooks`
+- `events_ran`
 
 ## Current quest model
 
