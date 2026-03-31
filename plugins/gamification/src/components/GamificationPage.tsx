@@ -5,7 +5,8 @@ import {
   fetchApiRef,
   useApi,
 } from '@backstage/core-plugin-api';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AdminPage } from './AdminPage';
 import { BadgesPage } from './BadgesPage';
 import { QuestsPage } from './QuestsPage';
 import { TestPage } from './TestPage';
@@ -37,28 +38,38 @@ export const GamificationRootPage = () => {
   }, [discoveryApi, fetchApi]);
 
   const effectiveIsAdmin = demoMode ? !isAdmin : isAdmin;
+  const tabs = [
+    {
+      id: 'quests',
+      label: 'Quests',
+      href: '/gamification',
+    },
+    {
+      id: 'badges',
+      label: 'Badges',
+      href: '/gamification/badges',
+    },
+    {
+      id: 'test',
+      label: 'Test',
+      href: '/gamification/test',
+    },
+    ...(isAdmin
+      ? [
+          {
+            id: 'admin',
+            label: 'Admin',
+            href: '/gamification/admin',
+          },
+        ]
+      : []),
+  ];
 
   return (
     <FullPage>
       <PluginHeader
         title="Gamification"
-        tabs={[
-          {
-            id: 'quests',
-            label: 'Quests',
-            href: '/gamification',
-          },
-          {
-            id: 'badges',
-            label: 'Badges',
-            href: '/gamification/badges',
-          },
-          {
-            id: 'test',
-            label: 'Test',
-            href: '/gamification/test',
-          },
-        ]}
+        tabs={tabs}
         customActions={
           <Text variant="body-medium" color="secondary">
             Users and teams
@@ -90,6 +101,16 @@ export const GamificationRootPage = () => {
               }
             />
             <Route path="/test" element={<TestPage isAdmin={isAdmin} />} />
+            <Route
+              path="/admin"
+              element={
+                isAdmin ? (
+                  <AdminPage />
+                ) : (
+                  <Navigate to="/gamification" replace />
+                )
+              }
+            />
           </Routes>
         </Box>
       </Container>
