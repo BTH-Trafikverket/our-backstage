@@ -35,10 +35,12 @@ services:
     volumes:
       - .:/workspace
       - e2e_root_node_modules:/workspace/node_modules
+      - e2e_app_node_modules:/workspace/packages/app/node_modules
       - e2e_backend_node_modules:/workspace/packages/backend/node_modules
       - e2e_gamification_node_modules:/workspace/plugins/gamification/node_modules
       - e2e_gamification_backend_node_modules:/workspace/plugins/gamification-backend/node_modules
       - e2e_yarn_cache:/root/.cache/yarn
+      - e2e_state:/var/lib/e2e
     healthcheck:
       test:
         [
@@ -62,16 +64,19 @@ services:
     volumes:
       - .:/workspace
       - e2e_root_node_modules:/workspace/node_modules
+      - e2e_app_node_modules:/workspace/packages/app/node_modules
       - e2e_backend_node_modules:/workspace/packages/backend/node_modules
       - e2e_gamification_node_modules:/workspace/plugins/gamification/node_modules
       - e2e_gamification_backend_node_modules:/workspace/plugins/gamification-backend/node_modules
       - e2e_yarn_cache:/root/.cache/yarn
       - ./tmp/e2e:/workspace/tmp/e2e
-    command: ["yarn", "test:e2e:run"]
+    command: ["node", ".yarn/releases/yarn-4.4.1.cjs", "test:e2e:run"]
 
 volumes:
   e2e_root_node_modules:
+  e2e_app_node_modules:
   e2e_backend_node_modules:
   e2e_gamification_node_modules:
   e2e_gamification_backend_node_modules:
   e2e_yarn_cache:
+  e2e_state:

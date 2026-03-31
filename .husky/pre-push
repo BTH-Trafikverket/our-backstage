@@ -1,4 +1,4 @@
 #!/bin/sh
-echo "🧪 Running required verification, including Docker E2E..."
+echo "🧪 Checking whether gamification verification is required for this push..."
 yarn verify:prepush || exit 1
 echo "✅ pre-push OK"
