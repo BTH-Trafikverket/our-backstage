@@ -40,18 +40,26 @@ describe('BadgesCard', () => {
   it('shows a loading state while badges are loading', async () => {
     let resolveResponse!: (value: Response) => void;
 
-    const { container, fetchApi } = renderCard(
-      () =>
-        new Promise<Response>(resolve => {
-          resolveResponse = resolve;
-        }),
-    );
+    const { container, fetchApi } = renderCard(async (input: any) => {
+      if (String(input).includes('badge-images')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Promise<Response>(resolve => {
+        resolveResponse = resolve;
+      });
+    });
 
     expect(container.querySelector('.bui-Skeleton')).toBeInTheDocument();
     await waitFor(() => expect(resolveResponse).toBeDefined());
-    expect(fetchApi.fetch).toHaveBeenCalledTimes(1);
+    expect(fetchApi.fetch).toHaveBeenCalledTimes(2);
 
-    const requestUrl = String(fetchApi.fetch.mock.calls[0][0]);
+    const progressCall = fetchApi.fetch.mock.calls.find((call: any[]) =>
+      String(call[0]).includes('progress'),
+    );
+    const requestUrl = String(progressCall![0]);
     expect(requestUrl).toContain('status=earned');
     expect(requestUrl).toContain('sortBy=earned_at');
     expect(requestUrl).toContain('order=desc');
@@ -97,6 +105,13 @@ describe('BadgesCard', () => {
 
   it('renders earned badges in a scrollable grid across paginated responses', async () => {
     const { fetchApi } = renderCard(async (input: any) => {
+      if (String(input).includes('badge-images')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
       const url = new URL(String(input));
       const page = url.searchParams.get('page');
 
@@ -176,8 +191,11 @@ describe('BadgesCard', () => {
       );
     });
 
-    await waitFor(() => expect(fetchApi.fetch).toHaveBeenCalledTimes(2));
-    expect(String(fetchApi.fetch.mock.calls[1][0])).toContain('page=2');
+    await waitFor(() => expect(fetchApi.fetch).toHaveBeenCalledTimes(3));
+    const page2Call = fetchApi.fetch.mock.calls.find((call: any[]) =>
+      String(call[0]).includes('page=2'),
+    );
+    expect(String(page2Call![0])).toContain('page=2');
 
     const badgesRegion = await screen.findByRole('region', {
       name: 'Earned badges list',

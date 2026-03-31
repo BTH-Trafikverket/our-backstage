@@ -6,10 +6,56 @@ info:
 servers:
   - url: /api/gamification
 tags:
+  - name: Leaderboard
   - name: XP
   - name: Quests
   - name: Badges
 paths:
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags:
+        - Leaderboard
+      summary: Get a paginated leaderboard ranked by total XP
+      parameters:
+        - in: query
+          name: subjectType
+          required: false
+          schema:
+            $ref: '#/components/schemas/LeaderboardSubjectType'
+          description: Ranking scope. Use group to return Backstage teams. Defaults to user.
+        - in: query
+          name: timeRange
+          required: false
+          schema:
+            $ref: '#/components/schemas/LeaderboardTimeRange'
+          description: Time range filter. monthly means the current UTC calendar month, weekly means the current UTC week, and alltime disables date filtering.
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: Page number. Defaults to 1.
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: Page size. Defaults to 25.
+      responses:
+        '200':
+          description: Paginated XP leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedLeaderboardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /xp:
     get:
       operationId: getXpStatus
@@ -560,6 +606,55 @@ components:
         totalPages:
           type: integer
           minimum: 0
+    LeaderboardSubjectType:
+      type: string
+      enum:
+        - user
+        - group
+    LeaderboardTimeRange:
+      type: string
+      enum:
+        - weekly
+        - monthly
+        - alltime
+    LeaderboardEntry:
+      type: object
+      required:
+        - rank
+        - subjectRef
+        - subjectType
+        - totalXp
+      additionalProperties: false
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+        subjectRef:
+          type: string
+        subjectType:
+          $ref: '#/components/schemas/LeaderboardSubjectType'
+        totalXp:
+          type: integer
+          minimum: 0
+    PaginatedLeaderboardResponse:
+      type: object
+      required:
+        - subjectType
+        - timeRange
+        - data
+        - pagination
+      additionalProperties: false
+      properties:
+        subjectType:
+          $ref: '#/components/schemas/LeaderboardSubjectType'
+        timeRange:
+          $ref: '#/components/schemas/LeaderboardTimeRange'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
     CompletionPolicy:
       type: string
       enum:

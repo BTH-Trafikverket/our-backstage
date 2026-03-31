@@ -88,6 +88,7 @@ describe('BadgesService', () => {
         description: 'User badge',
         xp_reward: 75,
         subject_type: 'user',
+        image_id: null,
       });
       expect(questsRepo.getQuestsByIds).toHaveBeenCalledWith(['quest-1']);
       expect(badgesRepo.insertBadgeCriteria).toHaveBeenCalledWith('badge-1', [

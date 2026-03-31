@@ -7,6 +7,7 @@ export type BadgeRow = {
   description: string;
   xp_reward: number;
   subject_type: QuestSubjectType;
+  image_id: number | null;
   created_at: Date;
   updated_at: Date;
   archived_at: Date | null;
@@ -61,6 +62,7 @@ export type CreateBadgeRow = {
   description: string;
   xp_reward: number;
   subject_type: QuestSubjectType;
+  image_id?: number | null;
 };
 
 export type UpdateBadgeRow = Partial<CreateBadgeRow>;
@@ -96,6 +98,7 @@ export class BadgesRepository {
         description: data.description,
         xp_reward: data.xp_reward,
         subject_type: data.subject_type,
+        image_id: data.image_id,
       })
       .returning('*');
 
@@ -528,6 +531,9 @@ export class BadgesRepository {
     if (data.subject_type !== undefined) {
       updateData.subject_type = data.subject_type;
     }
+    if (data.image_id !== undefined) {
+      updateData.image_id = data.image_id;
+    }
 
     const rows = await this.db<BadgeRow>('badges')
       .where({ id })
@@ -603,5 +609,14 @@ export class BadgesRepository {
       .returning('id');
 
     return rows.length > 0;
+  }
+  async createBadgeImage(image: string) {
+    return this.db('badge_images').insert({ image }).returning(['id', 'image']);
+  }
+
+  async getBadgeImages() {
+    return this.db('badge_images')
+      .select('id', 'image')
+      .orderBy('created_at', 'desc');
   }
 }

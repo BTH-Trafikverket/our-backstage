@@ -59,6 +59,7 @@ export type Badge = {
   earnedAt?: string | null;
   progressSubjectRef?: string | null;
   progress?: BadgeProgressSummary;
+  image_id?: number | null;
 };
 
 export type BadgeTableRow = {
@@ -76,6 +77,7 @@ export type BadgeFormData = {
   description: string;
   xp_reward: string;
   subject_type: BadgeSubjectType;
+  image_id: string;
   criterias: BadgeFormCriteria[];
 };
 
