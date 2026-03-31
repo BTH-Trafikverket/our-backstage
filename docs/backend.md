@@ -39,6 +39,10 @@ Core badge data:
 - `badge_criteria_completion`
 - `earned_badges`
 
+Webhook data:
+
+- `webhooks`
+
 ## Current quest model
 
 Quests use:
