@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Box,
@@ -12,6 +12,11 @@ import {
   Text,
   TextField,
 } from '@backstage/ui';
+import {
+  discoveryApiRef,
+  fetchApiRef,
+  useApi,
+} from '@backstage/core-plugin-api';
 import type { BadgeFormData, BadgeSubjectType, QuestLite } from './types';
 import {
   getBadgeSubjectTypeLabel,
@@ -139,7 +144,81 @@ export const BadgeFormDialog = ({
       : `Edit badge${badgeTitle ? `: ${badgeTitle}` : ''}`;
   const submitLabel = mode === 'create' ? 'Create badge' : 'Save changes';
   const compatibleQuests = getCompatibleQuests(quests, formData.subject_type);
+  const fetchApi = useApi(fetchApiRef);
+  const discoveryApi = useApi(discoveryApiRef);
+  const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [images, setImages] = useState<{ id: number; image: string }[]>([]);
 
+  const buildGamificationUrl = useCallback(
+    async (path: string) => {
+      const baseUrl = await discoveryApi.getBaseUrl('gamification');
+      return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+    },
+    [discoveryApi],
+  );
+
+  useEffect(() => {
+    const fetchImages = async () => {
+      try {
+        const url = await buildGamificationUrl('/badges/badge-images');
+        const res = await fetchApi.fetch(url);
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch badge images');
+        }
+
+        const data = await res.json();
+        setImages(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error('Failed to fetch badge images', e);
+        setImages([]);
+      }
+    };
+
+    fetchImages();
+  }, [buildGamificationUrl, discoveryApi, fetchApi]);
+
+  useEffect(() => {
+    if (!formData.image_id.trim()) {
+      setSelectedImageId(null);
+      setImagePreview(null);
+      return;
+    }
+
+    const parsedId = parseInt(formData.image_id, 10);
+    if (Number.isNaN(parsedId)) {
+      return;
+    }
+
+    setSelectedImageId(parsedId);
+    const selectedImage = images.find(img => img.id === parsedId);
+    if (selectedImage) {
+      setImagePreview(selectedImage.image);
+    }
+  }, [formData.image_id, images]);
+
+  const handleFileUpload = async (file: File) => {
+    const formDataUpload = new FormData();
+    formDataUpload.append('image', file);
+
+    const url = await buildGamificationUrl('/badges/badge-images');
+    const res = await fetchApi.fetch(url, {
+      method: 'POST',
+      body: formDataUpload,
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to upload badge image');
+    }
+
+    const data = await res.json();
+
+    setSelectedImageId(data.id);
+    setImagePreview(data.image);
+    setImages(prev => [data, ...prev]);
+    onChange('image_id', String(data.id));
+  };
   return (
     <Dialog
       isOpen={isOpen}
@@ -236,7 +315,69 @@ export const BadgeFormDialog = ({
               </Flex>
             </Flex>
           </Box>
+          <Box p="4">
+            <Flex direction="column" gap="4">
+              <Text weight="bold">Badge Image</Text>
 
+              {/* Upload */}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload(file);
+                }}
+              />
+
+              {/* Preview */}
+              {imagePreview && (
+                <img
+                  src={imagePreview}
+                  alt="preview"
+                  style={{ width: 64, height: 64, borderRadius: 8 }}
+                />
+              )}
+
+              {/* Existing images */}
+              <Flex gap="2" style={{ flexWrap: 'wrap' }}>
+                {images.map(img => (
+                  <button
+                    key={img.id}
+                    type="button"
+                    aria-label="Select badge image"
+                    aria-pressed={selectedImageId === img.id}
+                    onClick={() => {
+                      setSelectedImageId(img.id);
+                      setImagePreview(img.image);
+                      onChange('image_id', String(img.id));
+                    }}
+                    style={{
+                      padding: 0,
+                      background: 'none',
+                      cursor: 'pointer',
+                      border:
+                        selectedImageId === img.id
+                          ? '2px solid var(--bui-color-primary)'
+                          : '1px solid var(--bui-color-border)',
+                      borderRadius: 6,
+                      display: 'block',
+                    }}
+                  >
+                    <img
+                      src={img.image}
+                      alt=""
+                      style={{
+                        width: 48,
+                        height: 48,
+                        display: 'block',
+                        borderRadius: 4,
+                      }}
+                    />
+                  </button>
+                ))}
+              </Flex>
+            </Flex>
+          </Box>
           <Box p="4">
             <Flex direction="column" gap="4">
               <Flex justify="between" align="center" gap="3">

@@ -1,0 +1,82 @@
+services:
+  postgres-e2e:
+    image: postgres:18-trixie
+    environment:
+      POSTGRES_USER: backstage
+      POSTGRES_PASSWORD: backstage
+      POSTGRES_DB: backstage_e2e
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backstage -d backstage_e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backstage-e2e:
+    image: backstage-e2e-runner
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    depends_on:
+      postgres-e2e:
+        condition: service_healthy
+    environment:
+      APP_BASE_URL: http://backstage-e2e:3000
+      BACKEND_BASE_URL: http://backstage-e2e:7007
+      BACKEND_PORT: "7007"
+      CORS_ORIGIN: http://backstage-e2e:3000
+      DB_HOST: postgres-e2e
+      DB_PORT: "5432"
+      DB_USER: backstage
+      DB_PASSWORD: backstage
+      DB_NAME: backstage_e2e
+      HOST: 0.0.0.0
+      NODE_OPTIONS: --no-node-snapshot
+    command: ["bash", "scripts/docker-e2e-start.sh"]
+    volumes:
+      - .:/workspace
+      - e2e_root_node_modules:/workspace/node_modules
+      - e2e_app_node_modules:/workspace/packages/app/node_modules
+      - e2e_backend_node_modules:/workspace/packages/backend/node_modules
+      - e2e_gamification_node_modules:/workspace/plugins/gamification/node_modules
+      - e2e_gamification_backend_node_modules:/workspace/plugins/gamification-backend/node_modules
+      - e2e_yarn_cache:/root/.cache/yarn
+      - e2e_state:/var/lib/e2e
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"Promise.all([fetch('http://127.0.0.1:7007/.backstage/health/v1/readiness'), fetch('http://127.0.0.1:3000')]).then(([backend, frontend])=>process.exit(backend.ok && frontend.ok ? 0 : 1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  playwright:
+    image: backstage-e2e-runner
+    depends_on:
+      backstage-e2e:
+        condition: service_healthy
+    working_dir: /workspace
+    environment:
+      CI: "true"
+      PLAYWRIGHT_URL: http://backstage-e2e:3000
+      NODE_OPTIONS: --no-node-snapshot
+    volumes:
+      - .:/workspace
+      - e2e_root_node_modules:/workspace/node_modules
+      - e2e_app_node_modules:/workspace/packages/app/node_modules
+      - e2e_backend_node_modules:/workspace/packages/backend/node_modules
+      - e2e_gamification_node_modules:/workspace/plugins/gamification/node_modules
+      - e2e_gamification_backend_node_modules:/workspace/plugins/gamification-backend/node_modules
+      - e2e_yarn_cache:/root/.cache/yarn
+      - ./tmp/e2e:/workspace/tmp/e2e
+    command: ["node", ".yarn/releases/yarn-4.4.1.cjs", "test:e2e:run"]
+
+volumes:
+  e2e_root_node_modules:
+  e2e_app_node_modules:
+  e2e_backend_node_modules:
+  e2e_gamification_node_modules:
+  e2e_gamification_backend_node_modules:
+  e2e_yarn_cache:
+  e2e_state:

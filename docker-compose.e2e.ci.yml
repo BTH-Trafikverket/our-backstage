@@ -1,0 +1,44 @@
+services:
+  backstage-e2e:
+    environment:
+      E2E_DEPENDENCY_MODE: host
+    volumes:
+      - type: bind
+        source: .
+        target: /workspace
+      - type: bind
+        source: ./node_modules
+        target: /workspace/node_modules
+      - type: bind
+        source: ./packages/app/node_modules
+        target: /workspace/packages/app/node_modules
+      - type: bind
+        source: ./packages/backend/node_modules
+        target: /workspace/packages/backend/node_modules
+      - type: bind
+        source: ./plugins/gamification/node_modules
+        target: /workspace/plugins/gamification/node_modules
+      - type: bind
+        source: ./plugins/gamification-backend/node_modules
+        target: /workspace/plugins/gamification-backend/node_modules
+
+  playwright:
+    volumes:
+      - type: bind
+        source: .
+        target: /workspace
+      - type: bind
+        source: ./node_modules
+        target: /workspace/node_modules
+      - type: bind
+        source: ./packages/app/node_modules
+        target: /workspace/packages/app/node_modules
+      - type: bind
+        source: ./packages/backend/node_modules
+        target: /workspace/packages/backend/node_modules
+      - type: bind
+        source: ./plugins/gamification/node_modules
+        target: /workspace/plugins/gamification/node_modules
+      - type: bind
+        source: ./plugins/gamification-backend/node_modules
+        target: /workspace/plugins/gamification-backend/node_modules

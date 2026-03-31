@@ -5,7 +5,8 @@ import {
   fetchApiRef,
   useApi,
 } from '@backstage/core-plugin-api';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AdminPage } from './AdminPage';
 import { BadgesPage } from './BadgesPage';
 import { LeaderboardPage } from './LeaderboardPage';
 import { QuestsPage } from './QuestsPage';
@@ -38,6 +39,32 @@ export const GamificationRootPage = () => {
   }, [discoveryApi, fetchApi]);
 
   const effectiveIsAdmin = demoMode ? !isAdmin : isAdmin;
+  const tabs = [
+    {
+      id: 'quests',
+      label: 'Quests',
+      href: '/gamification',
+    },
+    {
+      id: 'badges',
+      label: 'Badges',
+      href: '/gamification/badges',
+    },
+    {
+      id: 'test',
+      label: 'Test',
+      href: '/gamification/test',
+    },
+    ...(isAdmin
+      ? [
+          {
+            id: 'admin',
+            label: 'Admin',
+            href: '/gamification/admin',
+          },
+        ]
+      : []),
+  ];
 
   return (
     <FullPage>

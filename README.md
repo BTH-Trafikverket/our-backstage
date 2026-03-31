@@ -42,6 +42,7 @@ This starts:
 - `backstage` on `http://localhost:3000`
 - backend API on `http://localhost:7007`
 - `postgres` on `localhost:5432`
+- `pgadmin` on `http://localhost:5050`
 
 Notes:
 
@@ -49,16 +50,20 @@ Notes:
 - Container `node_modules` live in Docker volumes, so the container does not overwrite your host dependencies.
 - The first `docker compose up --build` will spend a while installing dependencies inside Docker-managed volumes before Backstage starts.
 - If `3000` or `7007` are already in use, stop your local `yarn start` process before running Compose.
-- `pgadmin` is still available, but only when explicitly requested:
-
-```sh
-docker compose --profile tools up --build
-```
+- `pgadmin` uses `bth@trafikverket.se` / `admin`
 
 ## Gamification quality checks
 
 - `pre-commit` only checks staged files under `plugins/gamification` and `plugins/gamification-backend`. It runs Prettier write, Prettier check, and strict ESLint with autofix for fixable issues.
-- `pre-push` runs the full gamification plugin verification pipeline before the push completes.
+- `pre-push` only runs `yarn gamification:verify` when the pushed refs touch gamification code or its test harness; unrelated pushes skip it.
+- `yarn test:e2e` starts its own Dockerized Backstage, Postgres, and Playwright stack with `app-config.e2e.yaml`; you do not need to run `yarn start:e2e` first.
+- The first `yarn test:e2e` run installs dependencies into dedicated Docker volumes. Later runs reuse those volumes, so they should avoid the cold-start install cost unless dependencies change.
+- In CI, `yarn test:e2e` reuses the runner's existing `node_modules` through a CI-only compose override instead of reinstalling dependencies inside the e2e containers.
+- The e2e backend runs in a slimmed-down mode that keeps the auth, catalog, permission, and gamification pieces needed by the tests, while skipping unrelated plugin startup work.
+- `yarn gamification:verify` now prewarms the e2e Backstage/Postgres stack in the background while the frontend and backend suites run, then waits only if startup is still in progress before launching Playwright.
+- `yarn test:e2e` leaves the stopped e2e containers in place after completion; they are reused on the next run. If you want to remove them, run `docker compose -p backstage-e2e -f docker-compose.e2e.yml down`.
+- `yarn gamification:verify` now prints per-step timings so it is easier to see whether time is going into checks, unit tests, or e2e startup.
+- `yarn start:e2e` is only for manually running the app outside Docker with the e2e config.
 
 Useful commands:
 
@@ -66,7 +71,7 @@ Useful commands:
 # Sync the catalog API entity from the authoritative backend OpenAPI file
 yarn gamification:openapi:sync
 
-# Full local verification for the gamification plugin (same command used in CI and pre-push)
+# Full local verification for the gamification plugin, including Docker e2e (same command used in CI and pre-push)
 yarn gamification:verify
 
 # Run only the frontend plugin tests

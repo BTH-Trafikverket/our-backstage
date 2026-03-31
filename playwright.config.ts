@@ -14,53 +14,52 @@
  * limitations under the License.
  */
 
-import { defineConfig } from '@playwright/test';
+import { defineConfig, type Project } from '@playwright/test';
 import { generateProjects } from '@backstage/e2e-test-utils/playwright';
+
+const baseURL = process.env.PLAYWRIGHT_URL;
+
+if (!baseURL) {
+	throw new Error('PLAYWRIGHT_URL must be set for Docker E2E runs');
+}
+
+const projects: Project[] = (generateProjects() ?? []).map(project => ({
+	...project,
+	use: {
+		...(project?.use ?? {}),
+		browserName: 'chromium',
+		channel: 'chromium',
+	},
+}));
 
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  timeout: 60_000,
+	timeout: 60_000,
 
-  expect: {
-    timeout: 5_000,
-  },
+	expect: {
+		timeout: 5_000,
+	},
 
-  // Run your local dev server before starting the tests
-  webServer: process.env.CI
-    ? []
-    : [
-        {
-          command: 'yarn start app',
-          port: 3000,
-          reuseExistingServer: true,
-          timeout: 60_000,
-        },
-        {
-          command: 'yarn start backend',
-          port: 7007,
-          reuseExistingServer: true,
-          timeout: 60_000,
-        },
-      ],
+	webServer: [],
 
-  forbidOnly: !!process.env.CI,
+	forbidOnly: !!process.env.CI,
 
-  retries: process.env.CI ? 2 : 0,
+	retries: process.env.CI ? 2 : 0,
 
-  reporter: [['html', { open: 'never', outputFolder: 'e2e-test-report' }]],
+	reporter: [['html', { open: 'never', outputFolder: 'tmp/e2e/report' }]],
 
-  use: {
-    actionTimeout: 0,
-    baseURL:
-      process.env.PLAYWRIGHT_URL ??
-      (process.env.CI ? 'http://localhost:7007' : 'http://localhost:3000'),
-    screenshot: 'only-on-failure',
-    trace: 'on-first-retry',
-  },
+	use: {
+		actionTimeout: 0,
+		baseURL,
+		browserName: 'chromium',
+		channel: 'chromium',
+		screenshot: 'only-on-failure',
+		trace: 'on-first-retry',
+	},
 
-  outputDir: 'node_modules/.cache/e2e-test-results',
+	outputDir: 'tmp/e2e/results',
 
-  projects: generateProjects(), // Find all packages with e2e-test folders
+	projects,
 });

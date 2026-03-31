@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: admin
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: linusandersson02
+spec:
+  profile:
+    displayName: Linus Andersson
+    email: linusandersson02@example.com
+  memberOf:
+    - group:default/admin
