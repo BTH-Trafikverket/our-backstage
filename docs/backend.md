@@ -44,6 +44,11 @@ Webhook data:
 - `webhooks`
 - `events_ran`
 
+Scheduled webhook runs are scanned during backend startup. For each `daily`,
+`weekly`, or `monthly` webhook, the backend resolves the current local period,
+checks `events_ran`, and only delivers the webhook when no ledger row exists
+for that webhook and period.
+
 ## Current quest model
 
 Quests use:

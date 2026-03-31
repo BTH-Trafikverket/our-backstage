@@ -3,8 +3,13 @@ import {
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
 import { initGameDb } from './database';
+import { EventsRanRepository } from './repositories/eventsRanRepository';
+import { WebhooksRepository } from './repositories/webhooksRepository';
 import { runSeeds } from './seed';
 import { createRouter } from './router';
+import { ScheduledWebhooksService } from './services/scheduledWebhooksService';
+import { DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE } from './services/scheduledWebhookPeriod';
+import { WebhookDeliveryService } from './services/webhookDeliveryService';
 
 export const gamificationBackendPlugin = createBackendPlugin({
   pluginId: 'gamification',
@@ -55,6 +60,23 @@ export const gamificationBackendPlugin = createBackendPlugin({
             logger.info(`gamification seeds applied (reset=${seedReset})`);
           }
         }
+
+        const webhookTimeZone =
+          config.getOptionalString('gamification.webhooks.timeZone') ??
+          DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE;
+        const scheduledWebhooksService = new ScheduledWebhooksService({
+          webhooksRepo: new WebhooksRepository(knex),
+          eventsRanRepo: new EventsRanRepository(knex),
+          deliveryService: new WebhookDeliveryService(),
+          logger,
+          timeZone: webhookTimeZone,
+        });
+        const startupScan =
+          await scheduledWebhooksService.scanAndRunScheduledWebhooks();
+
+        logger.info(
+          `gamification scheduled webhook startup scan completed (executed=${startupScan.executedCount}, skipped=${startupScan.skippedCount}, failed=${startupScan.failedCount})`,
+        );
 
         httpRouter.use(
           createRouter({ httpAuth, userInfo, knex, config, auth, discovery }),

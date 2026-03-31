@@ -32,6 +32,13 @@ export class EventsRanRepository {
     return this.db.transaction(async trx => fn(new EventsRanRepository(trx)));
   }
 
+  async lockWebhookPeriod(webhookId: string, periodKey: string): Promise<void> {
+    await this.db.raw(
+      'SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))',
+      [webhookId, periodKey],
+    );
+  }
+
   async findRunForPeriod(params: {
     webhookId: string;
     event: WebhookRow['event'];
