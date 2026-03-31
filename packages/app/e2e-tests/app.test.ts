@@ -14,14 +14,21 @@
  * limitations under the License.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-test('App should render the welcome page', async ({ page }) => {
+async function signInAsGuest(page: Page) {
   await page.goto('/');
+
+  await expect(page.getByText('Guest', { exact: true })).toBeVisible();
 
   const enterButton = page.getByRole('button', { name: 'Enter' });
   await expect(enterButton).toBeVisible();
   await enterButton.click();
 
-  await expect(page.getByText('My Company Catalog')).toBeVisible();
+  await expect(page).toHaveURL(/\/catalog$/);
+  await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+}
+
+test('Guest sign-in reaches the app shell', async ({ page }) => {
+  await signInAsGuest(page);
 });

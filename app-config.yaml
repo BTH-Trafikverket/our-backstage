@@ -67,6 +67,10 @@ auth:
         signIn:
           resolvers:
             - resolver: usernameMatchingUserEntityName
+    guest:
+      userEntityRef: "user:default/linusandersson02"
+      ownershipEntityRefs:
+        - "group:default/admin"
 
 # Keeping the rest from your original app-config.yaml
 proxy:

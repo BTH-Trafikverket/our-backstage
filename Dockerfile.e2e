@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/playwright:v1.58.2-noble
+
+WORKDIR /workspace
+
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV NODE_OPTIONS=--no-node-snapshot
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  build-essential \
+  python3 \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable
+RUN mkdir -p \
+  /workspace/node_modules \
+  /workspace/packages/backend/node_modules \
+  /workspace/plugins/gamification/node_modules \
+  /workspace/plugins/gamification-backend/node_modules \
+  /root/.cache/yarn

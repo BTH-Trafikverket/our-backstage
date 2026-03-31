@@ -1,4 +1,4 @@
 #!/bin/sh
-echo "🧪 Running gamification plugin tests and checks..."
-yarn gamification:verify || exit 1
+echo "🧪 Running required verification, including Docker E2E..."
+yarn verify:prepush || exit 1
 echo "✅ pre-push OK"

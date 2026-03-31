@@ -54,7 +54,6 @@ services:
       - postgres_data:/var/lib/postgresql
 
   pgadmin:
-    profiles: ["tools"]
     image: dpage/pgadmin4
     depends_on:
       - postgres
