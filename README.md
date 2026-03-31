@@ -55,7 +55,11 @@ Notes:
 ## Gamification quality checks
 
 - `pre-commit` only checks staged files under `plugins/gamification` and `plugins/gamification-backend`. It runs Prettier write, Prettier check, and strict ESLint with autofix for fixable issues.
-- `pre-push` runs the full gamification plugin verification pipeline before the push completes.
+- `pre-push` runs `yarn gamification:verify`, which now includes the Docker e2e suite.
+- `yarn test:e2e` starts its own Dockerized Backstage, Postgres, and Playwright stack with `app-config.e2e.yaml`; you do not need to run `yarn start:e2e` first.
+- The first `yarn test:e2e` run installs dependencies into dedicated Docker volumes. Later runs reuse those volumes, so they should avoid the cold-start install cost unless dependencies change.
+- `yarn test:e2e` leaves the stopped e2e containers in place after completion; they are reused on the next run. If you want to remove them, run `docker compose -p backstage-e2e -f docker-compose.e2e.yml down`.
+- `yarn start:e2e` is only for manually running the app outside Docker with the e2e config.
 
 Useful commands:
 
@@ -63,7 +67,7 @@ Useful commands:
 # Sync the catalog API entity from the authoritative backend OpenAPI file
 yarn gamification:openapi:sync
 
-# Full local verification for the gamification plugin (same command used in CI and pre-push)
+# Full local verification for the gamification plugin, including Docker e2e (same command used in CI and pre-push)
 yarn gamification:verify
 
 # Run only the frontend plugin tests

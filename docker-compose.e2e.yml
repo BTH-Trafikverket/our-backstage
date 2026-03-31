@@ -31,7 +31,14 @@ services:
       DB_NAME: backstage_e2e
       HOST: 0.0.0.0
       NODE_OPTIONS: --no-node-snapshot
-    command: ["yarn", "start:e2e:docker"]
+    command: ["bash", "scripts/docker-e2e-start.sh"]
+    volumes:
+      - .:/workspace
+      - e2e_root_node_modules:/workspace/node_modules
+      - e2e_backend_node_modules:/workspace/packages/backend/node_modules
+      - e2e_gamification_node_modules:/workspace/plugins/gamification/node_modules
+      - e2e_gamification_backend_node_modules:/workspace/plugins/gamification-backend/node_modules
+      - e2e_yarn_cache:/root/.cache/yarn
     healthcheck:
       test:
         [
@@ -53,5 +60,18 @@ services:
       PLAYWRIGHT_URL: http://backstage-e2e:3000
       NODE_OPTIONS: --no-node-snapshot
     volumes:
+      - .:/workspace
+      - e2e_root_node_modules:/workspace/node_modules
+      - e2e_backend_node_modules:/workspace/packages/backend/node_modules
+      - e2e_gamification_node_modules:/workspace/plugins/gamification/node_modules
+      - e2e_gamification_backend_node_modules:/workspace/plugins/gamification-backend/node_modules
+      - e2e_yarn_cache:/root/.cache/yarn
       - ./tmp/e2e:/workspace/tmp/e2e
     command: ["yarn", "test:e2e:run"]
+
+volumes:
+  e2e_root_node_modules:
+  e2e_backend_node_modules:
+  e2e_gamification_node_modules:
+  e2e_gamification_backend_node_modules:
+  e2e_yarn_cache:

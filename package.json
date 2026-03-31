@@ -38,9 +38,9 @@
     "gamification:test:frontend": "yarn workspace @internal/gamification test --runInBand --watch=false",
     "gamification:test:backend": "node ./scripts/run-with-temp-postgres.mjs yarn workspace @internal/gamification-backend test --runInBand --watch=false",
     "gamification:test": "yarn gamification:test:frontend && yarn gamification:test:backend",
-    "gamification:verify": "yarn gamification:openapi:check && yarn gamification:prettier:check && yarn gamification:lint && yarn gamification:test",
-    "verify:ci": "yarn gamification:verify && yarn test:e2e",
-    "verify:prepush": "yarn gamification:verify && yarn test:e2e",
+    "gamification:verify": "yarn gamification:openapi:check && yarn gamification:prettier:check && yarn gamification:lint && yarn gamification:test && yarn test:e2e",
+    "verify:ci": "yarn gamification:verify",
+    "verify:prepush": "yarn gamification:verify",
     "new": "backstage-cli new",
     "prepare": "husky"
   },

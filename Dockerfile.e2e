@@ -11,7 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable
-
-COPY . .
-
-RUN yarn install --immutable
+RUN mkdir -p \
+  /workspace/node_modules \
+  /workspace/packages/backend/node_modules \
+  /workspace/plugins/gamification/node_modules \
+  /workspace/plugins/gamification-backend/node_modules \
+  /root/.cache/yarn

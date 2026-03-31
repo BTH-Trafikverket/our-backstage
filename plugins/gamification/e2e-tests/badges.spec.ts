@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 
 test('test', async ({ page }) => {
+  const criterionQuestButton = page.getByRole('button', {
+    name: /Quest for criterion 1/,
+  });
+
   await page.goto('/');
   await page.getByRole('button', { name: 'Enter' }).click();
   await page.getByRole('link', { name: 'Quests' }).click();
@@ -15,17 +19,9 @@ test('test', async ({ page }) => {
   await page.getByRole('button', { name: 'Team' }).press('Tab');
   await page.getByRole('textbox', { name: 'XP reward' }).fill('200');
   await page.getByRole('textbox', { name: 'XP reward' }).press('Tab');
-  await page
-    .getByRole('button', { name: 'Select a user quest Quest for' })
-    .click();
+  await criterionQuestButton.click();
   await page.getByRole('option', { name: 'Merge a PR', exact: true }).click();
-  await page
-    .getByRole('button', { name: 'Merge a PR Quest for criterion 1' })
-    .click();
-  await page
-    .getByLabel('Merge a PR', { exact: true })
-    .getByText('Merge a PR')
-    .click();
+  await expect(criterionQuestButton).toContainText('Merge a PR');
   await page.getByRole('textbox', { name: 'Count' }).click();
   await page.getByRole('textbox', { name: 'Count' }).fill('12');
   await page
