@@ -122,7 +122,10 @@ export const GamificationRootPage = () => {
                 />
               }
             />
-            <Route path="leaderboard" element={<LeaderboardPage />} />
+            <Route
+              path="leaderboard"
+              element={<LeaderboardPage isAdmin={effectiveIsAdmin} />}
+            />
             <Route path="test" element={<TestPage isAdmin={isAdmin} />} />
           </Routes>
         </Box>

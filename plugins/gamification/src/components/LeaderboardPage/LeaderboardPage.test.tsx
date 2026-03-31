@@ -32,7 +32,7 @@ describe('LeaderboardPage', () => {
       ...init,
     });
 
-  function renderPage(fetchImpl: jest.Mock) {
+  function renderPage(fetchImpl: jest.Mock, options?: { isAdmin?: boolean }) {
     const discoveryApi = {
       getBaseUrl: jest.fn(async () => baseUrl),
     };
@@ -48,7 +48,7 @@ describe('LeaderboardPage', () => {
             [fetchApiRef, fetchApi as any],
           ]}
         >
-          <LeaderboardPage />
+          <LeaderboardPage isAdmin={options?.isAdmin ?? false} />
         </TestApiProvider>,
       ),
       discoveryApi,
@@ -110,6 +110,10 @@ describe('LeaderboardPage', () => {
     expect(
       screen.getByText('Ranked by total XP across individuals.'),
     ).toBeInTheDocument();
+    expect(screen.queryByText('Admin view')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Admin leaderboard view'),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('Scope')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Individuals' }),
@@ -257,6 +261,29 @@ describe('LeaderboardPage', () => {
       await screen.findByText('Unable to load leaderboard'),
     ).toBeInTheDocument();
     expect(screen.getByText('Leaderboard request failed')).toBeInTheDocument();
+  });
+
+  it('shows an admin-specific leaderboard header for admins', async () => {
+    const fetchImpl = jest.fn(async () =>
+      createJsonResponse(
+        createLeaderboardResponse([
+          {
+            rank: 1,
+            subjectRef: 'user:default/alice-andersson',
+            totalXp: 1480,
+          },
+        ]),
+      ),
+    );
+
+    renderPage(fetchImpl, { isAdmin: true });
+
+    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+    expect(screen.getByText('Admin view')).toBeInTheDocument();
+    expect(screen.getByText('Admin leaderboard view')).toBeInTheDocument();
+    expect(
+      screen.getByText('Admin view. Ranked by total XP across individuals.'),
+    ).toBeInTheDocument();
   });
 
   it('keeps the leaderboard fixed to individual rankings', async () => {

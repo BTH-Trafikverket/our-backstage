@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  Box,
   Button,
   CellText,
   Flex,
@@ -52,6 +53,10 @@ type LeaderboardPagination = LeaderboardResponse['pagination'];
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
 const FIXED_SUBJECT_TYPE: LeaderboardSubjectType = 'user';
+
+type LeaderboardPageProps = {
+  isAdmin: boolean;
+};
 
 const leaderboardColumns: readonly ColumnConfig<LeaderboardEntry>[] = [
   {
@@ -223,7 +228,7 @@ const sortLeaderboardEntries = (
   return sortedEntries;
 };
 
-export const LeaderboardPage = () => {
+export const LeaderboardPage = ({ isAdmin }: LeaderboardPageProps) => {
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
 
@@ -317,12 +322,42 @@ export const LeaderboardPage = () => {
   const hasActiveSearch = search.trim().length > 0;
   const tableEmptyState =
     hasActiveSearch && entries.length > 0 ? filteredEmptyState : emptyState;
-  const leaderboardDescription = 'Ranked by total XP across individuals.';
+  const leaderboardDescription = isAdmin
+    ? 'Admin view. Ranked by total XP across individuals.'
+    : 'Ranked by total XP across individuals.';
 
   return (
     <Flex direction="column" gap="4">
-      <HeaderPage title="Leaderboard" />
+      <HeaderPage
+        title="Leaderboard"
+        customActions={
+          isAdmin ? (
+            <Text color="secondary" weight="bold">
+              Admin view
+            </Text>
+          ) : undefined
+        }
+      />
       <Text color="secondary">{leaderboardDescription}</Text>
+
+      {isAdmin ? (
+        <Box
+          style={{
+            border: '1px solid var(--bui-border)',
+            borderRadius: '0.75rem',
+            padding: '1rem 1.25rem',
+            backgroundColor: 'var(--bui-bg-surface-2)',
+          }}
+        >
+          <Flex direction="column" gap="1">
+            <Text weight="bold">Admin leaderboard view</Text>
+            <Text color="secondary">
+              You are reviewing the individuals leaderboard with the same
+              sorting, filtering, and pagination controls shown to users.
+            </Text>
+          </Flex>
+        </Box>
+      ) : null}
 
       {!error ? (
         <LeaderboardToolbar
