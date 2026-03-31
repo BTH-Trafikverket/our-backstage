@@ -13,11 +13,8 @@ describe('LeaderboardPage', () => {
       subjectRef: string;
       totalXp: number;
     }>,
-    options?: {
-      subjectType?: 'user' | 'group';
-    },
   ) => ({
-    subjectType: options?.subjectType ?? 'user',
+    subjectType: 'user' as const,
     timeRange: 'alltime' as const,
     data,
     pagination: {
@@ -35,7 +32,7 @@ describe('LeaderboardPage', () => {
       ...init,
     });
 
-  function renderPage(fetchImpl: jest.Mock, options?: { isAdmin?: boolean }) {
+  function renderPage(fetchImpl: jest.Mock) {
     const discoveryApi = {
       getBaseUrl: jest.fn(async () => baseUrl),
     };
@@ -51,7 +48,7 @@ describe('LeaderboardPage', () => {
             [fetchApiRef, fetchApi as any],
           ]}
         >
-          <LeaderboardPage isAdmin={options?.isAdmin} />
+          <LeaderboardPage />
         </TestApiProvider>,
       ),
       discoveryApi,
@@ -111,17 +108,15 @@ describe('LeaderboardPage', () => {
       screen.getByText('Showing 2 of 2 leaderboard entries on this page'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'Ranked by total XP across users. Team rankings are only available in admin view.',
-      ),
+      screen.getByText('Ranked by total XP across individuals.'),
     ).toBeInTheDocument();
+    expect(screen.queryByText('Scope')).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Individuals' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Teams' })).toBeDisabled();
+      screen.queryByRole('button', { name: 'Individuals' }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByText('Team rankings are only available in admin view.'),
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: 'Teams' }),
+    ).not.toBeInTheDocument();
     expect(fetchApi.fetch).toHaveBeenCalledWith(
       `${baseUrl}/leaderboard?subjectType=user&page=1&limit=25`,
       expect.objectContaining({
@@ -264,65 +259,7 @@ describe('LeaderboardPage', () => {
     expect(screen.getByText('Leaderboard request failed')).toBeInTheDocument();
   });
 
-  it('shows scope controls for admins and loads the team leaderboard on demand', async () => {
-    const user = userEvent.setup();
-    const fetchImpl = jest.fn(async (input: RequestInfo | URL) => {
-      const requestUrl = String(input);
-
-      if (requestUrl.includes('subjectType=group')) {
-        return createJsonResponse(
-          createLeaderboardResponse(
-            [
-              {
-                rank: 1,
-                subjectRef: 'group:default/platform',
-                totalXp: 1980,
-              },
-            ],
-            { subjectType: 'group' },
-          ),
-        );
-      }
-
-      return createJsonResponse(
-        createLeaderboardResponse([
-          {
-            rank: 1,
-            subjectRef: 'user:default/alice-andersson',
-            totalXp: 1480,
-          },
-        ]),
-      );
-    });
-
-    const { fetchApi } = renderPage(fetchImpl, { isAdmin: true });
-
-    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Individuals' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Teams' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Teams' })).not.toBeDisabled();
-    expect(
-      screen.queryByText('Team rankings are only available in admin view.'),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Teams' }));
-
-    expect(await screen.findByText('Platform')).toBeInTheDocument();
-    expect(
-      screen.getByText('Ranked by total XP across teams.'),
-    ).toBeInTheDocument();
-    expect(fetchApi.fetch).toHaveBeenLastCalledWith(
-      `${baseUrl}/leaderboard?subjectType=group&page=1&limit=25`,
-      expect.objectContaining({
-        signal: expect.any(AbortSignal),
-      }),
-    );
-  });
-
-  it('keeps the team scope disabled for non-admin users', async () => {
-    const user = userEvent.setup();
+  it('keeps the leaderboard fixed to individual rankings', async () => {
     const fetchImpl = jest.fn(async () =>
       createJsonResponse(
         createLeaderboardResponse([
@@ -338,10 +275,14 @@ describe('LeaderboardPage', () => {
     const { fetchApi } = renderPage(fetchImpl);
 
     expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Teams' }));
-
     await waitFor(() => expect(fetchApi.fetch).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('Scope')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Individuals' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Teams' }),
+    ).not.toBeInTheDocument();
     expect(fetchApi.fetch).toHaveBeenCalledWith(
       `${baseUrl}/leaderboard?subjectType=user&page=1&limit=25`,
       expect.objectContaining({

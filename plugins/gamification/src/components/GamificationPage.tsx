@@ -94,7 +94,7 @@ export const GamificationRootPage = () => {
         ]}
         customActions={
           <Text variant="body-medium" color="secondary">
-            Users and teams
+            Progress and recognition
           </Text>
         }
       />
@@ -122,10 +122,7 @@ export const GamificationRootPage = () => {
                 />
               }
             />
-            <Route
-              path="leaderboard"
-              element={<LeaderboardPage isAdmin={effectiveIsAdmin} />}
-            />
+            <Route path="leaderboard" element={<LeaderboardPage />} />
             <Route path="test" element={<TestPage isAdmin={isAdmin} />} />
           </Routes>
         </Box>
