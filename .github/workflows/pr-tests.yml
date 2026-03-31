@@ -42,5 +42,5 @@ jobs:
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: yarn install --immutable
 
-      - name: Verify gamification plugin
-        run: yarn gamification:verify
+      - name: Verify gamification plugin and Docker E2E
+        run: yarn verify:ci
