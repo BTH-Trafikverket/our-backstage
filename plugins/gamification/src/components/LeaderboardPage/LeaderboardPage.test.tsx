@@ -32,7 +32,15 @@ describe('LeaderboardPage', () => {
       ...init,
     });
 
-  function renderPage(fetchImpl: jest.Mock, options?: { isAdmin?: boolean }) {
+  function renderPage(
+    fetchImpl: jest.Mock,
+    options?: {
+      isAdmin?: boolean;
+      actualIsAdmin?: boolean;
+      onToggleDemo?: () => void;
+      isDemoMode?: boolean;
+    },
+  ) {
     const discoveryApi = {
       getBaseUrl: jest.fn(async () => baseUrl),
     };
@@ -48,7 +56,12 @@ describe('LeaderboardPage', () => {
             [fetchApiRef, fetchApi as any],
           ]}
         >
-          <LeaderboardPage isAdmin={options?.isAdmin ?? false} />
+          <LeaderboardPage
+            isAdmin={options?.isAdmin ?? false}
+            actualIsAdmin={options?.actualIsAdmin}
+            onToggleDemo={options?.onToggleDemo}
+            isDemoMode={options?.isDemoMode}
+          />
         </TestApiProvider>,
       ),
       discoveryApi,
@@ -113,6 +126,9 @@ describe('LeaderboardPage', () => {
     expect(screen.queryByText('Admin view')).not.toBeInTheDocument();
     expect(
       screen.queryByText('Admin leaderboard view'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Preview .* view/i }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText('Scope')).not.toBeInTheDocument();
     expect(
@@ -283,6 +299,68 @@ describe('LeaderboardPage', () => {
     expect(screen.getByText('Admin leaderboard view')).toBeInTheDocument();
     expect(
       screen.getByText('Admin view. Ranked by total XP across individuals.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a local preview toggle when preview support is enabled', async () => {
+    const user = userEvent.setup();
+    const onToggleDemo = jest.fn();
+    const fetchImpl = jest.fn(async () =>
+      createJsonResponse(
+        createLeaderboardResponse([
+          {
+            rank: 1,
+            subjectRef: 'user:default/alice-andersson',
+            totalXp: 1480,
+          },
+        ]),
+      ),
+    );
+
+    renderPage(fetchImpl, {
+      isAdmin: true,
+      actualIsAdmin: true,
+      onToggleDemo,
+    });
+
+    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+    const previewButton = screen.getByRole('button', {
+      name: 'Preview non-admin view',
+    });
+    await user.click(previewButton);
+    expect(onToggleDemo).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets an admin preview the non-admin leaderboard state', async () => {
+    const fetchImpl = jest.fn(async () =>
+      createJsonResponse(
+        createLeaderboardResponse([
+          {
+            rank: 1,
+            subjectRef: 'user:default/alice-andersson',
+            totalXp: 1480,
+          },
+        ]),
+      ),
+    );
+
+    renderPage(fetchImpl, {
+      isAdmin: false,
+      actualIsAdmin: true,
+      isDemoMode: true,
+      onToggleDemo: jest.fn(),
+    });
+
+    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+    expect(screen.queryByText('Admin view')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Admin leaderboard view'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Ranked by total XP across individuals.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Return to admin view' }),
     ).toBeInTheDocument();
   });
 

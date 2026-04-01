@@ -17,6 +17,7 @@ export const GamificationRootPage = () => {
   const [demoMode, setDemoMode] = useState(false);
   const discoveryApi = useApi(discoveryApiRef);
   const fetchApi = useApi(fetchApiRef);
+  const isLocalPreviewEnabled = process.env.NODE_ENV !== 'production';
 
   useEffect(() => {
     const checkAdminRole = async () => {
@@ -38,7 +39,15 @@ export const GamificationRootPage = () => {
     checkAdminRole();
   }, [discoveryApi, fetchApi]);
 
-  const effectiveIsAdmin = demoMode ? !isAdmin : isAdmin;
+  const effectiveIsAdmin =
+    isLocalPreviewEnabled && demoMode ? !isAdmin : isAdmin;
+  const handleToggleDemoMode = () => {
+    if (!isLocalPreviewEnabled) {
+      return;
+    }
+
+    setDemoMode(prev => !prev);
+  };
   const tabs = [
     {
       id: 'quests',
@@ -107,8 +116,10 @@ export const GamificationRootPage = () => {
               element={
                 <QuestsPage
                   isAdmin={effectiveIsAdmin}
-                  onToggleDemo={() => setDemoMode(prev => !prev)}
-                  isDemoMode={demoMode}
+                  onToggleDemo={
+                    isLocalPreviewEnabled ? handleToggleDemoMode : undefined
+                  }
+                  isDemoMode={isLocalPreviewEnabled ? demoMode : false}
                 />
               }
             />
@@ -117,14 +128,25 @@ export const GamificationRootPage = () => {
               element={
                 <BadgesPage
                   isAdmin={effectiveIsAdmin}
-                  onToggleDemo={() => setDemoMode(prev => !prev)}
-                  isDemoMode={demoMode}
+                  onToggleDemo={
+                    isLocalPreviewEnabled ? handleToggleDemoMode : undefined
+                  }
+                  isDemoMode={isLocalPreviewEnabled ? demoMode : false}
                 />
               }
             />
             <Route
               path="leaderboard"
-              element={<LeaderboardPage isAdmin={effectiveIsAdmin} />}
+              element={
+                <LeaderboardPage
+                  isAdmin={effectiveIsAdmin}
+                  actualIsAdmin={isAdmin}
+                  onToggleDemo={
+                    isLocalPreviewEnabled ? handleToggleDemoMode : undefined
+                  }
+                  isDemoMode={isLocalPreviewEnabled ? demoMode : false}
+                />
+              }
             />
             <Route path="test" element={<TestPage isAdmin={isAdmin} />} />
           </Routes>

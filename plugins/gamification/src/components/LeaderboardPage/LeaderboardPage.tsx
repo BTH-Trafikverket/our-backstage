@@ -56,6 +56,9 @@ const FIXED_SUBJECT_TYPE: LeaderboardSubjectType = 'user';
 
 type LeaderboardPageProps = {
   isAdmin: boolean;
+  actualIsAdmin?: boolean;
+  onToggleDemo?: () => void;
+  isDemoMode?: boolean;
 };
 
 const leaderboardColumns: readonly ColumnConfig<LeaderboardEntry>[] = [
@@ -228,7 +231,12 @@ const sortLeaderboardEntries = (
   return sortedEntries;
 };
 
-export const LeaderboardPage = ({ isAdmin }: LeaderboardPageProps) => {
+export const LeaderboardPage = ({
+  isAdmin,
+  actualIsAdmin,
+  onToggleDemo,
+  isDemoMode = false,
+}: LeaderboardPageProps) => {
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
 
@@ -325,19 +333,47 @@ export const LeaderboardPage = ({ isAdmin }: LeaderboardPageProps) => {
   const leaderboardDescription = isAdmin
     ? 'Admin view. Ranked by total XP across individuals.'
     : 'Ranked by total XP across individuals.';
+  const baseIsAdmin =
+    typeof actualIsAdmin === 'boolean' ? actualIsAdmin : isAdmin;
+  let previewToggleAction: {
+    label: string;
+    variant: 'secondary' | 'tertiary';
+  } | null = null;
+
+  if (isDemoMode && onToggleDemo) {
+    previewToggleAction = {
+      label: `Return to ${baseIsAdmin ? 'admin' : 'non-admin'} view`,
+      variant: 'secondary',
+    };
+  } else if (onToggleDemo) {
+    previewToggleAction = {
+      label: `Preview ${baseIsAdmin ? 'non-admin' : 'admin'} view`,
+      variant: 'tertiary',
+    };
+  }
+  const headerActions =
+    previewToggleAction || isAdmin ? (
+      <Flex gap="2" align="center" style={{ flexWrap: 'wrap' }}>
+        {previewToggleAction ? (
+          <Button
+            size="small"
+            variant={previewToggleAction.variant}
+            onPress={onToggleDemo}
+          >
+            {previewToggleAction.label}
+          </Button>
+        ) : null}
+        {isAdmin ? (
+          <Text color="secondary" weight="bold">
+            Admin view
+          </Text>
+        ) : null}
+      </Flex>
+    ) : undefined;
 
   return (
     <Flex direction="column" gap="4">
-      <HeaderPage
-        title="Leaderboard"
-        customActions={
-          isAdmin ? (
-            <Text color="secondary" weight="bold">
-              Admin view
-            </Text>
-          ) : undefined
-        }
-      />
+      <HeaderPage title="Leaderboard" customActions={headerActions} />
       <Text color="secondary">{leaderboardDescription}</Text>
 
       {isAdmin ? (
