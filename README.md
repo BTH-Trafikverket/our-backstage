@@ -58,7 +58,8 @@ Notes:
 - `pre-push` only runs `yarn gamification:verify` when the pushed refs touch gamification code or its test harness; unrelated pushes skip it.
 - `yarn test:e2e` starts its own Dockerized Backstage, Postgres, and Playwright stack with `app-config.e2e.yaml`; you do not need to run `yarn start:e2e` first.
 - The first `yarn test:e2e` run installs dependencies into dedicated Docker volumes. Later runs reuse those volumes, so they should avoid the cold-start install cost unless dependencies change.
-- In CI, `yarn test:e2e` reuses the runner's existing `node_modules` through a CI-only compose override instead of reinstalling dependencies inside the e2e containers.
+- In GitHub Actions CI, `yarn test:e2e` reuses the runner's existing `node_modules` through an explicit CI-only compose override instead of reinstalling dependencies inside the e2e containers.
+- The host-mounted dependency override is intentionally blocked outside GitHub Actions so local runs cannot accidentally create root-owned `node_modules` on a developer machine.
 - The e2e backend runs in a slimmed-down mode that keeps the auth, catalog, permission, and gamification pieces needed by the tests, while skipping unrelated plugin startup work.
 - `yarn gamification:verify` now prewarms the e2e Backstage/Postgres stack in the background while the frontend and backend suites run, then waits only if startup is still in progress before launching Playwright.
 - `yarn test:e2e` leaves the stopped e2e containers in place after completion; they are reused on the next run. If you want to remove them, run `docker compose -p backstage-e2e -f docker-compose.e2e.yml down`.

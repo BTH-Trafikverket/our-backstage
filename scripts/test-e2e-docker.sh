@@ -5,8 +5,15 @@ COMPOSE_PROJECT_NAME="backstage-e2e"
 WAIT_TIMEOUT_SECONDS="${E2E_WAIT_TIMEOUT_SECONDS:-240}"
 COMPOSE_FILES=(-f docker-compose.e2e.yml)
 MODE="${1:-full}"
+USE_HOST_NODE_MODULES="${E2E_USE_HOST_NODE_MODULES:-false}"
 
-if [ "${CI:-}" = "true" ]; then
+if [ "$USE_HOST_NODE_MODULES" = "true" ]; then
+  if [ "${GITHUB_ACTIONS:-}" != "true" ]; then
+    echo "E2E_USE_HOST_NODE_MODULES=true is reserved for GitHub Actions CI." >&2
+    echo "Refusing to bind-mount host node_modules outside CI because it can create root-owned files." >&2
+    exit 1
+  fi
+
   COMPOSE_FILES+=(-f docker-compose.e2e.ci.yml)
 fi
 
