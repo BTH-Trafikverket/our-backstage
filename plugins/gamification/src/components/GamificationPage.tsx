@@ -135,19 +135,7 @@ export const GamificationRootPage = () => {
                 />
               }
             />
-            <Route
-              path="leaderboard"
-              element={
-                <LeaderboardPage
-                  isAdmin={effectiveIsAdmin}
-                  actualIsAdmin={isAdmin}
-                  onToggleDemo={
-                    isLocalPreviewEnabled ? handleToggleDemoMode : undefined
-                  }
-                  isDemoMode={isLocalPreviewEnabled ? demoMode : false}
-                />
-              }
-            />
+            <Route path="leaderboard" element={<LeaderboardPage />} />
             <Route path="test" element={<TestPage isAdmin={isAdmin} />} />
           </Routes>
         </Box>

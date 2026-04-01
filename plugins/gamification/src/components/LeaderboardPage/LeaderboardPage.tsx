@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  Box,
   Button,
   CellText,
   Flex,
@@ -28,6 +27,7 @@ type LeaderboardEntry = {
 };
 
 type LeaderboardSubjectType = 'user' | 'group';
+type LeaderboardTimeRange = 'weekly' | 'monthly' | 'alltime';
 
 type LeaderboardApiRow = {
   rank: number;
@@ -38,7 +38,7 @@ type LeaderboardApiRow = {
 
 type LeaderboardResponse = {
   subjectType: LeaderboardSubjectType;
-  timeRange: 'weekly' | 'monthly' | 'alltime';
+  timeRange: LeaderboardTimeRange;
   data: LeaderboardApiRow[];
   pagination: {
     page: number;
@@ -52,14 +52,6 @@ type LeaderboardPagination = LeaderboardResponse['pagination'];
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
-const FIXED_SUBJECT_TYPE: LeaderboardSubjectType = 'user';
-
-type LeaderboardPageProps = {
-  isAdmin: boolean;
-  actualIsAdmin?: boolean;
-  onToggleDemo?: () => void;
-  isDemoMode?: boolean;
-};
 
 const leaderboardColumns: readonly ColumnConfig<LeaderboardEntry>[] = [
   {
@@ -130,6 +122,29 @@ const createDefaultPagination = (): LeaderboardPagination => ({
   total: 0,
   totalPages: 1,
 });
+
+const getSubjectTypeLabel = (subjectType: LeaderboardSubjectType) =>
+  subjectType === 'group' ? 'Teams' : 'Individuals';
+
+const getTimeRangeLabel = (timeRange: LeaderboardTimeRange) => {
+  if (timeRange === 'weekly') {
+    return 'Weekly';
+  }
+
+  if (timeRange === 'monthly') {
+    return 'Monthly';
+  }
+
+  return 'All time';
+};
+
+const getLeaderboardDescription = (
+  subjectType: LeaderboardSubjectType,
+  timeRange: LeaderboardTimeRange,
+) =>
+  `${getTimeRangeLabel(timeRange)} rankings for ${getSubjectTypeLabel(
+    subjectType,
+  ).toLocaleLowerCase('en-US')}, ordered by total XP.`;
 
 const normalizePagination = (
   pagination: Partial<LeaderboardPagination> | null | undefined,
@@ -231,12 +246,7 @@ const sortLeaderboardEntries = (
   return sortedEntries;
 };
 
-export const LeaderboardPage = ({
-  isAdmin,
-  actualIsAdmin,
-  onToggleDemo,
-  isDemoMode = false,
-}: LeaderboardPageProps) => {
+export const LeaderboardPage = () => {
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
 
@@ -245,6 +255,9 @@ export const LeaderboardPage = ({
   const [sort, setSort] = useState<SortDescriptor | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
+  const [subjectType, setSubjectType] =
+    useState<LeaderboardSubjectType>('user');
+  const [timeRange, setTimeRange] = useState<LeaderboardTimeRange>('alltime');
   const [page, setPage] = useState(DEFAULT_PAGE);
   const [pagination, setPagination] = useState<LeaderboardPagination>(
     createDefaultPagination(),
@@ -279,7 +292,8 @@ export const LeaderboardPage = ({
         setLoading(true);
         setError(undefined);
         const url = await buildGamificationUrl('/leaderboard', {
-          subjectType: FIXED_SUBJECT_TYPE,
+          subjectType,
+          timeRange,
           page: String(page),
           limit: String(DEFAULT_PAGE_SIZE),
         });
@@ -296,6 +310,9 @@ export const LeaderboardPage = ({
           const nextPagination = normalizePagination(result.pagination);
           setEntries(normalizeLeaderboardEntries(result));
           setPagination(nextPagination);
+          if (nextPagination.page !== page) {
+            setPage(nextPagination.page);
+          }
         }
       } catch (e: any) {
         if (controller.signal.aborted) {
@@ -320,7 +337,7 @@ export const LeaderboardPage = ({
       cancelled = true;
       controller.abort();
     };
-  }, [buildGamificationUrl, fetchApi, page]);
+  }, [buildGamificationUrl, fetchApi, page, subjectType, timeRange]);
 
   const canGoToPreviousPage = pagination.page > 1;
   const canGoToNextPage =
@@ -330,78 +347,44 @@ export const LeaderboardPage = ({
   const hasActiveSearch = search.trim().length > 0;
   const tableEmptyState =
     hasActiveSearch && entries.length > 0 ? filteredEmptyState : emptyState;
-  const leaderboardDescription = isAdmin
-    ? 'Admin view. Ranked by total XP across individuals.'
-    : 'Ranked by total XP across individuals.';
-  const baseIsAdmin =
-    typeof actualIsAdmin === 'boolean' ? actualIsAdmin : isAdmin;
-  let previewToggleAction: {
-    label: string;
-    variant: 'secondary' | 'tertiary';
-  } | null = null;
+  const leaderboardDescription = getLeaderboardDescription(
+    subjectType,
+    timeRange,
+  );
+  const handleSubjectTypeChange = (nextSubjectType: LeaderboardSubjectType) => {
+    if (nextSubjectType === subjectType) {
+      return;
+    }
 
-  if (isDemoMode && onToggleDemo) {
-    previewToggleAction = {
-      label: `Return to ${baseIsAdmin ? 'admin' : 'non-admin'} view`,
-      variant: 'secondary',
-    };
-  } else if (onToggleDemo) {
-    previewToggleAction = {
-      label: `Preview ${baseIsAdmin ? 'non-admin' : 'admin'} view`,
-      variant: 'tertiary',
-    };
-  }
-  const headerActions =
-    previewToggleAction || isAdmin ? (
-      <Flex gap="2" align="center" style={{ flexWrap: 'wrap' }}>
-        {previewToggleAction ? (
-          <Button
-            size="small"
-            variant={previewToggleAction.variant}
-            onPress={onToggleDemo}
-          >
-            {previewToggleAction.label}
-          </Button>
-        ) : null}
-        {isAdmin ? (
-          <Text color="secondary" weight="bold">
-            Admin view
-          </Text>
-        ) : null}
-      </Flex>
-    ) : undefined;
+    setSubjectType(nextSubjectType);
+    setPage(DEFAULT_PAGE);
+  };
+  const handleTimeRangeChange = (nextTimeRange: LeaderboardTimeRange) => {
+    if (nextTimeRange === timeRange) {
+      return;
+    }
+
+    setTimeRange(nextTimeRange);
+    setPage(DEFAULT_PAGE);
+  };
 
   return (
     <Flex direction="column" gap="4">
-      <HeaderPage title="Leaderboard" customActions={headerActions} />
+      <HeaderPage title="Leaderboard" />
       <Text color="secondary">{leaderboardDescription}</Text>
-
-      {isAdmin ? (
-        <Box
-          style={{
-            border: '1px solid var(--bui-border)',
-            borderRadius: '0.75rem',
-            padding: '1rem 1.25rem',
-            backgroundColor: 'var(--bui-bg-surface-2)',
-          }}
-        >
-          <Flex direction="column" gap="1">
-            <Text weight="bold">Admin leaderboard view</Text>
-            <Text color="secondary">
-              You are reviewing the individuals leaderboard with the same
-              sorting, filtering, and pagination controls shown to users.
-            </Text>
-          </Flex>
-        </Box>
-      ) : null}
 
       {!error ? (
         <LeaderboardToolbar
           isLoading={loading}
           search={search}
-          totalCount={entries.length}
+          subjectType={subjectType}
+          timeRange={timeRange}
+          pageCount={entries.length}
+          totalCount={pagination.total}
           visibleCount={visibleEntries.length}
           onSearchChange={setSearch}
+          onSubjectTypeChange={handleSubjectTypeChange}
+          onTimeRangeChange={handleTimeRangeChange}
         />
       ) : null}
 
