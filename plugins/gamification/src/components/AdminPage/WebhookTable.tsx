@@ -108,7 +108,7 @@ export const WebhookTable = ({
       style={{ minHeight: '12rem' }}
     >
       <Text weight="bold">No webhooks to show.</Text>
-      <Text color="secondary">Mock webhooks will appear here.</Text>
+      <Text color="secondary">Created webhooks will appear here.</Text>
     </Flex>
   );
 
