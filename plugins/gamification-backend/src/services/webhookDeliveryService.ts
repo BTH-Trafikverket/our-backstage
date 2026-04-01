@@ -1,11 +1,11 @@
-import type { WebhookRow } from '../repositories/webhooksRepository';
+import type { WebhookRow } from '../repositories/webhookRepository';
 
 export class WebhookDeliveryService {
   constructor(private readonly fetchImpl: typeof fetch = fetch) {}
 
   async sendWebhook(
-    webhook: Pick<WebhookRow, 'id' | 'url' | 'json'>,
-    payload: unknown = webhook.json,
+    webhook: Pick<WebhookRow, 'id' | 'url' | 'payload'>,
+    payload: unknown = webhook.payload,
   ): Promise<void> {
     const response = await this.fetchImpl(webhook.url, {
       method: 'POST',

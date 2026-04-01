@@ -1,47 +1,45 @@
-import { WebhooksRepository } from '../repositories/webhooksRepository';
+import { WebhookRepository } from '../repositories/webhookRepository';
 import { createPostgres18TestHarness } from '../../tests/helpers/postgres18TestHarness';
 
 const { describePostgres18, initDb } = createPostgres18TestHarness(__dirname);
 
-describePostgres18('WebhooksRepository integration', () => {
+describePostgres18('WebhookRepository scheduled integration', () => {
   it('stores webhooks and filters scheduled rows separately from immediate ones', async () => {
     const knex = await initDb();
-    const repository = new WebhooksRepository(knex);
+    const repository = new WebhookRepository(knex);
 
     const dailyWebhook = await repository.createWebhook({
+      title: 'Daily Webhook',
+      description: '',
       url: 'https://example.com/daily',
-      json: { kind: 'daily' },
-      event: 'daily',
+      payload: { kind: 'daily' },
+      trigger_event_name: 'daily',
     });
     await repository.createWebhook({
+      title: 'Weekly Webhook',
+      description: '',
       url: 'https://example.com/weekly',
-      json: { kind: 'weekly' },
-      event: 'weekly',
+      payload: { kind: 'weekly' },
+      trigger_event_name: 'weekly',
     });
     await repository.createWebhook({
+      title: 'Quest Webhook',
+      description: '',
       url: 'https://example.com/quest',
-      json: { kind: 'quest' },
-      event: 'quest_completion',
+      payload: { kind: 'quest' },
+      trigger_event_name: 'quest.completed',
     });
-
-    await expect(repository.getWebhooksByEvent('daily')).resolves.toEqual([
-      expect.objectContaining({
-        id: dailyWebhook.id,
-        url: 'https://example.com/daily',
-        event: 'daily',
-        json: { kind: 'daily' },
-      }),
-    ]);
 
     await expect(repository.getScheduledWebhooks()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          id: dailyWebhook.id,
           url: 'https://example.com/daily',
-          event: 'daily',
+          trigger_event_name: 'daily',
         }),
         expect.objectContaining({
           url: 'https://example.com/weekly',
-          event: 'weekly',
+          trigger_event_name: 'weekly',
         }),
       ]),
     );

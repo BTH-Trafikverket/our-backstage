@@ -1,7 +1,7 @@
 import { WebhookDeliveryService } from '../services/webhookDeliveryService';
 
 describe('WebhookDeliveryService', () => {
-  it('sends the stored webhook json as the default POST payload', async () => {
+  it('sends the stored webhook payload as the default POST body', async () => {
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -14,7 +14,7 @@ describe('WebhookDeliveryService', () => {
     await service.sendWebhook({
       id: 'webhook-1',
       url: 'https://example.com/webhook',
-      json: { event: 'quest_completion' },
+      payload: { event: 'quest_completion' },
     });
 
     expect(fetchImpl).toHaveBeenCalledWith('https://example.com/webhook', {
@@ -40,7 +40,7 @@ describe('WebhookDeliveryService', () => {
       {
         id: 'webhook-2',
         url: 'https://example.com/webhook',
-        json: { event: 'stored' },
+        payload: { event: 'stored' },
       },
       { event: 'runtime' },
     );
@@ -68,7 +68,7 @@ describe('WebhookDeliveryService', () => {
       service.sendWebhook({
         id: 'webhook-3',
         url: 'https://example.com/webhook',
-        json: {},
+        payload: {},
       }),
     ).rejects.toThrow(`Webhook 'webhook-3' failed with status 500`);
   });

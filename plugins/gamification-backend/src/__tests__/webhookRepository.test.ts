@@ -63,6 +63,10 @@ describePostgres18('WebhookRepository integration', () => {
     const knex = await initDb();
     const repository = new WebhookRepository(knex);
 
+    expect(await repository.getWebhookTriggerEvent('daily')).toEqual(
+      expect.objectContaining({ name: 'daily' }),
+    );
+
     await expect(
       repository.createWebhook({
         title: 'Invalid Webhook',

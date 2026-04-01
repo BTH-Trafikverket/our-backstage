@@ -1,4 +1,4 @@
-import type { ScheduledWebhookEvent } from '../repositories/webhooksRepository';
+import type { ScheduledWebhookEvent } from '../repositories/webhookRepository';
 
 type LocalDateParts = {
   year: number;

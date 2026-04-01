@@ -1,10 +1,10 @@
 import type { Knex } from 'knex';
-import type { WebhookRow } from './webhooksRepository';
+import type { WebhookRow } from './webhookRepository';
 
 export type EventRunRow = {
   id: string;
   webhook_id: string;
-  event: string;
+  trigger_event_name: string;
   period_key: string;
   time_zone: string;
   period_start: Date;
@@ -15,7 +15,7 @@ export type EventRunRow = {
 
 export type CreateEventRunRow = {
   webhookId: string;
-  event: string;
+  triggerEventName: string;
   periodKey: string;
   timeZone: string;
   periodStart: Date;
@@ -41,13 +41,13 @@ export class EventsRanRepository {
 
   async findRunForPeriod(params: {
     webhookId: string;
-    event: WebhookRow['event'];
+    triggerEventName: WebhookRow['trigger_event_name'];
     periodKey: string;
   }): Promise<EventRunRow | undefined> {
     return this.db<EventRunRow>('events_ran')
       .where({
         webhook_id: params.webhookId,
-        event: params.event,
+        trigger_event_name: params.triggerEventName,
         period_key: params.periodKey,
       })
       .first();
@@ -57,7 +57,7 @@ export class EventsRanRepository {
     try {
       await this.db<EventRunRow>('events_ran').insert({
         webhook_id: params.webhookId,
-        event: params.event,
+        trigger_event_name: params.triggerEventName,
         period_key: params.periodKey,
         time_zone: params.timeZone,
         period_start: params.periodStart,

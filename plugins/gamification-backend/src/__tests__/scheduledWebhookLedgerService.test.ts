@@ -18,7 +18,7 @@ describe('ScheduledWebhookLedgerService', () => {
     return {
       id: 'run-1',
       webhook_id: 'webhook-1',
-      event: 'daily',
+      trigger_event_name: 'daily',
       period_key: '2026-04-01',
       time_zone: 'UTC',
       period_start: new Date('2026-04-01T00:00:00.000Z'),
@@ -40,7 +40,10 @@ describe('ScheduledWebhookLedgerService', () => {
     });
 
     await expect(
-      service.hasRunForPeriod({ id: 'webhook-1', event: 'daily' }, period),
+      service.hasRunForPeriod(
+        { id: 'webhook-1', trigger_event_name: 'daily' },
+        period,
+      ),
     ).resolves.toBe(true);
   });
 
@@ -55,7 +58,10 @@ describe('ScheduledWebhookLedgerService', () => {
     });
 
     await expect(
-      service.hasRunForPeriod({ id: 'webhook-1', event: 'weekly' }, period),
+      service.hasRunForPeriod(
+        { id: 'webhook-1', trigger_event_name: 'weekly' },
+        period,
+      ),
     ).resolves.toBe(false);
   });
 
@@ -71,7 +77,7 @@ describe('ScheduledWebhookLedgerService', () => {
 
     await expect(
       service.tryRecordRun(
-        { id: 'webhook-1', event: 'monthly' },
+        { id: 'webhook-1', trigger_event_name: 'monthly' },
         period,
         new Date('2026-04-01T00:00:05.000Z'),
       ),
@@ -79,7 +85,7 @@ describe('ScheduledWebhookLedgerService', () => {
 
     expect(repo.tryInsertRun).toHaveBeenCalledWith({
       webhookId: 'webhook-1',
-      event: 'monthly',
+      triggerEventName: 'monthly',
       periodKey: '2026-04',
       timeZone: 'UTC',
       periodStart: new Date('2026-04-01T00:00:00.000Z'),
@@ -99,7 +105,10 @@ describe('ScheduledWebhookLedgerService', () => {
     });
 
     await expect(
-      service.tryRecordRun({ id: 'webhook-1', event: 'daily' }, period),
+      service.tryRecordRun(
+        { id: 'webhook-1', trigger_event_name: 'daily' },
+        period,
+      ),
     ).resolves.toBe(false);
   });
 });

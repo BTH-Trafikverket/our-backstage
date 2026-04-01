@@ -4,7 +4,7 @@ import {
 } from '@backstage/backend-plugin-api';
 import { initGameDb } from './database';
 import { EventsRanRepository } from './repositories/eventsRanRepository';
-import { WebhooksRepository } from './repositories/webhooksRepository';
+import { WebhookRepository } from './repositories/webhookRepository';
 import { runSeeds } from './seed';
 import { createRouter } from './router';
 import { ScheduledWebhooksService } from './services/scheduledWebhooksService';
@@ -65,7 +65,7 @@ export const gamificationBackendPlugin = createBackendPlugin({
           config.getOptionalString('gamification.webhooks.timeZone') ??
           DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE;
         const scheduledWebhooksService = new ScheduledWebhooksService({
-          webhooksRepo: new WebhooksRepository(knex),
+          webhookRepo: new WebhookRepository(knex),
           eventsRanRepo: new EventsRanRepository(knex),
           deliveryService: new WebhookDeliveryService(),
           logger,

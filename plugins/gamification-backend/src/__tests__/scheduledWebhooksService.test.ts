@@ -4,19 +4,23 @@ import type {
   EventsRanRepository,
 } from '../repositories/eventsRanRepository';
 import type {
-  WebhookRow,
-  WebhooksRepository,
-} from '../repositories/webhooksRepository';
+  ScheduledWebhookRow,
+  WebhookRepository,
+} from '../repositories/webhookRepository';
 import { WebhookDeliveryService } from '../services/webhookDeliveryService';
 import { ScheduledWebhooksService } from '../services/scheduledWebhooksService';
 
 describe('ScheduledWebhooksService', () => {
-  function createWebhook(overrides?: Partial<WebhookRow>): WebhookRow {
+  function createWebhook(
+    overrides?: Partial<ScheduledWebhookRow>,
+  ): ScheduledWebhookRow {
     return {
       id: 'webhook-1',
+      title: 'Webhook',
+      description: '',
       url: 'https://example.com/webhook',
-      json: { hello: 'world' },
-      event: 'daily',
+      payload: { hello: 'world' },
+      trigger_event_name: 'daily',
       created_at: new Date('2026-04-01T00:00:00.000Z'),
       updated_at: new Date('2026-04-01T00:00:00.000Z'),
       ...overrides,
@@ -27,7 +31,7 @@ describe('ScheduledWebhooksService', () => {
     return {
       id: 'run-1',
       webhook_id: 'webhook-1',
-      event: 'daily',
+      trigger_event_name: 'daily',
       period_key: '2026-04-01',
       time_zone: 'UTC',
       period_start: new Date('2026-04-01T00:00:00.000Z'),
@@ -54,7 +58,7 @@ describe('ScheduledWebhooksService', () => {
 
     const webhooksRepo = {
       getScheduledWebhooks: jest.fn(),
-    } as unknown as jest.Mocked<WebhooksRepository>;
+    } as unknown as jest.Mocked<WebhookRepository>;
 
     const deliveryService = {
       sendWebhook: jest.fn(),
@@ -75,13 +79,13 @@ describe('ScheduledWebhooksService', () => {
     const { webhooksRepo, eventsRanRepo, txRepo, deliveryService, logger } =
       createMocks();
     webhooksRepo.getScheduledWebhooks.mockResolvedValue([
-      createWebhook({ event: 'daily' }),
+      createWebhook({ trigger_event_name: 'daily' }),
     ]);
     txRepo.findRunForPeriod.mockResolvedValue(undefined);
     txRepo.tryInsertRun.mockResolvedValue(true);
 
     const service = new ScheduledWebhooksService({
-      webhooksRepo,
+      webhookRepo: webhooksRepo,
       eventsRanRepo,
       deliveryService,
       logger,
@@ -114,14 +118,14 @@ describe('ScheduledWebhooksService', () => {
     const { webhooksRepo, eventsRanRepo, txRepo, deliveryService, logger } =
       createMocks();
     webhooksRepo.getScheduledWebhooks.mockResolvedValue([
-      createWebhook({ id: 'weekly-1', event: 'weekly' }),
-      createWebhook({ id: 'monthly-1', event: 'monthly' }),
+      createWebhook({ id: 'weekly-1', trigger_event_name: 'weekly' }),
+      createWebhook({ id: 'monthly-1', trigger_event_name: 'monthly' }),
     ]);
     txRepo.findRunForPeriod.mockResolvedValue(undefined);
     txRepo.tryInsertRun.mockResolvedValue(true);
 
     const service = new ScheduledWebhooksService({
-      webhooksRepo,
+      webhookRepo: webhooksRepo,
       eventsRanRepo,
       deliveryService,
       logger,
@@ -152,12 +156,12 @@ describe('ScheduledWebhooksService', () => {
     const { webhooksRepo, eventsRanRepo, txRepo, deliveryService, logger } =
       createMocks();
     webhooksRepo.getScheduledWebhooks.mockResolvedValue([
-      createWebhook({ event: 'daily' }),
+      createWebhook({ trigger_event_name: 'daily' }),
     ]);
     txRepo.findRunForPeriod.mockResolvedValue(createRun());
 
     const service = new ScheduledWebhooksService({
-      webhooksRepo,
+      webhookRepo: webhooksRepo,
       eventsRanRepo,
       deliveryService,
       logger,
@@ -188,8 +192,8 @@ describe('ScheduledWebhooksService', () => {
     const { webhooksRepo, eventsRanRepo, txRepo, deliveryService, logger } =
       createMocks();
     webhooksRepo.getScheduledWebhooks.mockResolvedValue([
-      createWebhook({ id: 'broken-1', event: 'daily' }),
-      createWebhook({ id: 'healthy-1', event: 'daily' }),
+      createWebhook({ id: 'broken-1', trigger_event_name: 'daily' }),
+      createWebhook({ id: 'healthy-1', trigger_event_name: 'daily' }),
     ]);
     txRepo.findRunForPeriod.mockResolvedValue(undefined);
     txRepo.tryInsertRun.mockResolvedValue(true);
@@ -198,7 +202,7 @@ describe('ScheduledWebhooksService', () => {
     );
 
     const service = new ScheduledWebhooksService({
-      webhooksRepo,
+      webhookRepo: webhooksRepo,
       eventsRanRepo,
       deliveryService,
       logger,

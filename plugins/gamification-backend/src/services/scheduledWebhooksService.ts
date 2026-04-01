@@ -1,10 +1,10 @@
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import { EventsRanRepository } from '../repositories/eventsRanRepository';
 import type {
+  ScheduledWebhookRow,
   ScheduledWebhookEvent,
-  WebhookRow,
-} from '../repositories/webhooksRepository';
-import { WebhooksRepository } from '../repositories/webhooksRepository';
+} from '../repositories/webhookRepository';
+import { WebhookRepository } from '../repositories/webhookRepository';
 import { WebhookDeliveryService } from './webhookDeliveryService';
 import {
   DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE,
@@ -30,7 +30,7 @@ export type ScheduledWebhookScanSummary = {
 export class ScheduledWebhooksService {
   constructor(
     private readonly options: {
-      webhooksRepo: WebhooksRepository;
+      webhookRepo: WebhookRepository;
       eventsRanRepo: EventsRanRepository;
       deliveryService: WebhookDeliveryService;
       logger: LoggerService;
@@ -49,7 +49,7 @@ export class ScheduledWebhooksService {
 
   async scanAndRunScheduledWebhooks(): Promise<ScheduledWebhookScanSummary> {
     const scheduledWebhooks =
-      await this.options.webhooksRepo.getScheduledWebhooks();
+      await this.options.webhookRepo.getScheduledWebhooks();
     const results: ScheduledWebhookScanResult[] = [];
 
     for (const webhook of scheduledWebhooks) {
@@ -67,9 +67,9 @@ export class ScheduledWebhooksService {
   }
 
   private async runWebhookIfDue(
-    webhook: WebhookRow,
+    webhook: ScheduledWebhookRow,
   ): Promise<ScheduledWebhookScanResult> {
-    const event = webhook.event as ScheduledWebhookEvent;
+    const event = webhook.trigger_event_name as ScheduledWebhookEvent;
     const period = resolveScheduledWebhookPeriod({
       event,
       now: this.getNow(),
@@ -82,7 +82,7 @@ export class ScheduledWebhooksService {
 
         const existingRun = await repo.findRunForPeriod({
           webhookId: webhook.id,
-          event: webhook.event,
+          triggerEventName: webhook.trigger_event_name,
           periodKey: period.periodKey,
         });
 
@@ -102,7 +102,7 @@ export class ScheduledWebhooksService {
 
         const recorded = await repo.tryInsertRun({
           webhookId: webhook.id,
-          event: webhook.event,
+          triggerEventName: webhook.trigger_event_name,
           periodKey: period.periodKey,
           timeZone: period.timeZone,
           periodStart: period.periodStart,
