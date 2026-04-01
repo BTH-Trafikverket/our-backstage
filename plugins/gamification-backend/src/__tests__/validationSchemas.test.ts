@@ -3,6 +3,7 @@ import { badgeEditSchema } from '../schemas/badges/badgeEditSchema';
 import { questCreationSchema } from '../schemas/quests/questCreationSchema';
 import { questEditSchema } from '../schemas/quests/questEditSchema';
 import { questEventSchema } from '../schemas/quests/questEventSchema';
+import { webhookCreationSchema } from '../schemas/webhooks/webhookCreationSchema';
 
 describe('validation schemas', () => {
   describe('questCreationSchema', () => {
@@ -228,6 +229,38 @@ describe('validation schemas', () => {
       ).toEqual({
         description: 'Updated description',
       });
+    });
+  });
+
+  describe('webhookCreationSchema', () => {
+    it('applies defaults for optional webhook fields', () => {
+      expect(
+        webhookCreationSchema.parse({
+          title: 'Production Webhook',
+          url: 'https://example.com/webhooks/gamification',
+          event: 'quest.completed',
+        }),
+      ).toEqual({
+        title: 'Production Webhook',
+        description: '',
+        url: 'https://example.com/webhooks/gamification',
+        event: 'quest.completed',
+        payload: {},
+      });
+    });
+
+    it('rejects whitespace-only titles and invalid URLs', () => {
+      const result = webhookCreationSchema.safeParse({
+        title: '   ',
+        url: 'not-a-url',
+        event: 'quest.completed',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.path)).toEqual([
+        ['title'],
+        ['url'],
+      ]);
     });
   });
 });

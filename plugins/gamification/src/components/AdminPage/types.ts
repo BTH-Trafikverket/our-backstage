@@ -28,3 +28,14 @@ export type WebhookTableRow = {
   id: string;
   webhook: Webhook;
 };
+
+export type WebhookApiResponse = {
+  id: string;
+  title: string;
+  description?: string;
+  url: string;
+  events?: string[];
+  payload?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};

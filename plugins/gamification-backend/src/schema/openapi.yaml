@@ -10,6 +10,7 @@ tags:
   - name: XP
   - name: Quests
   - name: Badges
+  - name: Webhooks
 paths:
   /leaderboard:
     get:
@@ -557,6 +558,61 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /webhooks:
+    get:
+      operationId: listWebhooks
+      tags:
+        - Webhooks
+      summary: List webhooks for admin management
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Paginated webhook list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWebhookList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createWebhook
+      tags:
+        - Webhooks
+      summary: Create a webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookRequest'
+      responses:
+        '201':
+          description: Created webhook
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 components:
   responses:
     BadRequest:
@@ -1108,6 +1164,81 @@ components:
           minItems: 1
           items:
             $ref: '#/components/schemas/BadgeCriteria'
+    WebhookEventName:
+      type: string
+      enum:
+        - quest.completed
+        - user.leveled_up
+        - badge.earned
+    Webhook:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - url
+        - events
+        - payload
+        - created_at
+        - updated_at
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/WebhookEventName'
+        payload:
+          type: object
+          additionalProperties: true
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+    PaginatedWebhookList:
+      type: object
+      required:
+        - data
+        - pagination
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Webhook'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    CreateWebhookRequest:
+      type: object
+      required:
+        - title
+        - url
+        - event
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        url:
+          type: string
+          format: uri
+        event:
+          $ref: '#/components/schemas/WebhookEventName'
+        payload:
+          type: object
+          additionalProperties: true
     XpStatus:
       type: object
       required:
