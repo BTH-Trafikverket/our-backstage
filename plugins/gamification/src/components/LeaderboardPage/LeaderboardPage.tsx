@@ -52,6 +52,8 @@ type LeaderboardPagination = LeaderboardResponse['pagination'];
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
+const MIN_PAGE_SIZE = 3;
+const MAX_PAGE_SIZE = 25;
 
 const leaderboardColumns: readonly ColumnConfig<LeaderboardEntry>[] = [
   {
@@ -122,6 +124,18 @@ const createDefaultPagination = (): LeaderboardPagination => ({
   total: 0,
   totalPages: 1,
 });
+
+const clampPageSize = (value: number) =>
+  Math.min(MAX_PAGE_SIZE, Math.max(MIN_PAGE_SIZE, Math.floor(value)));
+
+const parsePageSizeInput = (value: string) => {
+  if (!value.trim()) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 const getSubjectTypeLabel = (subjectType: LeaderboardSubjectType) =>
   subjectType === 'group' ? 'Teams' : 'Individuals';
@@ -259,6 +273,8 @@ export const LeaderboardPage = () => {
     useState<LeaderboardSubjectType>('user');
   const [timeRange, setTimeRange] = useState<LeaderboardTimeRange>('alltime');
   const [page, setPage] = useState(DEFAULT_PAGE);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [pageSizeInput, setPageSizeInput] = useState(String(DEFAULT_PAGE_SIZE));
   const [pagination, setPagination] = useState<LeaderboardPagination>(
     createDefaultPagination(),
   );
@@ -295,7 +311,7 @@ export const LeaderboardPage = () => {
           subjectType,
           timeRange,
           page: String(page),
-          limit: String(DEFAULT_PAGE_SIZE),
+          limit: String(pageSize),
         });
         const response = await fetchApi.fetch(url, {
           signal: controller.signal,
@@ -310,6 +326,9 @@ export const LeaderboardPage = () => {
           const nextPagination = normalizePagination(result.pagination);
           setEntries(normalizeLeaderboardEntries(result));
           setPagination(nextPagination);
+          if (nextPagination.limit !== pageSize) {
+            setPageSize(nextPagination.limit);
+          }
           if (nextPagination.page !== page) {
             setPage(nextPagination.page);
           }
@@ -337,7 +356,11 @@ export const LeaderboardPage = () => {
       cancelled = true;
       controller.abort();
     };
-  }, [buildGamificationUrl, fetchApi, page, subjectType, timeRange]);
+  }, [buildGamificationUrl, fetchApi, page, pageSize, subjectType, timeRange]);
+
+  useEffect(() => {
+    setPageSizeInput(String(pageSize));
+  }, [pageSize]);
 
   const canGoToPreviousPage = pagination.page > 1;
   const canGoToNextPage =
@@ -367,6 +390,45 @@ export const LeaderboardPage = () => {
     setTimeRange(nextTimeRange);
     setPage(DEFAULT_PAGE);
   };
+  const commitPageSize = useCallback(
+    (nextPageSize: number) => {
+      const normalizedPageSize = clampPageSize(nextPageSize);
+      setPageSizeInput(String(normalizedPageSize));
+
+      if (normalizedPageSize === pageSize) {
+        return;
+      }
+
+      setPageSize(normalizedPageSize);
+      setPage(DEFAULT_PAGE);
+    },
+    [pageSize],
+  );
+  const handlePageSizeChange = (value: string) => {
+    const sanitizedValue = value.replace(/[^\d]/g, '');
+    setPageSizeInput(sanitizedValue);
+
+    const parsedPageSize = parsePageSizeInput(sanitizedValue);
+    if (
+      parsedPageSize === null ||
+      parsedPageSize < MIN_PAGE_SIZE ||
+      parsedPageSize > MAX_PAGE_SIZE
+    ) {
+      return;
+    }
+
+    commitPageSize(parsedPageSize);
+  };
+  const handlePageSizeBlur = () => {
+    const parsedPageSize = parsePageSizeInput(pageSizeInput);
+
+    if (parsedPageSize === null) {
+      setPageSizeInput(String(pageSize));
+      return;
+    }
+
+    commitPageSize(parsedPageSize);
+  };
 
   return (
     <Flex direction="column" gap="4">
@@ -380,9 +442,12 @@ export const LeaderboardPage = () => {
           subjectType={subjectType}
           timeRange={timeRange}
           pageCount={entries.length}
+          pageSize={pageSizeInput}
           totalCount={pagination.total}
           visibleCount={visibleEntries.length}
           onSearchChange={setSearch}
+          onPageSizeBlur={handlePageSizeBlur}
+          onPageSizeChange={handlePageSizeChange}
           onSubjectTypeChange={handleSubjectTypeChange}
           onTimeRangeChange={handleTimeRangeChange}
         />

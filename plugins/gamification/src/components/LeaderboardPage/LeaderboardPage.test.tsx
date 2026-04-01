@@ -114,6 +114,9 @@ describe('LeaderboardPage', () => {
     expect(
       screen.getByRole('searchbox', { name: 'Search leaderboard' }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Page size' })).toHaveValue(
+      '25',
+    );
     expect(
       screen.getByText('Showing 2 of 2 leaderboard entries on this page'),
     ).toBeInTheDocument();
@@ -274,6 +277,133 @@ describe('LeaderboardPage', () => {
     expect(fetchApi.fetch).toHaveBeenNthCalledWith(
       2,
       `${baseUrl}/leaderboard?subjectType=user&timeRange=weekly&page=1&limit=25`,
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it('refetches with a new valid page size and resets pagination to page one', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = jest.fn(async (input: string) => {
+      const url = new URL(input);
+      const page = Number(url.searchParams.get('page') ?? '1');
+      const limit = Number(url.searchParams.get('limit') ?? '25');
+
+      if (page === 2) {
+        return createJsonResponse(
+          createLeaderboardResponse(
+            [
+              {
+                rank: 26,
+                subjectRef: 'user:default/bob-berg',
+                totalXp: 920,
+              },
+            ],
+            {
+              pagination: {
+                page: 2,
+                limit,
+                total: 40,
+                totalPages: Math.ceil(40 / limit),
+              },
+            },
+          ),
+        );
+      }
+
+      return createJsonResponse(
+        createLeaderboardResponse(
+          [
+            {
+              rank: 1,
+              subjectRef:
+                limit === 20
+                  ? 'user:default/charlie-dahl'
+                  : 'user:default/alice-andersson',
+              totalXp: limit === 20 ? 1100 : 1480,
+            },
+          ],
+          {
+            pagination: {
+              page: 1,
+              limit,
+              total: 40,
+              totalPages: Math.ceil(40 / limit),
+            },
+          },
+        ),
+      );
+    });
+
+    const { fetchApi } = renderPage(fetchImpl);
+
+    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(await screen.findByText('Bob Berg')).toBeInTheDocument();
+    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
+
+    const pageSizeInput = screen.getByRole('textbox', { name: 'Page size' });
+    await user.clear(pageSizeInput);
+    await user.type(pageSizeInput, '20');
+
+    expect(await screen.findByText('Charlie Dahl')).toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+    expect(pageSizeInput).toHaveValue('20');
+    expect(fetchApi.fetch).toHaveBeenNthCalledWith(
+      3,
+      `${baseUrl}/leaderboard?subjectType=user&timeRange=alltime&page=1&limit=20`,
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it('clamps invalid page sizes back into the supported range on blur', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = jest.fn(async (input: string) => {
+      const limit = Number(new URL(input).searchParams.get('limit') ?? '25');
+
+      return createJsonResponse(
+        createLeaderboardResponse(
+          [
+            {
+              rank: 1,
+              subjectRef:
+                limit === 3
+                  ? 'user:default/charlie-dahl'
+                  : 'user:default/alice-andersson',
+              totalXp: limit === 3 ? 500 : 1480,
+            },
+          ],
+          {
+            pagination: {
+              page: 1,
+              limit,
+              total: limit === 3 ? 9 : 30,
+              totalPages: limit === 3 ? 3 : 2,
+            },
+          },
+        ),
+      );
+    });
+
+    const { fetchApi } = renderPage(fetchImpl);
+
+    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+
+    const pageSizeInput = screen.getByRole('textbox', { name: 'Page size' });
+    await user.clear(pageSizeInput);
+    await user.type(pageSizeInput, '1');
+    await user.tab();
+
+    expect(await screen.findByText('Charlie Dahl')).toBeInTheDocument();
+    expect(pageSizeInput).toHaveValue('3');
+    expect(fetchApi.fetch).toHaveBeenNthCalledWith(
+      2,
+      `${baseUrl}/leaderboard?subjectType=user&timeRange=alltime&page=1&limit=3`,
       expect.objectContaining({
         signal: expect.any(AbortSignal),
       }),
