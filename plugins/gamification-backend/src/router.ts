@@ -10,10 +10,13 @@ import express from 'express';
 import Router from 'express-promise-router';
 
 import { BadgesRouter } from './routes/badgesRouter';
+import { LeaderboardRouter } from './routes/leaderboardRouter';
 import { QuestsRouter } from './routes/questsRouter';
 import { BadgesRepository } from './repositories/badgesRepository';
+import { LeaderboardRepository } from './repositories/leaderboardRepository';
 import { QuestsRepository } from './repositories/questsRepository';
 import { BadgesService } from './services/badgesService';
+import { LeaderboardService } from './services/leaderboardService';
 import { QuestsService } from './services/questsService';
 
 import { XpRouter } from './routes/xpRouter';
@@ -89,6 +92,17 @@ export function createRouter({
 
   const xpRepo = new XpRepository(knex);
   const xpService = new XpService(xpRepo, 100);
+  const leaderboardRepo = new LeaderboardRepository(knex);
+  const leaderboardTimeZone =
+    config.getOptionalString('gamification.leaderboard.timeZone') ??
+    'Europe/Stockholm';
+  const leaderboardService = new LeaderboardService(
+    leaderboardRepo,
+    25,
+    100,
+    () => new Date(),
+    leaderboardTimeZone,
+  );
 
   router.use(
     '/badges',
@@ -116,6 +130,14 @@ export function createRouter({
       httpAuth,
       userInfo,
       xpService,
+    }),
+  );
+
+  router.use(
+    '/leaderboard',
+    LeaderboardRouter({
+      httpAuth,
+      leaderboardService,
     }),
   );
 

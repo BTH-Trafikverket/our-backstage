@@ -16,6 +16,14 @@ export interface Config {
        */
       allowedCallers?: string[];
     };
+    leaderboard?: {
+      /**
+       * IANA timezone used when calculating weekly and monthly leaderboard windows.
+       * Defaults to Europe/Stockholm!
+       * @visibility backend
+       */
+      timeZone?: string;
+    };
     actorResolution?: {
       providers?: {
         /**

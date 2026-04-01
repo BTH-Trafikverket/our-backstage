@@ -1,0 +1,90 @@
+app:
+  title: BTH-Trafikverket
+  baseUrl: ${APP_BASE_URL}
+  listen:
+    host: 0.0.0.0
+
+organization:
+  name: Bth-Trafikverket
+
+backend:
+  baseUrl: ${BACKEND_BASE_URL}
+  listen:
+    host: 0.0.0.0
+    port: ${BACKEND_PORT}
+
+  csp:
+    connect-src: ["'self'", "http:", "https:"]
+  cors:
+    origin: ${CORS_ORIGIN}
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+
+  database:
+    client: pg
+    connection:
+      host: ${DB_HOST}
+      port: ${DB_PORT}
+      user: ${DB_USER}
+      password: ${DB_PASSWORD}
+      database: ${DB_NAME}
+    plugin:
+      gamification:
+        connection:
+          database: ${DB_NAME}
+
+auth:
+  environment: e2e
+  keyStore:
+    provider: database
+  providers:
+    guest:
+      userEntityRef: "user:default/linusandersson02"
+      ownershipEntityRefs:
+        - "group:default/admin"
+      dangerouslyAllowOutsideDevelopment: true
+
+proxy:
+  # endpoints:
+  #   '/test':
+  #     target: 'https://example.com'
+  #     changeOrigin: true
+
+techdocs:
+  builder: local
+  publisher:
+    type: local
+
+scaffolder:
+  # see https://backstage.io/docs/features/software-templates/configuration
+
+catalog:
+  import:
+    entityFilename: catalog-info.yaml
+    pullRequestBranchName: backstage-integration
+  locations:
+    - type: file
+      target: ./catalog-info.yaml
+      rules:
+        - allow: [Component]
+    - type: file
+      target: ./catalog/e2e-identities.yaml
+      rules:
+        - allow: [User, Group]
+  rules:
+    - allow: [Component, System, API, Resource, Location, User, Group]
+
+kubernetes:
+  # see https://backstage.io/docs/features/kubernetes/configuration
+
+permission:
+  enabled: true
+
+gamification:
+  seed:
+    enabled: true
+    reset: true
+
+  admin:
+    groups:
+      - group:default/admin
