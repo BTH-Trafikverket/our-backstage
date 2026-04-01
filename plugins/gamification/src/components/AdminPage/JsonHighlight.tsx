@@ -17,7 +17,7 @@ export const JsonHighlight = ({ value }: JsonHighlightProps) => {
       style={{
         margin: '8px 0 0 0',
         padding: 14,
-        background: '#1e1e1e',
+        background: '#1e1e11',
         border: '1px solid #555',
         borderRadius: 6,
         overflow: 'auto',
