@@ -8,6 +8,7 @@ import {
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminPage } from './AdminPage';
 import { BadgesPage } from './BadgesPage';
+import { LeaderboardPage } from './LeaderboardPage';
 import { QuestsPage } from './QuestsPage';
 import { TestPage } from './TestPage';
 
@@ -16,6 +17,7 @@ export const GamificationRootPage = () => {
   const [demoMode, setDemoMode] = useState(false);
   const discoveryApi = useApi(discoveryApiRef);
   const fetchApi = useApi(fetchApiRef);
+  const isLocalPreviewEnabled = process.env.NODE_ENV !== 'production';
 
   useEffect(() => {
     const checkAdminRole = async () => {
@@ -37,7 +39,15 @@ export const GamificationRootPage = () => {
     checkAdminRole();
   }, [discoveryApi, fetchApi]);
 
-  const effectiveIsAdmin = demoMode ? !isAdmin : isAdmin;
+  const effectiveIsAdmin =
+    isLocalPreviewEnabled && demoMode ? !isAdmin : isAdmin;
+  const handleToggleDemoMode = () => {
+    if (!isLocalPreviewEnabled) {
+      return;
+    }
+
+    setDemoMode(prev => !prev);
+  };
   const tabs = [
     {
       id: 'quests',
@@ -69,10 +79,31 @@ export const GamificationRootPage = () => {
     <FullPage>
       <PluginHeader
         title="Gamification"
-        tabs={tabs}
+        tabs={[
+          {
+            id: 'quests',
+            label: 'Quests',
+            href: '/gamification',
+          },
+          {
+            id: 'badges',
+            label: 'Badges',
+            href: '/gamification/badges',
+          },
+          {
+            id: 'leaderboard',
+            label: 'Leaderboard',
+            href: '/gamification/leaderboard',
+          },
+          {
+            id: 'test',
+            label: 'Test',
+            href: '/gamification/test',
+          },
+        ]}
         customActions={
           <Text variant="body-medium" color="secondary">
-            Users and teams
+            Progress and recognition
           </Text>
         }
       />
@@ -81,36 +112,31 @@ export const GamificationRootPage = () => {
         <Box style={{ paddingTop: '1.5rem', paddingBottom: '1.5rem' }}>
           <Routes>
             <Route
-              path="/"
+              index
               element={
                 <QuestsPage
                   isAdmin={effectiveIsAdmin}
-                  onToggleDemo={() => setDemoMode(prev => !prev)}
-                  isDemoMode={demoMode}
+                  onToggleDemo={
+                    isLocalPreviewEnabled ? handleToggleDemoMode : undefined
+                  }
+                  isDemoMode={isLocalPreviewEnabled ? demoMode : false}
                 />
               }
             />
             <Route
-              path="/badges"
+              path="badges"
               element={
                 <BadgesPage
                   isAdmin={effectiveIsAdmin}
-                  onToggleDemo={() => setDemoMode(prev => !prev)}
-                  isDemoMode={demoMode}
+                  onToggleDemo={
+                    isLocalPreviewEnabled ? handleToggleDemoMode : undefined
+                  }
+                  isDemoMode={isLocalPreviewEnabled ? demoMode : false}
                 />
               }
             />
-            <Route path="/test" element={<TestPage isAdmin={isAdmin} />} />
-            <Route
-              path="/admin"
-              element={
-                isAdmin ? (
-                  <AdminPage />
-                ) : (
-                  <Navigate to="/gamification" replace />
-                )
-              }
-            />
+            <Route path="leaderboard" element={<LeaderboardPage />} />
+            <Route path="test" element={<TestPage isAdmin={isAdmin} />} />
           </Routes>
         </Box>
       </Container>
