@@ -31,6 +31,7 @@ import {
   readErrorMessage,
   validateWebhookForm,
 } from './utils';
+import { JsonHighlight } from './JsonHighlight';
 
 export const AdminPage = () => {
   const fetchApi = useApi(fetchApiRef);
@@ -354,24 +355,7 @@ export const AdminPage = () => {
                 <Text weight="bold" style={{ fontSize: 14 }}>
                   Payload:
                 </Text>
-                <pre
-                  style={{
-                    margin: '8px 0 0 0',
-                    padding: 14,
-                    background: '#1e1e1e',
-                    color: '#d4d4d4',
-                    border: '1px solid #555',
-                    borderRadius: 6,
-                    overflow: 'auto',
-                    minHeight: '18rem',
-                    maxHeight: '65vh',
-                    whiteSpace: 'pre',
-                    fontSize: 15,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {JSON.stringify(viewWebhook?.payload, null, 2)}
-                </pre>
+                <JsonHighlight value={viewWebhook?.payload ?? {}} />
               </Box>
 
               <Box

@@ -9,36 +9,34 @@
 import { createBackend } from '@backstage/backend-defaults';
 
 const backend = createBackend();
+const isE2eMode = process.env.BACKSTAGE_E2E_MODE === 'true';
 
 // auth plugin
 backend.add(import('@backstage/plugin-auth-backend'));
-backend.add(import('@backstage/plugin-auth-backend-module-github-provider'));
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
+if (!isE2eMode) {
+	backend.add(import('@backstage/plugin-auth-backend-module-github-provider'));
+}
+
 // core
 backend.add(import('@backstage/plugin-app-backend'));
-backend.add(import('@backstage/plugin-proxy-backend'));
 
-// scaffolder plugin
-backend.add(import('@backstage/plugin-scaffolder-backend'));
-backend.add(import('@backstage/plugin-scaffolder-backend-module-github'));
-backend.add(
-	import('@backstage/plugin-scaffolder-backend-module-notifications'),
-);
-
-// techdocs plugin
-backend.add(import('@backstage/plugin-techdocs-backend'));
-
+if (!isE2eMode) {
+	backend.add(import('@backstage/plugin-proxy-backend'));
+}
 
 // catalog plugin
 backend.add(import('@backstage/plugin-catalog-backend'));
-backend.add(
-	import('@backstage/plugin-catalog-backend-module-scaffolder-entity-model'),
-);
-backend.add(import('@backstage/plugin-catalog-backend-module-github-org'));
-backend.add(import('@backstage/plugin-catalog-backend-module-github'));
+if (!isE2eMode) {
+	backend.add(
+		import('@backstage/plugin-catalog-backend-module-scaffolder-entity-model'),
+	);
+	backend.add(import('@backstage/plugin-catalog-backend-module-github-org'));
+	backend.add(import('@backstage/plugin-catalog-backend-module-github'));
 
-// See https://backstage.io/docs/features/software-catalog/configuration#subscribing-to-catalog-errors
-backend.add(import('@backstage/plugin-catalog-backend-module-logs'));
+	// See https://backstage.io/docs/features/software-catalog/configuration#subscribing-to-catalog-errors
+	backend.add(import('@backstage/plugin-catalog-backend-module-logs'));
+}
 
 // permission plugin
 backend.add(import('@backstage/plugin-permission-backend'));
@@ -47,23 +45,35 @@ backend.add(
 	import('@backstage/plugin-permission-backend-module-allow-all-policy'),
 );
 
-// search plugin
-backend.add(import('@backstage/plugin-search-backend'));
+if (!isE2eMode) {
+	// scaffolder plugin
+	backend.add(import('@backstage/plugin-scaffolder-backend'));
+	backend.add(import('@backstage/plugin-scaffolder-backend-module-github'));
+	backend.add(
+		import('@backstage/plugin-scaffolder-backend-module-notifications'),
+	);
 
-// search engine
-// See https://backstage.io/docs/features/search/search-engines
-backend.add(import('@backstage/plugin-search-backend-module-pg'));
+	// techdocs plugin
+	backend.add(import('@backstage/plugin-techdocs-backend'));
 
-// search collators
-backend.add(import('@backstage/plugin-search-backend-module-catalog'));
-backend.add(import('@backstage/plugin-search-backend-module-techdocs'));
+	// search plugin
+	backend.add(import('@backstage/plugin-search-backend'));
 
-// kubernetes plugin
-backend.add(import('@backstage/plugin-kubernetes-backend'));
+	// search engine
+	// See https://backstage.io/docs/features/search/search-engines
+	backend.add(import('@backstage/plugin-search-backend-module-pg'));
 
-// notifications and signals plugins
-backend.add(import('@backstage/plugin-notifications-backend'));
-backend.add(import('@backstage/plugin-signals-backend'));
+	// search collators
+	backend.add(import('@backstage/plugin-search-backend-module-catalog'));
+	backend.add(import('@backstage/plugin-search-backend-module-techdocs'));
+
+	// kubernetes plugin
+	backend.add(import('@backstage/plugin-kubernetes-backend'));
+
+	// notifications and signals plugins
+	backend.add(import('@backstage/plugin-notifications-backend'));
+	backend.add(import('@backstage/plugin-signals-backend'));
+}
 
 backend.add(import('@internal/gamification-backend'));
 backend.start();
