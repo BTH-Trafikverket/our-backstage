@@ -56,4 +56,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=backstage-e2e-runner
 
       - name: Verify gamification plugin and Docker E2E
+        env:
+          E2E_USE_HOST_NODE_MODULES: "true"
         run: yarn verify:ci

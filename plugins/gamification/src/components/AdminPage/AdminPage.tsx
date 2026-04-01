@@ -11,47 +11,34 @@ import {
   Text,
   useTable,
 } from '@backstage/ui';
+import {
+  discoveryApiRef,
+  fetchApiRef,
+  useApi,
+} from '@backstage/core-plugin-api';
 import { WebhookFormDialog } from './WebhookFormDialog';
 import { WebhookTable } from './WebhookTable';
 import {
   WEBHOOK_EVENTS,
+  type WebhookApiResponse,
   type Webhook,
   type WebhookFormData,
   type WebhookTableRow,
 } from './types';
-
-const MOCK_WEBHOOKS: Webhook[] = [
-  {
-    id: '1',
-    title: 'Production Webhook',
-    description: 'Sends gamification events to production system',
-    url: 'https://example.com/webhooks/gamification',
-    events: ['quest.completed', 'badge.earned'],
-    payload: { timeout: 5000, retries: 3 },
-    createdAt: '2026-03-30',
-  },
-  {
-    id: '2',
-    title: 'Analytics Webhook',
-    description: 'Tracks all gamification events for analytics',
-    url: 'https://analytics.example.com/events',
-    events: ['quest.completed', 'user.leveled_up', 'badge.earned'],
-    payload: { batchSize: 100, includeMetadata: true },
-    createdAt: '2026-03-30',
-  },
-  {
-    id: '3',
-    title: 'Slack Notifications',
-    description: 'Notifies team of major achievements',
-    url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL',
-    events: ['user.leveled_up'],
-    payload: { channel: '#achievements', username: 'Gamification Bot' },
-    createdAt: '2026-03-30',
-  },
-];
+import {
+  buildWebhookPayload,
+  normalizeWebhook,
+  readErrorMessage,
+  validateWebhookForm,
+} from './utils';
+import { JsonHighlight } from './JsonHighlight';
 
 export const AdminPage = () => {
+  const fetchApi = useApi(fetchApiRef);
+  const discoveryApi = useApi(discoveryApiRef);
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
   const [createForm, setCreateForm] = useState<WebhookFormData>({
     title: '',
     description: '',
@@ -63,35 +50,28 @@ export const AdminPage = () => {
 
   const [viewWebhook, setViewWebhook] = useState<Webhook | null>(null);
 
+  const buildGamificationUrl = useCallback(
+    async (path: string, query?: Record<string, string>) => {
+      const baseUrl = await discoveryApi.getBaseUrl('gamification');
+      const url = new URL(
+        `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`,
+      );
+
+      if (query) {
+        for (const [key, value] of Object.entries(query)) {
+          if (value.trim()) {
+            url.searchParams.set(key, value);
+          }
+        }
+      }
+
+      return url.toString();
+    },
+    [discoveryApi],
+  );
+
   const handleCreateChange = (field: keyof WebhookFormData, value: string) => {
     setCreateForm(prev => ({ ...prev, [field]: value }));
-    setCreateError(null);
-  };
-
-  const handleCreateSubmit = () => {
-    if (!createForm.title.trim()) {
-      setCreateError('Title is required');
-      return;
-    }
-    if (!createForm.url.trim()) {
-      setCreateError('URL is required');
-      return;
-    }
-    try {
-      JSON.parse(createForm.payload || '{}');
-    } catch {
-      setCreateError('Invalid JSON in payload');
-      return;
-    }
-    // TODO: send to backend
-    setIsCreateOpen(false);
-    setCreateForm({
-      title: '',
-      description: '',
-      url: '',
-      event: '',
-      payload: '{}',
-    });
     setCreateError(null);
   };
 
@@ -111,27 +91,44 @@ export const AdminPage = () => {
     async ({
       offset,
       pageSize,
+      signal,
     }: {
       offset: number;
       pageSize: number;
       signal: AbortSignal;
     }) => {
-      const pageData = MOCK_WEBHOOKS.slice(offset, offset + pageSize);
+      const page = Math.floor(offset / pageSize) + 1;
+      const url = await buildGamificationUrl('/webhooks', {
+        page: String(page),
+        limit: String(pageSize),
+      });
+      const response = await fetchApi.fetch(url, { signal });
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      const result = await response.json();
+      const rows: Webhook[] = Array.isArray(result.data)
+        ? result.data.map((webhook: WebhookApiResponse) =>
+            normalizeWebhook(webhook),
+          )
+        : [];
 
       return {
-        data: pageData.map(
-          (webhook): WebhookTableRow => ({
+        data: rows.map(
+          (webhook: Webhook): WebhookTableRow => ({
             id: webhook.id,
             webhook,
           }),
         ),
-        totalCount: MOCK_WEBHOOKS.length,
+        totalCount: Number(result.pagination?.total ?? 0),
       };
     },
-    [],
+    [buildGamificationUrl, fetchApi],
   );
 
-  const { tableProps } = useTable({
+  const { tableProps, reload } = useTable<WebhookTableRow>({
     mode: 'offset',
     getData,
     paginationOptions: {
@@ -154,6 +151,41 @@ export const AdminPage = () => {
     },
   });
 
+  const handleCreateSubmit = async () => {
+    const validationError = validateWebhookForm(createForm);
+    if (validationError) {
+      setCreateError(validationError);
+      return;
+    }
+
+    setCreateLoading(true);
+    setCreateError(null);
+
+    try {
+      const url = await buildGamificationUrl('/webhooks');
+      const response = await fetchApi.fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildWebhookPayload(createForm)),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      resetCreateDialog();
+      reload();
+    } catch (createWebhookError) {
+      setCreateError(
+        createWebhookError instanceof Error
+          ? createWebhookError.message
+          : 'An unknown error occurred',
+      );
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
   const handleViewWebhook = (webhook: Webhook) => {
     setViewWebhook(webhook);
   };
@@ -173,7 +205,7 @@ export const AdminPage = () => {
         mode="create"
         formData={createForm}
         error={createError}
-        loading={false}
+        loading={createLoading}
         onClose={resetCreateDialog}
         onSubmit={handleCreateSubmit}
         onChange={handleCreateChange}
@@ -323,24 +355,7 @@ export const AdminPage = () => {
                 <Text weight="bold" style={{ fontSize: 14 }}>
                   Payload:
                 </Text>
-                <pre
-                  style={{
-                    margin: '8px 0 0 0',
-                    padding: 14,
-                    background: '#1e1e1e',
-                    color: '#d4d4d4',
-                    border: '1px solid #555',
-                    borderRadius: 6,
-                    overflow: 'auto',
-                    minHeight: '18rem',
-                    maxHeight: '65vh',
-                    whiteSpace: 'pre',
-                    fontSize: 15,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {JSON.stringify(viewWebhook?.payload, null, 2)}
-                </pre>
+                <JsonHighlight value={viewWebhook?.payload ?? {}} />
               </Box>
 
               <Box
