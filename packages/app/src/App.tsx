@@ -142,8 +142,8 @@ const routes = (
 		<Route path="/catalog-graph" element={<CatalogGraphPage />} />
 		<Route path="/notifications" element={<NotificationsPage />} />
 
-		<Route path="/gamification" element={<GamificationPage />} />
-	</FlatRoutes>
+    <Route path="/gamification/*" element={<GamificationPage />} />
+</FlatRoutes>
 );
 
 export default app.createRoot(
