@@ -1170,6 +1170,9 @@ components:
         - quest.completed
         - user.leveled_up
         - badge.earned
+        - daily
+        - weekly
+        - monthly
     Webhook:
       type: object
       required:

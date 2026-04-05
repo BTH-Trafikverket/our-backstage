@@ -24,6 +24,14 @@ export interface Config {
        */
       timeZone?: string;
     };
+    webhooks?: {
+      /**
+       * IANA timezone used when resolving daily, weekly, and monthly webhook periods.
+       * Defaults to Europe/Stockholm.
+       * @visibility backend
+       */
+      timeZone?: string;
+    };
     actorResolution?: {
       providers?: {
         /**

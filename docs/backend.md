@@ -39,6 +39,16 @@ Core badge data:
 - `badge_criteria_completion`
 - `earned_badges`
 
+Webhook data:
+
+- `webhooks`
+- `events_ran`
+
+Scheduled webhook runs are scanned during backend startup. For each `daily`,
+`weekly`, or `monthly` webhook, the backend resolves the current local period,
+checks `events_ran`, and only delivers the webhook when no ledger row exists
+for that webhook and period.
+
 ## Current quest model
 
 Quests use:
@@ -75,6 +85,15 @@ Badge runtime state is maintained in Postgres:
 
 Admin access is configured through `gamification.admin.groups`.
 Allowed event callers are configured through `gamification.quests.allowedCallers`.
+
+## Monthly progress period contract
+
+The first piece of the monthly progress trigger work defines the reporting period and rerun key:
+
+- default execution targets the previous fully completed calendar month
+- month boundaries are evaluated in the selected IANA timezone, with `Europe/Stockholm` as the default
+- manual reruns should resolve an explicit `YYYY-MM` month to the same period every time
+- the stable rerun/idempotency key contract is `monthly-progress:<timeZone>:<YYYY-MM>`
 
 ## OpenAPI
 

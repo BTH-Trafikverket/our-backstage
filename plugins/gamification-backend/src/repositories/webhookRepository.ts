@@ -1,5 +1,14 @@
 import type { Knex } from 'knex';
 
+export const SCHEDULED_WEBHOOK_TRIGGER_EVENTS = [
+  'daily',
+  'weekly',
+  'monthly',
+] as const;
+
+export type ScheduledWebhookEvent =
+  (typeof SCHEDULED_WEBHOOK_TRIGGER_EVENTS)[number];
+
 export type WebhookRow = {
   id: string;
   title: string;
@@ -15,6 +24,10 @@ export type WebhookTriggerEventRow = {
   name: string;
   created_at: Date;
   updated_at: Date;
+};
+
+export type ScheduledWebhookRow = WebhookRow & {
+  trigger_event_name: ScheduledWebhookEvent;
 };
 
 export type CreateWebhookRow = {
@@ -70,6 +83,18 @@ export class WebhookRepository {
     return this.db<WebhookTriggerEventRow>('webhook_trigger_events')
       .where({ name })
       .first();
+  }
+
+  async getScheduledWebhooks(): Promise<ScheduledWebhookRow[]> {
+    const rows = await this.db<WebhookRow>('webhooks')
+      .select('*')
+      .whereIn('trigger_event_name', [...SCHEDULED_WEBHOOK_TRIGGER_EVENTS])
+      .orderBy([
+        { column: 'created_at', order: 'asc' },
+        { column: 'id', order: 'asc' },
+      ]);
+
+    return rows as ScheduledWebhookRow[];
   }
 
   private getSafePagination(page = 1, limit = 10) {
