@@ -7,7 +7,7 @@
   },
   "scripts": {
     "start": "dotenvx run --env-file=.env.local -- backstage-cli repo start",
-    "start:e2e": "dotenvx run --env-file=.env.local -- env BACKSTAGE_E2E_MODE=true backstage-cli repo start --config $(pwd)/app-config.e2e.yaml",
+    "start:e2e": "dotenvx run --env-file=.env.local --env-file=.env.e2e.local --overload -- env BACKSTAGE_E2E_MODE=true backstage-cli repo start --config $(pwd)/app-config.e2e.yaml",
     "start:e2e:docker": "env BACKSTAGE_E2E_MODE=true backstage-cli repo start --config $(pwd)/app-config.e2e.yaml",
     "start:raw": "backstage-cli repo start",
     "build:backend": "yarn workspace backend build",

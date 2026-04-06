@@ -67,6 +67,7 @@ export const normalizeQuest = (quest: any): Quest => ({
   cooldown_days: quest.cooldown_days ?? null,
   created_at: quest.created_at,
   updated_at: quest.updated_at,
+  archived_at: quest.archived_at ?? null,
   subject_ref: quest.subject_ref ?? null,
   completion_count: quest.completion_count ?? 0,
   progress_toward_target: quest.progress_toward_target ?? 0,
