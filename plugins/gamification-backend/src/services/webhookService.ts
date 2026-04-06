@@ -1,6 +1,7 @@
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import { InputError } from '@backstage/errors';
 import Handlebars from 'handlebars';
+import type { DomainEventRow } from '../repositories/domainEventsRepository';
 import type {
   WebhookPagination,
   WebhookRepository,
@@ -23,21 +24,19 @@ export type PaginatedWebhookResponse = {
 
 export type WebhookEventName = 'quest.completed' | 'badge.earned';
 
-export type WebhookDispatchEvent = {
-  name: WebhookEventName;
-  context: Record<string, unknown>;
-};
-
 export class WebhookService {
   private readonly webhookRepo: WebhookRepository;
   private readonly logger?: LoggerService;
+  private readonly requestTimeoutMs: number;
 
   constructor(options: {
     webhookRepo: WebhookRepository;
     logger?: LoggerService;
+    requestTimeoutMs?: number;
   }) {
     this.webhookRepo = options.webhookRepo;
     this.logger = options.logger;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 10_000;
   }
 
   private buildWebhook(row: WebhookRow): WebhookResponse {
@@ -91,35 +90,19 @@ export class WebhookService {
     };
   }
 
-  async dispatchEvents(events: WebhookDispatchEvent[]): Promise<void> {
-    try {
-      const pendingEvents = events.filter(event => Boolean(event?.name));
-      if (pendingEvents.length === 0) {
-        return;
-      }
+  async deliverDomainEvent(event: DomainEventRow): Promise<void> {
+    const webhooks = await this.webhookRepo.getWebhooksByEventNames([
+      event.event_name,
+    ]);
 
-      const webhooks = await this.webhookRepo.getWebhooksByEventNames(
-        pendingEvents.map(event => event.name),
-      );
+    if (webhooks.length === 0) {
+      return;
+    }
 
-      if (webhooks.length === 0) {
-        return;
-      }
+    const context = this.buildDomainEventContext(event);
 
-      const deliveries = webhooks.flatMap(webhook =>
-        pendingEvents
-          .filter(event => event.name === webhook.trigger_event_name)
-          .map(event => this.deliverWebhook(webhook, event)),
-      );
-
-      const results = await Promise.allSettled(deliveries);
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          this.logger?.warn(`Webhook delivery failed: ${result.reason}`);
-        }
-      }
-    } catch (error) {
-      this.logger?.warn(`Webhook dispatch failed: ${error}`);
+    for (const webhook of webhooks) {
+      await this.deliverWebhook(webhook, event.event_name, event.id, context);
     }
   }
 
@@ -173,18 +156,38 @@ export class WebhookService {
     return value;
   }
 
+  private buildDomainEventContext(
+    event: DomainEventRow,
+  ): Record<string, unknown> {
+    return {
+      event: {
+        id: event.id,
+        name: event.event_name,
+        occurredAt: event.occurred_at.toISOString(),
+      },
+      event_id: event.id,
+      event_name: event.event_name,
+      event_occurred_at: event.occurred_at.toISOString(),
+      ...(event.payload ?? {}),
+    };
+  }
+
   private async deliverWebhook(
     webhook: WebhookRow,
-    event: WebhookDispatchEvent,
+    eventName: WebhookEventName,
+    eventId: string,
+    context: Record<string, unknown>,
   ): Promise<void> {
-    const payload = this.renderPayloadTemplate(webhook.payload, event.context);
+    const payload = this.renderPayloadTemplate(webhook.payload, context);
     const response = await fetch(webhook.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Gamification-Event-Id': eventId,
+        'X-Gamification-Event-Name': eventName,
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
 
     if (response.ok) {
@@ -196,7 +199,7 @@ export class WebhookService {
       responseBody.trim() || `${response.status} ${response.statusText}`;
 
     throw new Error(
-      `Webhook '${webhook.title}' (${webhook.url}) for event '${event.name}' returned ${reason}`,
+      `Webhook '${webhook.title}' (${webhook.url}) for event '${eventName}' returned ${reason}`,
     );
   }
 }

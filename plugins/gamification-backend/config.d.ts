@@ -24,6 +24,41 @@ export interface Config {
        */
       timeZone?: string;
     };
+    webhooks?: {
+      delivery?: {
+        /**
+         * Fallback polling interval for the domain-event webhook worker in
+         * milliseconds. LISTEN/NOTIFY is used for fast wakeups, while polling
+         * remains the recovery path. Defaults to 600000.
+         * @visibility backend
+         */
+        pollIntervalMs?: number;
+        /**
+         * Maximum number of domain events to claim per worker batch.
+         * Defaults to 25.
+         * @visibility backend
+         */
+        batchSize?: number;
+        /**
+         * Maximum number of delivery attempts before a domain event is dead-lettered.
+         * Defaults to 10.
+         * @visibility backend
+         */
+        maxAttempts?: number;
+        /**
+         * Time in milliseconds after which an uncompleted claim can be reclaimed
+         * by the worker. Defaults to 60000.
+         * @visibility backend
+         */
+        claimTtlMs?: number;
+        /**
+         * Timeout in milliseconds for outbound webhook HTTP requests.
+         * Defaults to 10000.
+         * @visibility backend
+         */
+        requestTimeoutMs?: number;
+      };
+    };
     actorResolution?: {
       providers?: {
         /**

@@ -5,6 +5,10 @@ import {
 import { initGameDb } from './database';
 import { runSeeds } from './seed';
 import { createRouter } from './router';
+import { DomainEventsRepository } from './repositories/domainEventsRepository';
+import { WebhookRepository } from './repositories/webhookRepository';
+import { DomainEventWorker } from './services/domainEventWorker';
+import { WebhookService } from './services/webhookService';
 
 export const gamificationBackendPlugin = createBackendPlugin({
   pluginId: 'gamification',
@@ -67,6 +71,42 @@ export const gamificationBackendPlugin = createBackendPlugin({
             logger,
           }),
         );
+
+        const webhookRepo = new WebhookRepository(knex);
+        const domainEventsRepo = new DomainEventsRepository(knex);
+        const requestTimeoutMs =
+          config.getOptionalNumber(
+            'gamification.webhooks.delivery.requestTimeoutMs',
+          ) ?? 10_000;
+        const domainEventWorker = new DomainEventWorker({
+          db: knex,
+          domainEventsRepo,
+          webhookService: new WebhookService({
+            webhookRepo,
+            logger,
+            requestTimeoutMs,
+          }),
+          logger,
+          pollIntervalMs:
+            config.getOptionalNumber(
+              'gamification.webhooks.delivery.pollIntervalMs',
+            ) ?? 10 * 60_000,
+          batchSize:
+            config.getOptionalNumber(
+              'gamification.webhooks.delivery.batchSize',
+            ) ?? 25,
+          maxAttempts:
+            config.getOptionalNumber(
+              'gamification.webhooks.delivery.maxAttempts',
+            ) ?? 10,
+          claimTtlMs:
+            config.getOptionalNumber(
+              'gamification.webhooks.delivery.claimTtlMs',
+            ) ?? 60_000,
+        });
+
+        domainEventWorker.start();
+        logger.info('gamification domain event worker started');
       },
     });
   },

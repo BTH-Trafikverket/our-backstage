@@ -95,7 +95,6 @@ export function createRouter({
     catalogClient,
     auth,
     actorResolutionProviders,
-    webhookService,
   });
   const badgesService = new BadgesService({ badgesRepo, questsRepo });
 

@@ -1,4 +1,5 @@
 import { WebhookService } from '../services/webhookService';
+import type { DomainEventRow } from '../repositories/domainEventsRepository';
 
 describe('WebhookService', () => {
   const originalFetch = global.fetch;
@@ -42,16 +43,28 @@ describe('WebhookService', () => {
       logger: logger as any,
     });
 
-    await service.dispatchEvents([
-      {
-        name: 'quest.completed',
-        context: {
-          username: 'alice',
-          quest_title: 'Daily Commit',
-          xp_reward: 100,
-        },
+    await service.deliverDomainEvent({
+      id: 'event-1',
+      event_name: 'quest.completed',
+      source_table: 'xp_awards',
+      source_id: 'xp-award-1',
+      subject_ref: 'user:default/alice',
+      quest_id: 'quest-1',
+      badge_id: null,
+      payload: {
+        username: 'alice',
+        quest_title: 'Daily Commit',
+        xp_reward: 100,
       },
-    ]);
+      occurred_at: new Date('2026-04-06T10:00:00.000Z'),
+      available_at: new Date('2026-04-06T10:00:00.000Z'),
+      claimed_at: null,
+      claimed_by: null,
+      attempt_count: 1,
+      processed_at: null,
+      dead_lettered_at: null,
+      last_error: null,
+    } as DomainEventRow);
 
     expect(webhookRepo.getWebhooksByEventNames).toHaveBeenCalledWith([
       'quest.completed',
@@ -62,6 +75,8 @@ describe('WebhookService', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Gamification-Event-Id': 'event-1',
+          'X-Gamification-Event-Name': 'quest.completed',
         },
         body: JSON.stringify({
           content: 'alice has completed Daily Commit and earned 100 XP.',
@@ -71,7 +86,7 @@ describe('WebhookService', () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
-  it('logs render errors instead of throwing when template variables are missing', async () => {
+  it('throws render errors when template variables are missing', async () => {
     const webhookRepo = {
       getWebhooksByEventNames: jest.fn(async () => [
         {
@@ -98,17 +113,29 @@ describe('WebhookService', () => {
     });
 
     await expect(
-      service.dispatchEvents([
-        {
-          name: 'quest.completed',
-          context: {
-            username: 'alice',
-          },
+      service.deliverDomainEvent({
+        id: 'event-2',
+        event_name: 'quest.completed',
+        source_table: 'xp_awards',
+        source_id: 'xp-award-2',
+        subject_ref: 'user:default/alice',
+        quest_id: 'quest-1',
+        badge_id: null,
+        payload: {
+          username: 'alice',
         },
-      ]),
-    ).resolves.toBeUndefined();
+        occurred_at: new Date('2026-04-06T10:00:00.000Z'),
+        available_at: new Date('2026-04-06T10:00:00.000Z'),
+        claimed_at: null,
+        claimed_by: null,
+        attempt_count: 1,
+        processed_at: null,
+        dead_lettered_at: null,
+        last_error: null,
+      } as DomainEventRow),
+    ).rejects.toThrow();
 
     expect(global.fetch).not.toHaveBeenCalled();
-    expect(logger.warn).toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });

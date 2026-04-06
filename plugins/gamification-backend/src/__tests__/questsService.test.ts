@@ -10,7 +10,6 @@ describe('QuestsService', () => {
   let mockRepo: jest.Mocked<QuestsRepository>;
   let mockCatalogClient: { getEntities: jest.Mock };
   let mockAuthService: { getPluginRequestToken: jest.Mock };
-  let mockWebhookService: { dispatchEvents: jest.Mock };
 
   beforeEach(() => {
     mockRepo = {
@@ -24,8 +23,6 @@ describe('QuestsService', () => {
       lockSubjectQuest: jest.fn(),
       getProgressForSubjectQuest: jest.fn(),
       getLastAwardedAt: jest.fn(),
-      getTotalXpForSubject: jest.fn(),
-      getEarnedBadgesForSubjectByQuest: jest.fn(),
       incrementQuestProgress: jest.fn(),
       getQuestsWithProgress: jest.fn(),
       tryInsertReceipt: jest.fn(),
@@ -37,17 +34,10 @@ describe('QuestsService', () => {
     mockAuthService = {
       getPluginRequestToken: jest.fn(async () => ({ token: 'catalog-token' })),
     };
-    mockWebhookService = {
-      dispatchEvents: jest.fn(async () => undefined),
-    };
-    mockRepo.getTotalXpForSubject.mockResolvedValue(0);
-    mockRepo.getEarnedBadgesForSubjectByQuest.mockResolvedValue([]);
-
     service = new QuestsService({
       questsRepo: mockRepo,
       catalogClient: mockCatalogClient as any,
       auth: mockAuthService as any,
-      webhookService: mockWebhookService as any,
     });
   });
 
@@ -925,7 +915,6 @@ describe('QuestsService', () => {
       expect(result.duplicate).toBe(false);
       expect(result.blocked).toBe(false);
       expect((result as any).completionCount).toBe(1);
-      expect(mockWebhookService.dispatchEvents).toHaveBeenCalled();
     });
 
     it('returns duplicate=true when the event receipt already exists', async () => {
@@ -958,73 +947,6 @@ describe('QuestsService', () => {
         questId: 'quest-ot',
       });
       expect(mockRepo.incrementQuestProgress).not.toHaveBeenCalled();
-      expect(mockWebhookService.dispatchEvents).not.toHaveBeenCalled();
-    });
-
-    it('dispatches quest and badge webhook events from persisted runtime state', async () => {
-      mockRepo.getQuestById.mockResolvedValue({
-        id: 'quest-user',
-        title: 'Daily Commit',
-        description: 'Commit code every day',
-        target_count: 1,
-        xp_reward: 100,
-        subject_type: 'user',
-        completion_policy: 'REPEATABLE',
-        cooldown_days: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      } as any);
-      mockRepo.getProgressForSubjectQuest.mockResolvedValue(undefined);
-      mockRepo.getTotalXpForSubject
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(140);
-      mockRepo.getEarnedBadgesForSubjectByQuest
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([
-          {
-            id: 'badge-1',
-            title: 'Commit Streak',
-            description: 'Earned for completing the quest',
-            xp_reward: 40,
-            subject_type: 'user',
-            earned_at: new Date('2026-04-04T09:00:00.000Z'),
-          },
-        ] as any);
-      mockRepo.incrementQuestProgress.mockResolvedValue({
-        subject_ref: 'user:default/alice',
-        quest_id: 'quest-user',
-        completion_count: 1,
-        created_at: new Date(),
-        updated_at: new Date(),
-      });
-
-      await service.handleQuestEvent({
-        eventId: 'evt-webhooks',
-        questId: 'quest-user',
-        subjectRef: 'user:default/alice',
-        callerSubject: 'external:test-service',
-        opts: { credentials: {} as any },
-      });
-
-      expect(mockWebhookService.dispatchEvents).toHaveBeenCalledWith([
-        expect.objectContaining({
-          name: 'quest.completed',
-          context: expect.objectContaining({
-            username: 'alice',
-            quest_title: 'Daily Commit',
-            xp_reward: 100,
-            completion_count: 1,
-          }),
-        }),
-        expect.objectContaining({
-          name: 'badge.earned',
-          context: expect.objectContaining({
-            badge_title: 'Commit Streak',
-            badge_xp_reward: 40,
-            xp_reward: 40,
-          }),
-        }),
-      ]);
     });
 
     it('uses the group entity ref as the subject for team quest events', async () => {
