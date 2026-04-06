@@ -2,6 +2,7 @@ import {
   AuthService,
   DiscoveryService,
   HttpAuthService,
+  LoggerService,
   RootConfigService,
   UserInfoService,
 } from '@backstage/backend-plugin-api';
@@ -68,6 +69,7 @@ export function createRouter({
   config,
   auth,
   discovery,
+  logger,
 }: {
   httpAuth: HttpAuthService;
   userInfo: UserInfoService;
@@ -75,6 +77,7 @@ export function createRouter({
   config: RootConfigService;
   auth: AuthService;
   discovery: DiscoveryService;
+  logger: LoggerService;
 }): express.Router {
   const router = Router();
   router.use(express.json());
@@ -85,15 +88,16 @@ export function createRouter({
 
   const catalogClient = new CatalogClient({ discoveryApi: discovery });
   const actorResolutionProviders = readActorResolutionProviders(config);
+  const webhookService = new WebhookService({ webhookRepo, logger });
 
   const questsService = new QuestsService({
     questsRepo,
     catalogClient,
     auth,
     actorResolutionProviders,
+    webhookService,
   });
   const badgesService = new BadgesService({ badgesRepo, questsRepo });
-  const webhookService = new WebhookService({ webhookRepo });
 
   const xpRepo = new XpRepository(knex);
   const xpService = new XpService(xpRepo, 100);

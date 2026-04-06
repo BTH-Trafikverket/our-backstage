@@ -86,6 +86,15 @@ export type BadgeCriteriaUsageRow = {
   badge_title: string;
 };
 
+export type EarnedBadgeForQuestRow = {
+  id: string;
+  title: string;
+  description: string;
+  xp_reward: number;
+  subject_type: QuestSubjectType;
+  earned_at: Date;
+};
+
 export class QuestsRepository {
   private readonly db: Knex | Knex.Transaction;
 
@@ -522,6 +531,46 @@ export class QuestsRepository {
       .max('created_at as last_awarded_at')
       .first();
     return row?.last_awarded_at ? new Date(row.last_awarded_at) : null;
+  }
+
+  async getTotalXpForSubject(subjectRef: string): Promise<number> {
+    const row = await this.db('xp_awards')
+      .where({ subject_ref: subjectRef })
+      .sum<{ sum: string | null }>({ sum: 'xp_amount' })
+      .first();
+
+    return row?.sum ? Number(row.sum) : 0;
+  }
+
+  async getEarnedBadgesForSubjectByQuest(
+    subjectRef: string,
+    questId: string,
+  ): Promise<EarnedBadgeForQuestRow[]> {
+    return this.db('earned_badges as eb')
+      .join('badges as b', 'b.id', 'eb.badge_id')
+      .join('badge_criteria as bc', 'bc.badge_id', 'eb.badge_id')
+      .where('eb.subject_ref', subjectRef)
+      .where('bc.quest_id', questId)
+      .select(
+        'b.id',
+        'b.title',
+        'b.description',
+        'b.xp_reward',
+        'b.subject_type',
+        'eb.earned_at',
+      )
+      .groupBy(
+        'b.id',
+        'b.title',
+        'b.description',
+        'b.xp_reward',
+        'b.subject_type',
+        'eb.earned_at',
+      )
+      .orderBy([
+        { column: 'eb.earned_at', order: 'asc' },
+        { column: 'b.id', order: 'asc' },
+      ]) as Promise<EarnedBadgeForQuestRow[]>;
   }
 
   async incrementQuestProgress(params: {

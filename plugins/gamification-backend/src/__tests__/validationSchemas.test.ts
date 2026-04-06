@@ -262,5 +262,18 @@ describe('validation schemas', () => {
         ['url'],
       ]);
     });
+
+    it('rejects unsupported webhook events', () => {
+      const result = webhookCreationSchema.safeParse({
+        title: 'Unsupported event webhook',
+        url: 'https://example.com/webhooks/gamification',
+        event: 'user.leveled_up',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.path)).toEqual([
+        ['event'],
+      ]);
+    });
   });
 });

@@ -45,6 +45,25 @@ export const WebhookFormDialog = ({
 
   const eventsLabel =
     WEBHOOK_EVENTS.find(e => e.id === formData.event)?.label ?? 'Select event';
+  const templateVariablesByEvent: Record<string, string[]> = {
+    'quest.completed': [
+      'username',
+      'quest_title',
+      'xp_reward',
+      'completion_count',
+      'total_xp',
+    ],
+    'badge.earned': [
+      'username',
+      'badge_title',
+      'badge_xp_reward',
+      'earned_at',
+      'total_xp',
+    ],
+  };
+  const templateVariables =
+    templateVariablesByEvent[formData.event] ??
+    templateVariablesByEvent['quest.completed'];
 
   return (
     <Dialog
@@ -176,7 +195,7 @@ export const WebhookFormDialog = ({
                 onChange={e => onChange('payload', e.target.value)}
                 disabled={loading}
                 rows={16}
-                placeholder='{"key": "value"}'
+                placeholder='{"content":"{{username}} has completed {{quest_title}} and earned {{xp_reward}} XP."}'
                 style={{
                   width: '100%',
                   minHeight: 360,
@@ -193,6 +212,16 @@ export const WebhookFormDialog = ({
                   boxSizing: 'border-box',
                 }}
               />
+              <Text color="secondary" style={{ fontSize: 13 }}>
+                Handlebars placeholders are rendered on the backend before the
+                webhook is sent.
+              </Text>
+              <Text color="secondary" style={{ fontSize: 13 }}>
+                Available variables:{' '}
+                {templateVariables
+                  .map(variable => `{{${variable}}}`)
+                  .join(', ')}
+              </Text>
             </Flex>
           </Flex>
         </Box>

@@ -14,8 +14,10 @@ import type {
 import { CatalogClient } from '@backstage/catalog-client';
 import { AuthService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
-import { stringifyEntityRef } from '@backstage/catalog-model';
+import { parseEntityRef, stringifyEntityRef } from '@backstage/catalog-model';
 import type { QuestEventActor } from '../schemas/quests/questEventSchema';
+import type { EarnedBadgeForQuestRow } from '../repositories/questsRepository';
+import type { WebhookDispatchEvent, WebhookService } from './webhookService';
 
 type QuestServiceOpts = {
   credentials: any;
@@ -52,12 +54,14 @@ export class QuestsService {
   private readonly catalogClient: CatalogClient;
   private readonly auth: AuthService;
   private readonly actorResolutionProviders: ActorResolutionProviders;
+  private readonly webhookService?: WebhookService;
 
   constructor(opts: {
     questsRepo: QuestsRepository;
     catalogClient: CatalogClient;
     auth: AuthService;
     actorResolutionProviders?: ActorResolutionProviders;
+    webhookService?: WebhookService;
   }) {
     this.questsRepo = opts.questsRepo;
     this.catalogClient = opts.catalogClient;
@@ -66,6 +70,7 @@ export class QuestsService {
       DEFAULT_ACTOR_RESOLUTION_PROVIDERS,
       opts.actorResolutionProviders ?? {},
     );
+    this.webhookService = opts.webhookService;
   }
 
   private normalizeQuestSubjectType(subjectType: QuestSubjectType | undefined) {
@@ -336,50 +341,51 @@ export class QuestsService {
       { token },
     );
 
-    return (res.items ?? [])
-      .map(entity => {
-        const annotations = entity.metadata.annotations ?? {};
-        const profile = (
-          entity.spec as
-            | {
-                profile?: {
-                  displayName?: string;
-                  email?: string;
-                  picture?: string;
-                };
-              }
-            | undefined
-        )?.profile;
-        const githubLogin = annotations['github.com/user-login']?.trim();
-        const githubId = annotations['github.com/user-id']?.trim();
+    const users: GithubCatalogUser[] = [];
 
-        if (!githubLogin && !githubId) {
-          return undefined;
-        }
+    for (const entity of res.items ?? []) {
+      const annotations = entity.metadata.annotations ?? {};
+      const profile = (
+        entity.spec as
+          | {
+              profile?: {
+                displayName?: string;
+                email?: string;
+                picture?: string;
+              };
+            }
+          | undefined
+      )?.profile;
+      const githubLogin = annotations['github.com/user-login']?.trim();
+      const githubId = annotations['github.com/user-id']?.trim();
 
-        const displayName =
-          profile?.displayName?.trim() ||
-          entity.metadata.title?.trim() ||
-          profile?.email?.trim() ||
-          entity.metadata.name;
+      if (!githubLogin && !githubId) {
+        continue;
+      }
 
-        return {
-          entityRef: stringifyEntityRef(entity),
-          displayName,
-          githubLogin: githubLogin || entity.metadata.name,
-          githubId: githubId || undefined,
-          email: profile?.email || undefined,
-          picture: profile?.picture || undefined,
-        };
-      })
-      .filter((user): user is GithubCatalogUser => Boolean(user))
-      .sort((left, right) =>
-        `${left.displayName} ${left.githubLogin}`.localeCompare(
-          `${right.displayName} ${right.githubLogin}`,
-          'en-US',
-          { sensitivity: 'base' },
-        ),
-      );
+      const displayName =
+        profile?.displayName?.trim() ||
+        entity.metadata.title?.trim() ||
+        profile?.email?.trim() ||
+        entity.metadata.name;
+
+      users.push({
+        entityRef: stringifyEntityRef(entity),
+        displayName,
+        githubLogin: githubLogin || entity.metadata.name,
+        githubId: githubId || undefined,
+        email: profile?.email || undefined,
+        picture: profile?.picture || undefined,
+      });
+    }
+
+    return users.sort((left, right) =>
+      `${left.displayName} ${left.githubLogin}`.localeCompare(
+        `${right.displayName} ${right.githubLogin}`,
+        'en-US',
+        { sensitivity: 'base' },
+      ),
+    );
   }
 
   async resolveActorToUserRef(params: {
@@ -477,6 +483,186 @@ export class QuestsService {
     });
   }
 
+  private getSubjectIdentity(subjectRef: string) {
+    try {
+      const parsed = parseEntityRef(subjectRef);
+      return {
+        kind: parsed.kind.toLocaleLowerCase('en-US'),
+        namespace: parsed.namespace.toLocaleLowerCase('en-US'),
+        name: parsed.name,
+      };
+    } catch {
+      return {
+        kind: 'entity',
+        namespace: 'default',
+        name: subjectRef,
+      };
+    }
+  }
+
+  private buildBaseWebhookContext(params: {
+    eventName: WebhookDispatchEvent['name'];
+    quest: QuestRow;
+    subjectRef: string;
+    actor?: QuestEventActor;
+    completionCount: number;
+    totalXpBefore: number;
+    totalXpAfter: number;
+  }) {
+    const {
+      eventName,
+      quest,
+      subjectRef,
+      actor,
+      completionCount,
+      totalXpBefore,
+      totalXpAfter,
+    } = params;
+    const subject = this.getSubjectIdentity(subjectRef);
+    const xpGained = Math.max(0, totalXpAfter - totalXpBefore);
+
+    return {
+      event: {
+        name: eventName,
+      },
+      subject: {
+        ref: subjectRef,
+        type: quest.subject_type,
+        kind: subject.kind,
+        namespace: subject.namespace,
+        name: subject.name,
+        displayName: subject.name,
+      },
+      actor: actor ?? null,
+      quest: {
+        id: quest.id,
+        title: quest.title,
+        description: quest.description,
+        targetCount: quest.target_count,
+        xpReward: quest.xp_reward,
+        subjectType: quest.subject_type,
+        completionPolicy: quest.completion_policy,
+        cooldownDays: quest.cooldown_days,
+      },
+      completion: {
+        count: completionCount,
+        milestoneCount: Math.floor(completionCount / quest.target_count),
+      },
+      xp: {
+        previousTotal: totalXpBefore,
+        total: totalXpAfter,
+        gained: xpGained,
+      },
+      subject_ref: subjectRef,
+      subject_type: quest.subject_type,
+      subject_kind: subject.kind,
+      subject_namespace: subject.namespace,
+      subject_name: subject.name,
+      subject_display_name: subject.name,
+      username: quest.subject_type === 'user' ? subject.name : undefined,
+      quest_id: quest.id,
+      quest_title: quest.title,
+      quest_description: quest.description,
+      quest_target_count: quest.target_count,
+      quest_subject_type: quest.subject_type,
+      completion_count: completionCount,
+      completed_milestone: Math.floor(completionCount / quest.target_count),
+      previous_total_xp: totalXpBefore,
+      total_xp: totalXpAfter,
+      xp_gained: xpGained,
+    };
+  }
+
+  private buildWebhookEvents(params: {
+    quest: QuestRow;
+    subjectRef: string;
+    actor?: QuestEventActor;
+    previousCompletionCount: number;
+    completionCount: number;
+    totalXpBefore: number;
+    totalXpAfter: number;
+    earnedBadgesBefore: EarnedBadgeForQuestRow[];
+    earnedBadgesAfter: EarnedBadgeForQuestRow[];
+  }): WebhookDispatchEvent[] {
+    const {
+      quest,
+      subjectRef,
+      actor,
+      previousCompletionCount,
+      completionCount,
+      totalXpBefore,
+      totalXpAfter,
+      earnedBadgesBefore,
+      earnedBadgesAfter,
+    } = params;
+
+    const events: WebhookDispatchEvent[] = [];
+    const previousMilestone = Math.floor(
+      previousCompletionCount / quest.target_count,
+    );
+    const currentMilestone = Math.floor(completionCount / quest.target_count);
+
+    if (currentMilestone > previousMilestone) {
+      const baseContext = this.buildBaseWebhookContext({
+        eventName: 'quest.completed',
+        quest,
+        subjectRef,
+        actor,
+        completionCount,
+        totalXpBefore,
+        totalXpAfter,
+      });
+
+      events.push({
+        name: 'quest.completed',
+        context: {
+          ...baseContext,
+          xp_reward: quest.xp_reward,
+        },
+      });
+    }
+
+    const earnedBeforeIds = new Set(earnedBadgesBefore.map(badge => badge.id));
+    const newlyEarnedBadges = earnedBadgesAfter.filter(
+      badge => !earnedBeforeIds.has(badge.id),
+    );
+
+    for (const badge of newlyEarnedBadges) {
+      const baseContext = this.buildBaseWebhookContext({
+        eventName: 'badge.earned',
+        quest,
+        subjectRef,
+        actor,
+        completionCount,
+        totalXpBefore,
+        totalXpAfter,
+      });
+
+      events.push({
+        name: 'badge.earned',
+        context: {
+          ...baseContext,
+          badge: {
+            id: badge.id,
+            title: badge.title,
+            description: badge.description,
+            xpReward: badge.xp_reward,
+            subjectType: badge.subject_type,
+            earnedAt: badge.earned_at.toISOString(),
+          },
+          badge_id: badge.id,
+          badge_title: badge.title,
+          badge_description: badge.description,
+          badge_xp_reward: badge.xp_reward,
+          earned_at: badge.earned_at.toISOString(),
+          xp_reward: badge.xp_reward,
+        },
+      });
+    }
+
+    return events;
+  }
+
   async handleQuestEvent(params: {
     eventId: string;
     questId: string;
@@ -510,53 +696,100 @@ export class QuestsService {
 
     this.ensureSubjectRefMatchesQuest(quest, resolvedSubjectRef);
 
-    return this.questsRepo.withTransaction(async repo => {
-      await repo.lockSubjectQuest(resolvedSubjectRef, questId);
+    const transactionResult = await this.questsRepo.withTransaction(
+      async repo => {
+        await repo.lockSubjectQuest(resolvedSubjectRef, questId);
 
-      const insertedReceipt = await repo.tryInsertReceipt({
-        event_id: eventId,
-        event_key: `quest:${questId}`,
-        subject_ref: resolvedSubjectRef,
-        caller_subject: callerSubject,
-      });
+        const insertedReceipt = await repo.tryInsertReceipt({
+          event_id: eventId,
+          event_key: `quest:${questId}`,
+          subject_ref: resolvedSubjectRef,
+          caller_subject: callerSubject,
+        });
 
-      if (!insertedReceipt) {
-        return {
-          duplicate: true,
-          blocked: false,
-          subjectRef: resolvedSubjectRef,
-          questId,
-        };
-      }
-
-      try {
-        await this.enforceCompletionPolicy(repo, quest, resolvedSubjectRef);
-      } catch (err: any) {
-        if (err instanceof ConflictError) {
+        if (!insertedReceipt) {
           return {
-            duplicate: false,
-            blocked: true,
-            reason: err.message,
-            subjectRef: resolvedSubjectRef,
-            questId,
+            response: {
+              duplicate: true,
+              blocked: false,
+              subjectRef: resolvedSubjectRef,
+              questId,
+            },
+            webhookEvents: [] as WebhookDispatchEvent[],
           };
         }
-        throw err;
-      }
 
-      const progress = await repo.incrementQuestProgress({
-        subject_ref: resolvedSubjectRef,
-        quest_id: questId,
-        by: 1,
-      });
+        try {
+          await this.enforceCompletionPolicy(repo, quest, resolvedSubjectRef);
+        } catch (err: any) {
+          if (err instanceof ConflictError) {
+            return {
+              response: {
+                duplicate: false,
+                blocked: true,
+                reason: err.message,
+                subjectRef: resolvedSubjectRef,
+                questId,
+              },
+              webhookEvents: [] as WebhookDispatchEvent[],
+            };
+          }
+          throw err;
+        }
 
-      return {
-        duplicate: false,
-        blocked: false,
-        subjectRef: resolvedSubjectRef,
-        questId,
-        completionCount: progress.completion_count,
-      };
-    });
+        const previousProgress = await repo.getProgressForSubjectQuest(
+          resolvedSubjectRef,
+          questId,
+        );
+        const totalXpBefore = await repo.getTotalXpForSubject(
+          resolvedSubjectRef,
+        );
+        const earnedBadgesBefore = await repo.getEarnedBadgesForSubjectByQuest(
+          resolvedSubjectRef,
+          questId,
+        );
+        const progress = await repo.incrementQuestProgress({
+          subject_ref: resolvedSubjectRef,
+          quest_id: questId,
+          by: 1,
+        });
+        const totalXpAfter = await repo.getTotalXpForSubject(
+          resolvedSubjectRef,
+        );
+        const earnedBadgesAfter = await repo.getEarnedBadgesForSubjectByQuest(
+          resolvedSubjectRef,
+          questId,
+        );
+
+        return {
+          response: {
+            duplicate: false,
+            blocked: false,
+            subjectRef: resolvedSubjectRef,
+            questId,
+            completionCount: progress.completion_count,
+          },
+          webhookEvents: this.buildWebhookEvents({
+            quest,
+            subjectRef: resolvedSubjectRef,
+            actor,
+            previousCompletionCount: previousProgress?.completion_count ?? 0,
+            completionCount: progress.completion_count,
+            totalXpBefore,
+            totalXpAfter,
+            earnedBadgesBefore,
+            earnedBadgesAfter,
+          }),
+        };
+      },
+    );
+
+    if (transactionResult.webhookEvents.length > 0) {
+      await this.webhookService?.dispatchEvents(
+        transactionResult.webhookEvents,
+      );
+    }
+
+    return transactionResult.response;
   }
 }

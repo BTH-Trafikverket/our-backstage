@@ -1,6 +1,5 @@
 export const WEBHOOK_EVENTS = [
   { id: 'quest.completed', label: 'Quest Completed' },
-  { id: 'user.leveled_up', label: 'User Leveled Up' },
   { id: 'badge.earned', label: 'Badge Earned' },
 ] as const;
 

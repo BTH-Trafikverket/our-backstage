@@ -1168,7 +1168,6 @@ components:
       type: string
       enum:
         - quest.completed
-        - user.leveled_up
         - badge.earned
     Webhook:
       type: object

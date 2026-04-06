@@ -57,7 +57,15 @@ export const gamificationBackendPlugin = createBackendPlugin({
         }
 
         httpRouter.use(
-          createRouter({ httpAuth, userInfo, knex, config, auth, discovery }),
+          createRouter({
+            httpAuth,
+            userInfo,
+            knex,
+            config,
+            auth,
+            discovery,
+            logger,
+          }),
         );
       },
     });

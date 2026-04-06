@@ -72,6 +72,24 @@ export class WebhookRepository {
       .first();
   }
 
+  async getWebhooksByEventNames(eventNames: string[]): Promise<WebhookRow[]> {
+    const names = [
+      ...new Set(eventNames.map(name => name.trim()).filter(Boolean)),
+    ];
+
+    if (names.length === 0) {
+      return [];
+    }
+
+    return this.db<WebhookRow>('webhooks')
+      .whereIn('trigger_event_name', names)
+      .orderBy([
+        { column: 'created_at', order: 'asc' },
+        { column: 'id', order: 'asc' },
+      ])
+      .select('*');
+  }
+
   private getSafePagination(page = 1, limit = 10) {
     const safePage = Math.max(1, Math.floor(page));
     const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
