@@ -4,6 +4,7 @@ import { questCreationSchema } from '../schemas/quests/questCreationSchema';
 import { questEditSchema } from '../schemas/quests/questEditSchema';
 import { questEventSchema } from '../schemas/quests/questEventSchema';
 import { webhookCreationSchema } from '../schemas/webhooks/webhookCreationSchema';
+import { webhookEditSchema } from '../schemas/webhooks/webhookEditSchema';
 
 describe('validation schemas', () => {
   describe('questCreationSchema', () => {
@@ -273,6 +274,42 @@ describe('validation schemas', () => {
       expect(result.success).toBe(false);
       expect(result.error?.issues.map(issue => issue.path)).toEqual([
         ['event'],
+      ]);
+    });
+  });
+
+  describe('webhookEditSchema', () => {
+    it('accepts partial webhook edits and allows clearing the description', () => {
+      expect(
+        webhookEditSchema.parse({
+          description: '   ',
+          payload: { retries: 5 },
+        }),
+      ).toEqual({
+        description: '',
+        payload: { retries: 5 },
+      });
+    });
+
+    it('rejects empty webhook edit payloads', () => {
+      const result = webhookEditSchema.safeParse({});
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe(
+        'No fields provided to update',
+      );
+    });
+
+    it('rejects whitespace-only titles and invalid URLs for webhook edits', () => {
+      const result = webhookEditSchema.safeParse({
+        title: '   ',
+        url: 'not-a-url',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.path)).toEqual([
+        ['title'],
+        ['url'],
       ]);
     });
   });

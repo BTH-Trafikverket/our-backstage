@@ -1,5 +1,14 @@
 import type { Knex } from 'knex';
 
+export const SCHEDULED_WEBHOOK_TRIGGER_EVENTS = [
+  'daily',
+  'weekly',
+  'monthly',
+] as const;
+
+export type ScheduledWebhookEvent =
+  (typeof SCHEDULED_WEBHOOK_TRIGGER_EVENTS)[number];
+
 export type WebhookRow = {
   id: string;
   title: string;
@@ -17,6 +26,10 @@ export type WebhookTriggerEventRow = {
   updated_at: Date;
 };
 
+export type ScheduledWebhookRow = WebhookRow & {
+  trigger_event_name: ScheduledWebhookEvent;
+};
+
 export type CreateWebhookRow = {
   title: string;
   description: string;
@@ -24,6 +37,8 @@ export type CreateWebhookRow = {
   trigger_event_name: string;
   payload: Record<string, unknown>;
 };
+
+export type UpdateWebhookRow = Partial<CreateWebhookRow>;
 
 export type WebhookPagination = {
   page: number;
@@ -64,6 +79,30 @@ export class WebhookRepository {
     return rows[0];
   }
 
+  async getWebhookById(id: string): Promise<WebhookRow | undefined> {
+    return this.db<WebhookRow>('webhooks').where({ id }).first();
+  }
+
+  async updateWebhook(
+    id: string,
+    data: UpdateWebhookRow,
+  ): Promise<WebhookRow | undefined> {
+    const rows = await this.db<WebhookRow>('webhooks')
+      .where({ id })
+      .update(data)
+      .returning('*');
+
+    return rows[0];
+  }
+
+  async deleteWebhook(id: string): Promise<boolean> {
+    const deletedCount = await this.db<WebhookRow>('webhooks')
+      .where({ id })
+      .del();
+
+    return deletedCount > 0;
+  }
+
   async getWebhookTriggerEvent(
     name: string,
   ): Promise<WebhookTriggerEventRow | undefined> {
@@ -88,6 +127,18 @@ export class WebhookRepository {
         { column: 'id', order: 'asc' },
       ])
       .select('*');
+  }
+
+  async getScheduledWebhooks(): Promise<ScheduledWebhookRow[]> {
+    const rows = await this.db<WebhookRow>('webhooks')
+      .select('*')
+      .whereIn('trigger_event_name', [...SCHEDULED_WEBHOOK_TRIGGER_EVENTS])
+      .orderBy([
+        { column: 'created_at', order: 'asc' },
+        { column: 'id', order: 'asc' },
+      ]);
+
+    return rows as ScheduledWebhookRow[];
   }
 
   private getSafePagination(page = 1, limit = 10) {

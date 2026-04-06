@@ -613,6 +613,61 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /webhooks/{id}:
+    patch:
+      operationId: updateWebhook
+      tags:
+        - Webhooks
+      summary: Update a webhook
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWebhookRequest'
+      responses:
+        '200':
+          description: Updated webhook
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteWebhook
+      tags:
+        - Webhooks
+      summary: Delete a webhook
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Webhook deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   responses:
     BadRequest:
@@ -1169,6 +1224,9 @@ components:
       enum:
         - quest.completed
         - badge.earned
+        - daily
+        - weekly
+        - monthly
     Webhook:
       type: object
       required:
@@ -1223,6 +1281,24 @@ components:
         - title
         - url
         - event
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        url:
+          type: string
+          format: uri
+        event:
+          $ref: '#/components/schemas/WebhookEventName'
+        payload:
+          type: object
+          additionalProperties: true
+    UpdateWebhookRequest:
+      type: object
+      minProperties: 1
       additionalProperties: false
       properties:
         title:

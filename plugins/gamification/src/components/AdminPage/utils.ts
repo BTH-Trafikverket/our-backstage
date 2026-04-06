@@ -1,4 +1,10 @@
-import type { Webhook, WebhookApiResponse, WebhookFormData } from './types';
+import {
+  WEBHOOK_EVENTS,
+  type Webhook,
+  type WebhookApiResponse,
+  type WebhookEventId,
+  type WebhookFormData,
+} from './types';
 
 export function validateWebhookForm(formData: WebhookFormData): string | null {
   if (!formData.title.trim()) {
@@ -7,6 +13,17 @@ export function validateWebhookForm(formData: WebhookFormData): string | null {
 
   if (!formData.url.trim()) {
     return 'URL is required';
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(formData.url.trim());
+  } catch {
+    return 'URL must be a valid URL';
+  }
+
+  if (!parsedUrl.href) {
+    return 'URL must be a valid URL';
   }
 
   if (!formData.event.trim()) {
@@ -35,6 +52,21 @@ export function buildWebhookPayload(formData: WebhookFormData) {
   };
 }
 
+export function createWebhookFormData(webhook: Webhook): WebhookFormData {
+  const event = webhook.events[0];
+  const normalizedEvent = WEBHOOK_EVENTS.some(option => option.id === event)
+    ? (event as WebhookEventId)
+    : '';
+
+  return {
+    title: webhook.title,
+    description: webhook.description,
+    url: webhook.url,
+    event: normalizedEvent,
+    payload: JSON.stringify(webhook.payload ?? {}, null, 2),
+  };
+}
+
 export function normalizeWebhook(webhook: WebhookApiResponse): Webhook {
   const payload =
     webhook.payload &&
@@ -51,6 +83,7 @@ export function normalizeWebhook(webhook: WebhookApiResponse): Webhook {
     events: Array.isArray(webhook.events) ? webhook.events : [],
     payload,
     createdAt: webhook.created_at,
+    updatedAt: webhook.updated_at,
   };
 }
 

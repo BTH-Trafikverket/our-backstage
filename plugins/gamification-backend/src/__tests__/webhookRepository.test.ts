@@ -71,6 +71,10 @@ describePostgres18('WebhookRepository integration', () => {
     const knex = await initDb();
     const repository = new WebhookRepository(knex);
 
+    expect(await repository.getWebhookTriggerEvent('daily')).toEqual(
+      expect.objectContaining({ name: 'daily' }),
+    );
+
     await expect(
       repository.createWebhook({
         title: 'Invalid Webhook',
@@ -80,6 +84,54 @@ describePostgres18('WebhookRepository integration', () => {
         payload: {},
       }),
     ).rejects.toThrow();
+
+    await knex.destroy();
+  });
+
+  it('updates and deletes persisted webhooks', async () => {
+    const knex = await initDb();
+    const repository = new WebhookRepository(knex);
+
+    const webhook = await repository.createWebhook({
+      title: 'Mutable Webhook',
+      description: 'Before update',
+      url: 'https://example.com/original',
+      trigger_event_name: 'quest.completed',
+      payload: { retries: 1 },
+    });
+
+    const updated = await repository.updateWebhook(webhook.id, {
+      title: 'Updated Webhook',
+      description: '',
+      url: 'https://example.com/updated',
+      trigger_event_name: 'badge.earned',
+      payload: { retries: 5 },
+    });
+
+    expect(updated).toEqual(
+      expect.objectContaining({
+        id: webhook.id,
+        title: 'Updated Webhook',
+        description: '',
+        url: 'https://example.com/updated',
+        trigger_event_name: 'badge.earned',
+        payload: { retries: 5 },
+      }),
+    );
+    expect(updated?.updated_at.getTime()).toBeGreaterThanOrEqual(
+      webhook.updated_at.getTime(),
+    );
+    expect(await repository.getWebhookById(webhook.id)).toEqual(
+      expect.objectContaining({
+        id: webhook.id,
+        title: 'Updated Webhook',
+      }),
+    );
+
+    await expect(repository.deleteWebhook(webhook.id)).resolves.toBe(true);
+    await expect(
+      repository.getWebhookById(webhook.id),
+    ).resolves.toBeUndefined();
 
     await knex.destroy();
   });

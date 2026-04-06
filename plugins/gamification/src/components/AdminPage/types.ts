@@ -1,6 +1,9 @@
 export const WEBHOOK_EVENTS = [
   { id: 'quest.completed', label: 'Quest Completed' },
   { id: 'badge.earned', label: 'Badge Earned' },
+  { id: 'daily', label: 'Daily' },
+  { id: 'weekly', label: 'Weekly' },
+  { id: 'monthly', label: 'Monthly' },
 ] as const;
 
 export type WebhookEventId = (typeof WEBHOOK_EVENTS)[number]['id'];
@@ -21,6 +24,7 @@ export type Webhook = {
   events: string[];
   payload: Record<string, unknown>;
   createdAt: string;
+  updatedAt: string;
 };
 
 export type WebhookTableRow = {
