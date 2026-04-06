@@ -25,6 +25,7 @@ export type Webhook = {
   events: string[];
   payload: Record<string, unknown>;
   createdAt: string;
+  updatedAt: string;
 };
 
 export type WebhookTableRow = {

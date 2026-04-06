@@ -5,6 +5,7 @@ import type {
   WebhookRow,
 } from '../repositories/webhookRepository';
 import type { WebhookCreationInput } from '../schemas/webhooks/webhookCreationSchema';
+import type { WebhookEditInput } from '../schemas/webhooks/webhookEditSchema';
 
 type WebhookServiceOpts = {
   credentials: any;
@@ -57,6 +58,45 @@ export class WebhookService {
     });
 
     return this.buildWebhook(created);
+  }
+
+  async editWebhook(
+    id: string,
+    data: WebhookEditInput,
+    _opts: WebhookServiceOpts,
+  ) {
+    const current = await this.webhookRepo.getWebhookById(id);
+    if (!current) {
+      return undefined;
+    }
+
+    if (data.event !== undefined) {
+      const triggerEvent = await this.webhookRepo.getWebhookTriggerEvent(
+        data.event,
+      );
+
+      if (!triggerEvent) {
+        throw new InputError(`Webhook trigger event '${data.event}' not found`);
+      }
+    }
+
+    const updated = await this.webhookRepo.updateWebhook(id, {
+      title: data.title,
+      description: data.description,
+      url: data.url,
+      trigger_event_name: data.event,
+      payload: data.payload,
+    });
+
+    if (!updated) {
+      return undefined;
+    }
+
+    return this.buildWebhook(updated);
+  }
+
+  async deleteWebhook(id: string, _opts: WebhookServiceOpts) {
+    return this.webhookRepo.deleteWebhook(id);
   }
 
   async getWebhooks(
