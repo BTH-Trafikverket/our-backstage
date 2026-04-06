@@ -17,10 +17,11 @@ async function signInAndOpenAdminQuests(page: Page) {
   await page.getByRole('button', { name: 'Enter' }).click();
   await expect(page).toHaveURL(/\/catalog$/);
   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
-  await page.goto('/gamification');
+  await page.getByRole('link', { name: 'Quests' }).click();
   await expect(page.getByRole('button', { name: 'Create quest' })).toBeVisible({
     timeout: 15_000,
   });
+  await expect(page).toHaveURL(/\/gamification$/);
 }
 
 async function searchQuests(page: Page, value: string) {

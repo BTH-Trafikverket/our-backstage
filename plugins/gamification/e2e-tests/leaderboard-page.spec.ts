@@ -6,10 +6,12 @@ async function signInAndOpenLeaderboard(page: Page) {
   await page.getByRole('button', { name: 'Enter' }).click();
   await expect(page).toHaveURL(/\/catalog$/);
   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
-  await page.goto('/gamification/leaderboard');
+  await page.getByRole('link', { name: 'Quests' }).click();
+  await page.getByRole('tab', { name: 'Leaderboard' }).click();
   await expect(
     page.getByRole('heading', { name: 'Leaderboard' }),
   ).toBeVisible();
+  await expect(page).toHaveURL(/\/gamification\/leaderboard$/);
 }
 
 test('loads the leaderboard page', async ({ page }) => {
