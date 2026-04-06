@@ -38,6 +38,8 @@ export type CreateWebhookRow = {
   payload: Record<string, unknown>;
 };
 
+export type UpdateWebhookRow = Partial<CreateWebhookRow>;
+
 export type WebhookPagination = {
   page: number;
   limit: number;
@@ -75,6 +77,30 @@ export class WebhookRepository {
       .returning('*');
 
     return rows[0];
+  }
+
+  async getWebhookById(id: string): Promise<WebhookRow | undefined> {
+    return this.db<WebhookRow>('webhooks').where({ id }).first();
+  }
+
+  async updateWebhook(
+    id: string,
+    data: UpdateWebhookRow,
+  ): Promise<WebhookRow | undefined> {
+    const rows = await this.db<WebhookRow>('webhooks')
+      .where({ id })
+      .update(data)
+      .returning('*');
+
+    return rows[0];
+  }
+
+  async deleteWebhook(id: string): Promise<boolean> {
+    const deletedCount = await this.db<WebhookRow>('webhooks')
+      .where({ id })
+      .del();
+
+    return deletedCount > 0;
   }
 
   async getWebhookTriggerEvent(

@@ -10,7 +10,7 @@ import {
   Text,
   TextField,
 } from '@backstage/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { WEBHOOK_EVENTS, type WebhookFormData } from './types';
 
 type WebhookFormDialogProps = {
@@ -37,10 +37,17 @@ export const WebhookFormDialog = ({
   onChange,
 }: WebhookFormDialogProps) => {
   const [eventsOpen, setEventsOpen] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setEventsOpen(false);
+    }
+  }, [isOpen, mode, webhookTitle]);
+
   const title =
     mode === 'create'
       ? 'Create Webhook'
-      : `Edit webhook${webhookTitle ? `: ${webhookTitle}` : ''}`;
+      : `Edit Webhook${webhookTitle ? `: ${webhookTitle}` : ''}`;
   const submitLabel = mode === 'create' ? 'Create Webhook' : 'Save changes';
 
   const eventsLabel =
