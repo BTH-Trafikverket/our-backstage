@@ -12,7 +12,7 @@ import { DomainEventWorker } from './services/domainEventWorker';
 import { WebhookService } from './services/webhookService';
 import { ScheduledWebhooksService } from './services/scheduledWebhooksService';
 import { DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE } from './services/scheduledWebhookPeriod';
-import { WebhookDeliveryService } from './services/webhookDeliveryService';
+import { ScheduledWebhooksWorker } from './services/scheduledWebhooksWorker';
 
 export const gamificationBackendPlugin = createBackendPlugin({
   pluginId: 'gamification',
@@ -70,16 +70,17 @@ export const gamificationBackendPlugin = createBackendPlugin({
         const scheduledWebhooksService = new ScheduledWebhooksService({
           webhookRepo: new WebhookRepository(knex),
           eventsRanRepo: new EventsRanRepository(knex),
-          deliveryService: new WebhookDeliveryService(),
           logger,
           timeZone: webhookTimeZone,
         });
-        const startupScan =
-          await scheduledWebhooksService.scanAndRunScheduledWebhooks();
-
-        logger.info(
-          `gamification scheduled webhook startup scan completed (executed=${startupScan.executedCount}, skipped=${startupScan.skippedCount}, failed=${startupScan.failedCount})`,
-        );
+        const scheduledWebhooksWorker = new ScheduledWebhooksWorker({
+          scheduledWebhooksService,
+          logger,
+          scanIntervalMs:
+            config.getOptionalNumber(
+              'gamification.webhooks.scheduleScanIntervalMs',
+            ) ?? 60_000,
+        });
 
         httpRouter.use(
           createRouter({
@@ -128,6 +129,8 @@ export const gamificationBackendPlugin = createBackendPlugin({
 
         domainEventWorker.start();
         logger.info('gamification domain event worker started');
+        scheduledWebhooksWorker.start();
+        logger.info('gamification scheduled webhook worker started');
       },
     });
   },

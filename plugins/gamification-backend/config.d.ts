@@ -25,6 +25,18 @@ export interface Config {
       timeZone?: string;
     };
     webhooks?: {
+      /**
+       * IANA timezone used for scheduled webhook period boundaries.
+       * Defaults to Europe/Stockholm.
+       * @visibility backend
+       */
+      timeZone?: string;
+      /**
+       * Scan interval in milliseconds for scheduled daily/weekly/monthly
+       * webhook enqueueing. Defaults to 60000.
+       * @visibility backend
+       */
+      scheduleScanIntervalMs?: number;
       delivery?: {
         /**
          * Fallback polling interval for the domain-event webhook worker in

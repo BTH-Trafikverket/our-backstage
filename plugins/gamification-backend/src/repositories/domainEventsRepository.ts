@@ -23,6 +23,49 @@ export type DomainEventRow = {
 export class DomainEventsRepository {
   constructor(private readonly db: Knex | Knex.Transaction) {}
 
+  async enqueueEvent(params: {
+    eventName: WebhookEventName;
+    sourceTable: string;
+    sourceId: string;
+    subjectRef: string;
+    questId?: string | null;
+    badgeId?: string | null;
+    payload?: Record<string, unknown>;
+    occurredAt?: Date;
+    availableAt?: Date;
+  }): Promise<DomainEventRow | undefined> {
+    const rows = await this.db<DomainEventRow>('domain_events')
+      .insert({
+        event_name: params.eventName,
+        source_table: params.sourceTable,
+        source_id: params.sourceId,
+        subject_ref: params.subjectRef,
+        quest_id: params.questId ?? null,
+        badge_id: params.badgeId ?? null,
+        payload: params.payload ?? {},
+        ...(params.occurredAt ? { occurred_at: params.occurredAt } : {}),
+        ...(params.availableAt ? { available_at: params.availableAt } : {}),
+      })
+      .onConflict(['event_name', 'source_table', 'source_id'])
+      .ignore()
+      .returning('*');
+
+    const created = rows[0];
+    if (!created) {
+      return undefined;
+    }
+
+    await this.db.raw('SELECT pg_notify(?, ?::text)', [
+      'gamification_domain_events',
+      JSON.stringify({
+        id: created.id,
+        eventName: created.event_name,
+      }),
+    ]);
+
+    return created;
+  }
+
   async claimPendingEvents(params: {
     workerId: string;
     batchSize: number;

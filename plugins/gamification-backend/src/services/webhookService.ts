@@ -23,7 +23,12 @@ export type PaginatedWebhookResponse = {
   pagination: WebhookPagination;
 };
 
-export type WebhookEventName = 'quest.completed' | 'badge.earned';
+export type WebhookEventName =
+  | 'quest.completed'
+  | 'badge.earned'
+  | 'daily'
+  | 'weekly'
+  | 'monthly';
 
 export class WebhookService {
   private readonly webhookRepo: WebhookRepository;

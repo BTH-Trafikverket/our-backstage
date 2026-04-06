@@ -7,7 +7,6 @@ import type {
   ScheduledWebhookRow,
   WebhookRepository,
 } from '../repositories/webhookRepository';
-import { WebhookDeliveryService } from '../services/webhookDeliveryService';
 import { ScheduledWebhooksService } from '../services/scheduledWebhooksService';
 
 describe('ScheduledWebhooksService', () => {
@@ -48,9 +47,10 @@ describe('ScheduledWebhooksService', () => {
       findRunForPeriod: jest.fn(),
       tryInsertRun: jest.fn(),
     };
+    const enqueueEvent = jest.fn();
 
     const eventsRanRepo = {
-      withTransaction: jest.fn(async fn => fn(txRepo)),
+      withTransaction: jest.fn(async fn => fn(txRepo, {})),
       lockWebhookPeriod: jest.fn(),
       findRunForPeriod: jest.fn(),
       tryInsertRun: jest.fn(),
@@ -60,10 +60,6 @@ describe('ScheduledWebhooksService', () => {
       getScheduledWebhooks: jest.fn(),
     } as unknown as jest.Mocked<WebhookRepository>;
 
-    const deliveryService = {
-      sendWebhook: jest.fn(),
-    } as unknown as jest.Mocked<WebhookDeliveryService>;
-
     const logger = {
       error: jest.fn(),
       info: jest.fn(),
@@ -72,11 +68,11 @@ describe('ScheduledWebhooksService', () => {
       child: jest.fn(),
     } as unknown as jest.Mocked<LoggerService>;
 
-    return { webhooksRepo, eventsRanRepo, txRepo, deliveryService, logger };
+    return { webhooksRepo, eventsRanRepo, txRepo, enqueueEvent, logger };
   }
 
   it('executes a daily webhook on startup when no run exists for the current day', async () => {
-    const { webhooksRepo, eventsRanRepo, txRepo, deliveryService, logger } =
+    const { webhooksRepo, eventsRanRepo, txRepo, enqueueEvent, logger } =
       createMocks();
     webhooksRepo.getScheduledWebhooks.mockResolvedValue([
       createWebhook({ trigger_event_name: 'daily' }),
@@ -87,8 +83,8 @@ describe('ScheduledWebhooksService', () => {
     const service = new ScheduledWebhooksService({
       webhookRepo: webhooksRepo,
       eventsRanRepo,
-      deliveryService,
       logger,
+      createDomainEventsRepo: () => ({ enqueueEvent } as any),
       now: () => new Date('2026-04-01T12:00:00.000Z'),
       timeZone: 'UTC',
     });
@@ -111,11 +107,18 @@ describe('ScheduledWebhooksService', () => {
       'webhook-1',
       '2026-04-01',
     );
-    expect(deliveryService.sendWebhook).toHaveBeenCalledTimes(1);
+    expect(txRepo.tryInsertRun).toHaveBeenCalledTimes(1);
+    expect(enqueueEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: 'daily',
+        sourceTable: 'scheduled_webhooks',
+        sourceId: 'webhook-1:2026-04-01',
+      }),
+    );
   });
 
   it('executes weekly and monthly webhooks when their current periods are missing', async () => {
-    const { webhooksRepo, eventsRanRepo, txRepo, deliveryService, logger } =
+    const { webhooksRepo, eventsRanRepo, txRepo, enqueueEvent, logger } =
       createMocks();
     webhooksRepo.getScheduledWebhooks.mockResolvedValue([
       createWebhook({ id: 'weekly-1', trigger_event_name: 'weekly' }),
@@ -127,8 +130,8 @@ describe('ScheduledWebhooksService', () => {
     const service = new ScheduledWebhooksService({
       webhookRepo: webhooksRepo,
       eventsRanRepo,
-      deliveryService,
       logger,
+      createDomainEventsRepo: () => ({ enqueueEvent } as any),
       now: () => new Date('2026-04-01T12:00:00.000Z'),
       timeZone: 'UTC',
     });
@@ -150,10 +153,11 @@ describe('ScheduledWebhooksService', () => {
         status: 'executed',
       }),
     ]);
+    expect(enqueueEvent).toHaveBeenCalledTimes(2);
   });
 
   it('skips execution when a run already exists for the current period', async () => {
-    const { webhooksRepo, eventsRanRepo, txRepo, deliveryService, logger } =
+    const { webhooksRepo, eventsRanRepo, txRepo, enqueueEvent, logger } =
       createMocks();
     webhooksRepo.getScheduledWebhooks.mockResolvedValue([
       createWebhook({ trigger_event_name: 'daily' }),
@@ -163,8 +167,8 @@ describe('ScheduledWebhooksService', () => {
     const service = new ScheduledWebhooksService({
       webhookRepo: webhooksRepo,
       eventsRanRepo,
-      deliveryService,
       logger,
+      createDomainEventsRepo: () => ({ enqueueEvent } as any),
       now: () => new Date('2026-04-01T12:00:00.000Z'),
       timeZone: 'UTC',
     });
@@ -184,12 +188,12 @@ describe('ScheduledWebhooksService', () => {
       ],
     });
 
-    expect(deliveryService.sendWebhook).not.toHaveBeenCalled();
+    expect(enqueueEvent).not.toHaveBeenCalled();
     expect(txRepo.tryInsertRun).not.toHaveBeenCalled();
   });
 
-  it('continues startup scanning when one webhook delivery fails', async () => {
-    const { webhooksRepo, eventsRanRepo, txRepo, deliveryService, logger } =
+  it('continues startup scanning when one webhook enqueue fails', async () => {
+    const { webhooksRepo, eventsRanRepo, txRepo, enqueueEvent, logger } =
       createMocks();
     webhooksRepo.getScheduledWebhooks.mockResolvedValue([
       createWebhook({ id: 'broken-1', trigger_event_name: 'daily' }),
@@ -197,15 +201,13 @@ describe('ScheduledWebhooksService', () => {
     ]);
     txRepo.findRunForPeriod.mockResolvedValue(undefined);
     txRepo.tryInsertRun.mockResolvedValue(true);
-    deliveryService.sendWebhook.mockRejectedValueOnce(
-      new Error('upstream unavailable'),
-    );
+    enqueueEvent.mockRejectedValueOnce(new Error('upstream unavailable'));
 
     const service = new ScheduledWebhooksService({
       webhookRepo: webhooksRepo,
       eventsRanRepo,
-      deliveryService,
       logger,
+      createDomainEventsRepo: () => ({ enqueueEvent } as any),
       now: () => new Date('2026-04-01T12:00:00.000Z'),
       timeZone: 'UTC',
     });

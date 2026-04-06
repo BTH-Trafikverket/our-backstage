@@ -67,6 +67,27 @@ export const WebhookFormDialog = ({
       'earned_at',
       'total_xp',
     ],
+    daily: [
+      'webhook_title',
+      'period_key',
+      'time_zone',
+      'period_start',
+      'period_end_exclusive',
+    ],
+    weekly: [
+      'webhook_title',
+      'period_key',
+      'time_zone',
+      'period_start',
+      'period_end_exclusive',
+    ],
+    monthly: [
+      'webhook_title',
+      'period_key',
+      'time_zone',
+      'period_start',
+      'period_end_exclusive',
+    ],
   };
   const templateVariables =
     templateVariablesByEvent[formData.event] ??
