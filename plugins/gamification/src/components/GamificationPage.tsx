@@ -60,11 +60,16 @@ export const GamificationRootPage = () => {
       href: '/gamification/badges',
     },
     {
+      id: 'leaderboard',
+      label: 'Leaderboard',
+      href: '/gamification/leaderboard',
+    },
+    {
       id: 'test',
       label: 'Test',
       href: '/gamification/test',
     },
-    ...(isAdmin
+    ...(effectiveIsAdmin
       ? [
           {
             id: 'admin',
@@ -79,28 +84,7 @@ export const GamificationRootPage = () => {
     <FullPage>
       <PluginHeader
         title="Gamification"
-        tabs={[
-          {
-            id: 'quests',
-            label: 'Quests',
-            href: '/gamification',
-          },
-          {
-            id: 'badges',
-            label: 'Badges',
-            href: '/gamification/badges',
-          },
-          {
-            id: 'leaderboard',
-            label: 'Leaderboard',
-            href: '/gamification/leaderboard',
-          },
-          {
-            id: 'test',
-            label: 'Test',
-            href: '/gamification/test',
-          },
-        ]}
+        tabs={tabs}
         customActions={
           <Text variant="body-medium" color="secondary">
             Progress and recognition
@@ -137,6 +121,17 @@ export const GamificationRootPage = () => {
             />
             <Route path="leaderboard" element={<LeaderboardPage />} />
             <Route path="test" element={<TestPage isAdmin={isAdmin} />} />
+            <Route
+              path="admin"
+              element={
+                effectiveIsAdmin ? (
+                  <AdminPage />
+                ) : (
+                  <Navigate to="/gamification" replace />
+                )
+              }
+            />
+            <Route path="*" element={<Navigate to="/gamification" replace />} />
           </Routes>
         </Box>
       </Container>
