@@ -61,7 +61,7 @@ services:
     environment:
       CI: 'true'
       PLAYWRIGHT_URL: http://backstage-e2e:3000
-      PLAYWRIGHT_WORKERS: '2'
+      PLAYWRIGHT_WORKERS: '1'
       NODE_OPTIONS: --no-node-snapshot
     volumes:
       - .:/workspace

@@ -22,11 +22,12 @@ const configuredWorkers = Number.parseInt(
   process.env.PLAYWRIGHT_WORKERS ?? '',
   10,
 );
+const maxWorkers = 2;
 const workers =
   Number.isFinite(configuredWorkers) && configuredWorkers > 0
-    ? configuredWorkers
+    ? Math.min(configuredWorkers, maxWorkers)
     : process.env.CI
-    ? 2
+    ? maxWorkers
     : undefined;
 
 if (!baseURL) {
