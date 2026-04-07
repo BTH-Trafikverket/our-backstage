@@ -54,6 +54,7 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
 const MIN_PAGE_SIZE = 3;
 const MAX_PAGE_SIZE = 25;
+const FETCH_PAGE_SIZE = 100;
 
 const leaderboardColumns: readonly ColumnConfig<LeaderboardEntry>[] = [
   {
@@ -104,7 +105,7 @@ const filteredEmptyState = (
   >
     <Text weight="bold">No leaderboard entries match this search.</Text>
     <Text color="secondary">
-      Try a different name or clear the current page filter.
+      Try a different name or clear the current filter.
     </Text>
   </Flex>
 );
@@ -118,12 +119,20 @@ const renderLoadingState = () => (
   </Flex>
 );
 
-const createDefaultPagination = (): LeaderboardPagination => ({
-  page: DEFAULT_PAGE,
-  limit: DEFAULT_PAGE_SIZE,
-  total: 0,
-  totalPages: 1,
-});
+const createPagination = (
+  page: number,
+  limit: number,
+  total: number,
+): LeaderboardPagination => {
+  const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
+
+  return {
+    page: Math.min(Math.max(page, DEFAULT_PAGE), totalPages),
+    limit,
+    total,
+    totalPages,
+  };
+};
 
 const clampPageSize = (value: number) =>
   Math.min(MAX_PAGE_SIZE, Math.max(MIN_PAGE_SIZE, Math.floor(value)));
@@ -260,6 +269,15 @@ const sortLeaderboardEntries = (
   return sortedEntries;
 };
 
+const paginateLeaderboardEntries = (
+  entries: LeaderboardEntry[],
+  page: number,
+  pageSize: number,
+): LeaderboardEntry[] => {
+  const offset = (page - 1) * pageSize;
+  return entries.slice(offset, offset + pageSize);
+};
+
 export const LeaderboardPage = () => {
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
@@ -275,9 +293,6 @@ export const LeaderboardPage = () => {
   const [page, setPage] = useState(DEFAULT_PAGE);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [pageSizeInput, setPageSizeInput] = useState(String(DEFAULT_PAGE_SIZE));
-  const [pagination, setPagination] = useState<LeaderboardPagination>(
-    createDefaultPagination(),
-  );
 
   const buildGamificationUrl = useCallback(
     async (path: string, query?: Record<string, string>) => {
@@ -303,35 +318,43 @@ export const LeaderboardPage = () => {
     let cancelled = false;
     const controller = new AbortController();
 
+    const fetchLeaderboardPage = async (nextPage: number) => {
+      const url = await buildGamificationUrl('/leaderboard', {
+        subjectType,
+        timeRange,
+        page: String(nextPage),
+        limit: String(FETCH_PAGE_SIZE),
+      });
+      const response = await fetchApi.fetch(url, {
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      return (await response.json()) as LeaderboardResponse;
+    };
+
     const loadLeaderboard = async () => {
       try {
         setLoading(true);
         setError(undefined);
-        const url = await buildGamificationUrl('/leaderboard', {
-          subjectType,
-          timeRange,
-          page: String(page),
-          limit: String(pageSize),
-        });
-        const response = await fetchApi.fetch(url, {
-          signal: controller.signal,
-        });
+        const result = await fetchLeaderboardPage(DEFAULT_PAGE);
+        const nextPagination = normalizePagination(result.pagination);
+        const nextEntries = normalizeLeaderboardEntries(result);
 
-        if (!response.ok) {
-          throw new Error(await readErrorMessage(response));
+        for (
+          let nextPage = DEFAULT_PAGE + 1;
+          nextPage <= nextPagination.totalPages;
+          nextPage += 1
+        ) {
+          const nextResult = await fetchLeaderboardPage(nextPage);
+          nextEntries.push(...normalizeLeaderboardEntries(nextResult));
         }
 
-        const result = (await response.json()) as LeaderboardResponse;
         if (!cancelled) {
-          const nextPagination = normalizePagination(result.pagination);
-          setEntries(normalizeLeaderboardEntries(result));
-          setPagination(nextPagination);
-          if (nextPagination.limit !== pageSize) {
-            setPageSize(nextPagination.limit);
-          }
-          if (nextPagination.page !== page) {
-            setPage(nextPagination.page);
-          }
+          setEntries(nextEntries);
         }
       } catch (e: any) {
         if (controller.signal.aborted) {
@@ -341,7 +364,6 @@ export const LeaderboardPage = () => {
         if (!cancelled) {
           setError(e?.message ?? String(e));
           setEntries([]);
-          setPagination(createDefaultPagination());
         }
       } finally {
         if (!cancelled) {
@@ -356,17 +378,23 @@ export const LeaderboardPage = () => {
       cancelled = true;
       controller.abort();
     };
-  }, [buildGamificationUrl, fetchApi, page, pageSize, subjectType, timeRange]);
+  }, [buildGamificationUrl, fetchApi, subjectType, timeRange]);
 
   useEffect(() => {
     setPageSizeInput(String(pageSize));
   }, [pageSize]);
 
+  const filteredEntries = filterLeaderboardEntries(entries, search);
+  const sortedEntries = sortLeaderboardEntries(filteredEntries, sort);
+  const pagination = createPagination(page, pageSize, sortedEntries.length);
+  const visibleEntries = paginateLeaderboardEntries(
+    sortedEntries,
+    pagination.page,
+    pagination.limit,
+  );
   const canGoToPreviousPage = pagination.page > 1;
   const canGoToNextPage =
     pagination.total > 0 && pagination.page < pagination.totalPages;
-  const filteredEntries = filterLeaderboardEntries(entries, search);
-  const visibleEntries = sortLeaderboardEntries(filteredEntries, sort);
   const hasActiveSearch = search.trim().length > 0;
   const tableEmptyState =
     hasActiveSearch && entries.length > 0 ? filteredEmptyState : emptyState;
@@ -374,6 +402,10 @@ export const LeaderboardPage = () => {
     subjectType,
     timeRange,
   );
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(DEFAULT_PAGE);
+  };
   const handleSubjectTypeChange = (nextSubjectType: LeaderboardSubjectType) => {
     if (nextSubjectType === subjectType) {
       return;
@@ -430,6 +462,12 @@ export const LeaderboardPage = () => {
     commitPageSize(parsedPageSize);
   };
 
+  useEffect(() => {
+    if (page !== pagination.page) {
+      setPage(pagination.page);
+    }
+  }, [page, pagination.page]);
+
   return (
     <Flex direction="column" gap="4">
       <HeaderPage title="Leaderboard" />
@@ -441,11 +479,11 @@ export const LeaderboardPage = () => {
           search={search}
           subjectType={subjectType}
           timeRange={timeRange}
-          pageCount={entries.length}
+          filteredCount={sortedEntries.length}
           pageSize={pageSizeInput}
-          totalCount={pagination.total}
+          totalCount={entries.length}
           visibleCount={visibleEntries.length}
-          onSearchChange={setSearch}
+          onSearchChange={handleSearchChange}
           onPageSizeBlur={handlePageSizeBlur}
           onPageSizeChange={handlePageSizeChange}
           onSubjectTypeChange={handleSubjectTypeChange}
