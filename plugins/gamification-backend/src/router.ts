@@ -99,7 +99,7 @@ export function createRouter({
   const badgesService = new BadgesService({ badgesRepo, questsRepo });
 
   const xpRepo = new XpRepository(knex);
-  const xpService = new XpService(xpRepo, 100);
+  const xpService = new XpService(xpRepo);
   const leaderboardRepo = new LeaderboardRepository(knex);
   const leaderboardTimeZone =
     config.getOptionalString('gamification.leaderboard.timeZone') ??

@@ -3,6 +3,7 @@ secrets.local.yaml
 *.pem
 .secrets/
 .env.local
+.env.e2e.local
 
 
 # macOS

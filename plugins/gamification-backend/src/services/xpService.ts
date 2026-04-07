@@ -19,35 +19,22 @@ function clamp01(n: number) {
 }
 
 export class XpService {
-  constructor(
-    private readonly repo: XpRepository,
-    private readonly baseXp: number = 100,
-  ) {}
-
-  private xpToReachLevel(level: number): number {
-    return this.baseXp * Math.pow(level - 1, 2);
-  }
-
-  private compute(totalXp: number) {
-    const level = Math.floor(Math.sqrt(totalXp / this.baseXp)) + 1;
-    const currentLevelXp = this.xpToReachLevel(level);
-    const nextLevelXp = this.xpToReachLevel(level + 1);
-
-    const xpIntoLevel = totalXp - currentLevelXp;
-    const denom = nextLevelXp - currentLevelXp || 1;
-
-    return {
-      level,
-      currentLevelXp,
-      nextLevelXp,
-      xpIntoLevel,
-      xpToNextLevel: Math.max(0, nextLevelXp - totalXp),
-      progress: clamp01(xpIntoLevel / denom),
-    };
-  }
+  constructor(private readonly repo: XpRepository) {}
 
   async getStatus(subjectRef: string): Promise<XpStatus> {
-    const totalXp = await this.repo.getTotalXp(subjectRef);
-    return { subjectRef, totalXp, ...this.compute(totalXp) };
+    const state = await this.repo.getSubjectState(subjectRef);
+    const xpIntoLevel = state.total_xp - state.current_level_xp;
+    const denom = state.next_level_xp - state.current_level_xp || 1;
+
+    return {
+      subjectRef,
+      totalXp: state.total_xp,
+      level: state.level,
+      currentLevelXp: state.current_level_xp,
+      nextLevelXp: state.next_level_xp,
+      xpIntoLevel,
+      xpToNextLevel: Math.max(0, state.next_level_xp - state.total_xp),
+      progress: clamp01(xpIntoLevel / denom),
+    };
   }
 }
