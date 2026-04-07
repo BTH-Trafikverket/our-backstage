@@ -1,7 +1,10 @@
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import { InputError } from '@backstage/errors';
 import Handlebars from 'handlebars';
-import type { DomainEventRow } from '../repositories/domainEventsRepository';
+import type {
+  DomainEventDeliveryTarget,
+  DomainEventRow,
+} from '../repositories/domainEventsRepository';
 import type {
   WebhookPagination,
   WebhookRepository,
@@ -136,19 +139,38 @@ export class WebhookService {
   }
 
   async deliverDomainEvent(event: DomainEventRow): Promise<void> {
-    const webhooks = await this.webhookRepo.getWebhooksByEventNames([
-      event.event_name,
-    ]);
-
-    if (webhooks.length === 0) {
+    const deliveryTargets = await this.resolveDeliveryTargets(event);
+    if (deliveryTargets.length === 0) {
       return;
     }
 
     const context = this.buildDomainEventContext(event);
 
-    for (const webhook of webhooks) {
-      await this.deliverWebhook(webhook, event.event_name, event.id, context);
+    for (const target of deliveryTargets) {
+      await this.deliverWebhook(target, event.event_name, event.id, context);
     }
+  }
+
+  private async resolveDeliveryTargets(
+    event: DomainEventRow,
+  ): Promise<DomainEventDeliveryTarget[]> {
+    if (
+      event.delivery_targets !== null &&
+      event.delivery_targets !== undefined
+    ) {
+      return event.delivery_targets;
+    }
+
+    const webhooks = await this.webhookRepo.getWebhooksByEventNames([
+      event.event_name,
+    ]);
+
+    return webhooks.map(webhook => ({
+      id: webhook.id,
+      title: webhook.title,
+      url: webhook.url,
+      payload: webhook.payload,
+    }));
   }
 
   private renderPayloadTemplate(
@@ -218,13 +240,13 @@ export class WebhookService {
   }
 
   private async deliverWebhook(
-    webhook: WebhookRow,
+    target: DomainEventDeliveryTarget,
     eventName: WebhookEventName,
     eventId: string,
     context: Record<string, unknown>,
   ): Promise<void> {
-    const payload = this.renderPayloadTemplate(webhook.payload, context);
-    const response = await fetch(webhook.url, {
+    const payload = this.renderPayloadTemplate(target.payload, context);
+    const response = await fetch(target.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -244,7 +266,7 @@ export class WebhookService {
       responseBody.trim() || `${response.status} ${response.statusText}`;
 
     throw new Error(
-      `Webhook '${webhook.title}' (${webhook.url}) for event '${eventName}' returned ${reason}`,
+      `Webhook '${target.title}' (${target.url}) for event '${eventName}' returned ${reason}`,
     );
   }
 }

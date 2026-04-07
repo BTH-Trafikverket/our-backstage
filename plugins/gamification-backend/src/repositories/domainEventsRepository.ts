@@ -1,6 +1,13 @@
 import type { Knex } from 'knex';
 import type { WebhookEventName } from '../services/webhookService';
 
+export type DomainEventDeliveryTarget = {
+  id: string;
+  title: string;
+  url: string;
+  payload: Record<string, unknown>;
+};
+
 export type DomainEventRow = {
   id: string;
   event_name: WebhookEventName;
@@ -10,6 +17,7 @@ export type DomainEventRow = {
   quest_id: string | null;
   badge_id: string | null;
   payload: Record<string, unknown>;
+  delivery_targets: DomainEventDeliveryTarget[] | null;
   occurred_at: Date;
   available_at: Date;
   claimed_at: Date | null;
@@ -31,6 +39,7 @@ export class DomainEventsRepository {
     questId?: string | null;
     badgeId?: string | null;
     payload?: Record<string, unknown>;
+    deliveryTargets?: DomainEventDeliveryTarget[];
     occurredAt?: Date;
     availableAt?: Date;
   }): Promise<DomainEventRow | undefined> {
@@ -43,6 +52,7 @@ export class DomainEventsRepository {
         quest_id: params.questId ?? null,
         badge_id: params.badgeId ?? null,
         payload: params.payload ?? {},
+        delivery_targets: params.deliveryTargets ?? [],
         ...(params.occurredAt ? { occurred_at: params.occurredAt } : {}),
         ...(params.availableAt ? { available_at: params.availableAt } : {}),
       })

@@ -177,6 +177,14 @@ export class ScheduledWebhooksService {
             sourceId: `${webhook.id}:${period.periodKey}`,
             subjectRef: SCHEDULED_WEBHOOK_SUBJECT_REF,
             payload,
+            deliveryTargets: [
+              {
+                id: webhook.id,
+                title: webhook.title,
+                url: webhook.url,
+                payload: webhook.payload,
+              },
+            ],
             occurredAt: this.getNow(),
             availableAt: this.getNow(),
           });

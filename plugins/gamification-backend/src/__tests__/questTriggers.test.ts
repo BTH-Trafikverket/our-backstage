@@ -17,6 +17,14 @@ describePostgres18('quest_progress trigger -> xp_awards', () => {
       target_count: 3,
       xp_reward: 10,
     });
+    await knex('webhooks').insert({
+      id: randomUUID(),
+      title: 'Quest feed',
+      description: '',
+      url: 'https://example.com/webhooks/quest-feed',
+      trigger_event_name: 'quest.completed',
+      payload: { content: '{{username}} completed {{quest_title}}' },
+    });
 
     await knex('quest_progress').insert({
       subject_ref: userRef,
@@ -52,6 +60,14 @@ describePostgres18('quest_progress trigger -> xp_awards', () => {
         xp_reward: 10,
       }),
     );
+    expect(domainEvents[0].delivery_targets).toEqual([
+      {
+        id: expect.any(String),
+        title: 'Quest feed',
+        url: 'https://example.com/webhooks/quest-feed',
+        payload: { content: '{{username}} completed {{quest_title}}' },
+      },
+    ]);
   });
 
   it('failsafe: does not award when completion_count stays the same', async () => {

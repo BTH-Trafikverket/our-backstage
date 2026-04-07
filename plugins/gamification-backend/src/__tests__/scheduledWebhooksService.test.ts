@@ -136,6 +136,14 @@ describe('ScheduledWebhooksService', () => {
         eventName: 'daily',
         sourceTable: 'scheduled_webhooks',
         sourceId: 'webhook-1:2026-03-31',
+        deliveryTargets: [
+          {
+            id: 'webhook-1',
+            title: 'Webhook',
+            url: 'https://example.com/webhook',
+            payload: { hello: 'world' },
+          },
+        ],
         payload: expect.objectContaining({
           total_quests_completed: 7,
           total_badges_earned: 2,
