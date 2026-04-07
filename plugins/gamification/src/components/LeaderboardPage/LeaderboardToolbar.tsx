@@ -8,7 +8,7 @@ type LeaderboardToolbarProps = {
   search: string;
   subjectType: LeaderboardSubjectType;
   timeRange: LeaderboardTimeRange;
-  pageCount: number;
+  filteredCount: number;
   pageSize: string;
   totalCount: number;
   visibleCount: number;
@@ -42,7 +42,7 @@ export const LeaderboardToolbar = ({
   search,
   subjectType,
   timeRange,
-  pageCount,
+  filteredCount,
   pageSize,
   totalCount,
   visibleCount,
@@ -67,7 +67,7 @@ export const LeaderboardToolbar = ({
     { value: 'monthly', label: 'Monthly' },
     { value: 'alltime', label: 'All time' },
   ];
-  const totalLabel = totalCount > pageCount ? ` (${totalCount} total)` : '';
+  const totalLabel = totalCount > filteredCount ? ` (${totalCount} total)` : '';
 
   return (
     <Flex direction="column" gap="4">
@@ -105,7 +105,7 @@ export const LeaderboardToolbar = ({
           <Text color="secondary">
             {isLoading
               ? 'Refreshing leaderboard...'
-              : `Showing ${visibleCount} of ${pageCount} leaderboard entries on this page${totalLabel}`}
+              : `Showing ${visibleCount} of ${filteredCount} leaderboard entries${totalLabel}`}
           </Text>
         </Flex>
       </Flex>
