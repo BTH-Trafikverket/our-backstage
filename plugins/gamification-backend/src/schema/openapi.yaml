@@ -613,6 +613,33 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /webhooks/events/{event}/metadata:
+    get:
+      operationId: getWebhookEventMetadata
+      tags:
+        - Webhooks
+      summary: Get metadata for a webhook trigger event
+      parameters:
+        - in: path
+          name: event
+          required: true
+          schema:
+            $ref: '#/components/schemas/WebhookEventName'
+      responses:
+        '200':
+          description: Webhook event metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEventMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   responses:
     BadRequest:
@@ -1173,6 +1200,24 @@ components:
         - daily
         - weekly
         - monthly
+    WebhookEventMetadata:
+      type: object
+      required:
+        - event
+        - labels
+        - template
+      additionalProperties: false
+      properties:
+        event:
+          $ref: '#/components/schemas/WebhookEventName'
+        labels:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        template:
+          type: object
+          additionalProperties: true
     Webhook:
       type: object
       required:

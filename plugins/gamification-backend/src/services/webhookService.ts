@@ -1,10 +1,14 @@
-import { InputError } from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 import type {
   WebhookPagination,
   WebhookRepository,
   WebhookRow,
 } from '../repositories/webhookRepository';
 import type { WebhookCreationInput } from '../schemas/webhooks/webhookCreationSchema';
+import {
+  getStaticWebhookEventMetadata,
+  type WebhookEventMetadata,
+} from './webhookEventMetadata';
 
 type WebhookServiceOpts = {
   credentials: any;
@@ -75,5 +79,18 @@ export class WebhookService {
       data: result.data.map(row => this.buildWebhook(row)),
       pagination: result.pagination,
     };
+  }
+
+  async getWebhookEventMetadata(
+    event: string,
+    _opts?: WebhookServiceOpts,
+  ): Promise<WebhookEventMetadata> {
+    const metadata = getStaticWebhookEventMetadata(event);
+
+    if (!metadata) {
+      throw new NotFoundError(`Webhook trigger event '${event}' not found`);
+    }
+
+    return metadata;
   }
 }
