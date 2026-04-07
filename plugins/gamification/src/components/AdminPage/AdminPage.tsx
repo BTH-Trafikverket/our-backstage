@@ -40,7 +40,7 @@ const createEmptyWebhookForm = (): WebhookFormData => ({
   description: '',
   url: '',
   event: '',
-  payload: '{}',
+  payload: '',
 });
 
 export const AdminPage = () => {
