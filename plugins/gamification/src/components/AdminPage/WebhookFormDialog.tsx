@@ -73,6 +73,13 @@ export const WebhookFormDialog = ({
       'time_zone',
       'period_start',
       'period_end_exclusive',
+      'total_quests_completed',
+      'total_badges_earned',
+      'total_xp_awarded',
+      'top_user_name',
+      'top_user_xp',
+      'top_team_name',
+      'top_team_xp',
     ],
     weekly: [
       'webhook_title',
@@ -80,6 +87,13 @@ export const WebhookFormDialog = ({
       'time_zone',
       'period_start',
       'period_end_exclusive',
+      'total_quests_completed',
+      'total_badges_earned',
+      'total_xp_awarded',
+      'top_user_name',
+      'top_user_xp',
+      'top_team_name',
+      'top_team_xp',
     ],
     monthly: [
       'webhook_title',
@@ -87,6 +101,13 @@ export const WebhookFormDialog = ({
       'time_zone',
       'period_start',
       'period_end_exclusive',
+      'total_quests_completed',
+      'total_badges_earned',
+      'total_xp_awarded',
+      'top_user_name',
+      'top_user_xp',
+      'top_team_name',
+      'top_team_xp',
     ],
   };
   const templateVariables =
@@ -219,6 +240,7 @@ export const WebhookFormDialog = ({
                 Payload (JSON)
               </Text>
               <textarea
+                aria-label="Payload (JSON)"
                 value={formData.payload}
                 onChange={e => onChange('payload', e.target.value)}
                 disabled={loading}

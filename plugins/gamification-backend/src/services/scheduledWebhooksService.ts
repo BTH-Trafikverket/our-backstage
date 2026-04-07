@@ -1,6 +1,7 @@
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import { DomainEventsRepository } from '../repositories/domainEventsRepository';
 import { EventsRanRepository } from '../repositories/eventsRanRepository';
+import { ScheduledWebhookSummaryRepository } from '../repositories/scheduledWebhookSummaryRepository';
 import type { Knex } from 'knex';
 import type {
   ScheduledWebhookRow,
@@ -41,6 +42,9 @@ export class ScheduledWebhooksService {
       createDomainEventsRepo?: (
         trx: Knex.Transaction,
       ) => Pick<DomainEventsRepository, 'enqueueEvent'>;
+      createScheduledSummaryRepo?: (
+        trx: Knex.Transaction,
+      ) => Pick<ScheduledWebhookSummaryRepository, 'getSummary'>;
     },
   ) {}
 
@@ -52,7 +56,7 @@ export class ScheduledWebhooksService {
     return this.options.timeZone ?? DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE;
   }
 
-  private buildScheduledDomainEventPayload(
+  private buildBaseScheduledDomainEventPayload(
     webhook: ScheduledWebhookRow,
     event: ScheduledWebhookEvent,
     period: ReturnType<typeof resolveScheduledWebhookPeriod>,
@@ -106,11 +110,6 @@ export class ScheduledWebhooksService {
       now: this.getNow(),
       timeZone: this.getTimeZone(),
     });
-    const payload = this.buildScheduledDomainEventPayload(
-      webhook,
-      event,
-      period,
-    );
 
     try {
       return await this.options.eventsRanRepo.withTransaction(
@@ -118,6 +117,9 @@ export class ScheduledWebhooksService {
           const domainEventsRepo =
             this.options.createDomainEventsRepo?.(trx) ??
             new DomainEventsRepository(trx);
+          const scheduledSummaryRepo =
+            this.options.createScheduledSummaryRepo?.(trx) ??
+            new ScheduledWebhookSummaryRepository(trx);
 
           await repo.lockWebhookPeriod(webhook.id, period.periodKey);
 
@@ -156,6 +158,18 @@ export class ScheduledWebhooksService {
               reason: 'already_ran',
             };
           }
+
+          const payload = {
+            ...this.buildBaseScheduledDomainEventPayload(
+              webhook,
+              event,
+              period,
+            ),
+            ...(await scheduledSummaryRepo.getSummary({
+              periodStart: period.periodStart,
+              periodEndExclusive: period.periodEndExclusive,
+            })),
+          };
 
           await domainEventsRepo.enqueueEvent({
             eventName: event,
