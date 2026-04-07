@@ -2,7 +2,6 @@ import type { Knex } from 'knex';
 
 const DEFAULT_WEBHOOK_TRIGGER_EVENTS = [
   'quest.completed',
-  'user.leveled_up',
   'badge.earned',
 ] as const;
 

@@ -27,9 +27,11 @@ export class EventsRanRepository {
   constructor(private readonly db: Knex | Knex.Transaction) {}
 
   async withTransaction<T>(
-    fn: (repo: EventsRanRepository) => Promise<T>,
+    fn: (repo: EventsRanRepository, trx: Knex.Transaction) => Promise<T>,
   ): Promise<T> {
-    return this.db.transaction(async trx => fn(new EventsRanRepository(trx)));
+    return this.db.transaction(async trx =>
+      fn(new EventsRanRepository(trx), trx),
+    );
   }
 
   async lockWebhookPeriod(webhookId: string, periodKey: string): Promise<void> {

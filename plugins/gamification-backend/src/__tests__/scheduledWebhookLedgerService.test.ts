@@ -19,10 +19,10 @@ describe('ScheduledWebhookLedgerService', () => {
       id: 'run-1',
       webhook_id: 'webhook-1',
       trigger_event_name: 'daily',
-      period_key: '2026-04-01',
+      period_key: '2026-03-31',
       time_zone: 'UTC',
-      period_start: new Date('2026-04-01T00:00:00.000Z'),
-      period_end_exclusive: new Date('2026-04-02T00:00:00.000Z'),
+      period_start: new Date('2026-03-31T00:00:00.000Z'),
+      period_end_exclusive: new Date('2026-04-01T00:00:00.000Z'),
       executed_at: new Date('2026-04-01T00:00:10.000Z'),
       created_at: new Date('2026-04-01T00:00:10.000Z'),
       ...overrides,
@@ -86,10 +86,10 @@ describe('ScheduledWebhookLedgerService', () => {
     expect(repo.tryInsertRun).toHaveBeenCalledWith({
       webhookId: 'webhook-1',
       triggerEventName: 'monthly',
-      periodKey: '2026-04',
+      periodKey: '2026-03',
       timeZone: 'UTC',
-      periodStart: new Date('2026-04-01T00:00:00.000Z'),
-      periodEndExclusive: new Date('2026-05-01T00:00:00.000Z'),
+      periodStart: new Date('2026-03-01T00:00:00.000Z'),
+      periodEndExclusive: new Date('2026-04-01T00:00:00.000Z'),
       executedAt: new Date('2026-04-01T00:00:05.000Z'),
     });
   });

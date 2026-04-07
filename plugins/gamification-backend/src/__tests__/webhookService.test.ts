@@ -1,141 +1,186 @@
-import { InputError } from '@backstage/errors';
-import { WebhookRepository } from '../repositories/webhookRepository';
 import { WebhookService } from '../services/webhookService';
-
-jest.mock('../repositories/webhookRepository');
+import type { DomainEventRow } from '../repositories/domainEventsRepository';
 
 describe('WebhookService', () => {
-  let service: WebhookService;
-  let webhookRepo: jest.Mocked<WebhookRepository>;
+  const originalFetch = global.fetch;
 
   beforeEach(() => {
-    webhookRepo = {
-      createWebhook: jest.fn(),
-      getWebhookById: jest.fn(),
-      getWebhookTriggerEvent: jest.fn(),
-      updateWebhook: jest.fn(),
-      deleteWebhook: jest.fn(),
-      getPaginatedWebhooks: jest.fn(),
-    } as any;
-
-    service = new WebhookService({ webhookRepo });
+    global.fetch = jest.fn();
   });
 
-  it('creates webhooks only for known trigger events', async () => {
-    webhookRepo.getWebhookTriggerEvent.mockResolvedValue(undefined);
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.resetAllMocks();
+  });
+
+  it('renders handlebars variables into the saved JSON payload before POSTing', async () => {
+    const webhookRepo = {
+      getWebhooksByEventNames: jest.fn(),
+    };
+    const logger = {
+      warn: jest.fn(),
+    };
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+    });
+
+    const service = new WebhookService({
+      webhookRepo: webhookRepo as any,
+      logger: logger as any,
+    });
+
+    await service.deliverDomainEvent({
+      id: 'event-1',
+      event_name: 'quest.completed',
+      source_table: 'xp_awards',
+      source_id: 'xp-award-1',
+      subject_ref: 'user:default/alice',
+      quest_id: 'quest-1',
+      badge_id: null,
+      payload: {
+        username: 'alice',
+        quest_title: 'Daily Commit',
+        xp_reward: 100,
+      },
+      delivery_targets: [
+        {
+          id: 'webhook-1',
+          title: 'Quest feed',
+          url: 'https://example.com/webhook',
+          payload: {
+            content:
+              '{{username}} has completed {{quest_title}} and earned {{xp_reward}} XP.',
+          },
+        },
+      ],
+      occurred_at: new Date('2026-04-06T10:00:00.000Z'),
+      available_at: new Date('2026-04-06T10:00:00.000Z'),
+      claimed_at: null,
+      claimed_by: null,
+      attempt_count: 1,
+      processed_at: null,
+      dead_lettered_at: null,
+      last_error: null,
+    } as DomainEventRow);
+
+    expect(webhookRepo.getWebhooksByEventNames).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://example.com/webhook',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Gamification-Event-Id': 'event-1',
+          'X-Gamification-Event-Name': 'quest.completed',
+        },
+        body: JSON.stringify({
+          content: 'alice has completed Daily Commit and earned 100 XP.',
+        }),
+      }),
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('throws render errors when template variables are missing', async () => {
+    const webhookRepo = {
+      getWebhooksByEventNames: jest.fn(),
+    };
+    const logger = {
+      warn: jest.fn(),
+    };
+
+    const service = new WebhookService({
+      webhookRepo: webhookRepo as any,
+      logger: logger as any,
+    });
 
     await expect(
-      service.createWebhook(
+      service.deliverDomainEvent({
+        id: 'event-2',
+        event_name: 'quest.completed',
+        source_table: 'xp_awards',
+        source_id: 'xp-award-2',
+        subject_ref: 'user:default/alice',
+        quest_id: 'quest-1',
+        badge_id: null,
+        payload: {
+          username: 'alice',
+        },
+        delivery_targets: [
+          {
+            id: 'webhook-1',
+            title: 'Quest feed',
+            url: 'https://example.com/webhook',
+            payload: {
+              content: '{{username}} completed {{quest_title}}',
+            },
+          },
+        ],
+        occurred_at: new Date('2026-04-06T10:00:00.000Z'),
+        available_at: new Date('2026-04-06T10:00:00.000Z'),
+        claimed_at: null,
+        claimed_by: null,
+        attempt_count: 1,
+        processed_at: null,
+        dead_lettered_at: null,
+        last_error: null,
+      } as DomainEventRow),
+    ).rejects.toThrow();
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('falls back to current webhook lookup only for legacy events without target snapshots', async () => {
+    const webhookRepo = {
+      getWebhooksByEventNames: jest.fn(async () => [
         {
-          title: 'Webhook',
+          id: 'webhook-1',
+          title: 'Legacy Quest feed',
           description: '',
           url: 'https://example.com/webhook',
-          event: 'not.real',
-          payload: {},
+          trigger_event_name: 'quest.completed',
+          payload: {
+            content: '{{username}} completed {{quest_title}}',
+          },
+          created_at: new Date(),
+          updated_at: new Date(),
         },
-        { credentials: {} as any },
-      ),
-    ).rejects.toThrow(InputError);
-
-    expect(webhookRepo.createWebhook).not.toHaveBeenCalled();
-  });
-
-  it('returns undefined when editing a missing webhook', async () => {
-    webhookRepo.getWebhookById.mockResolvedValue(undefined);
-
-    await expect(
-      service.editWebhook(
-        'missing-webhook',
-        { title: 'Updated Webhook' },
-        { credentials: {} as any },
-      ),
-    ).resolves.toBeUndefined();
-
-    expect(webhookRepo.getWebhookTriggerEvent).not.toHaveBeenCalled();
-    expect(webhookRepo.updateWebhook).not.toHaveBeenCalled();
-  });
-
-  it('validates provided trigger events before updating a webhook', async () => {
-    webhookRepo.getWebhookById.mockResolvedValue({
-      id: 'webhook-1',
-      title: 'Webhook',
-      description: '',
-      url: 'https://example.com/webhook',
-      trigger_event_name: 'quest.completed',
-      payload: {},
-      created_at: new Date('2026-03-31T08:00:00.000Z'),
-      updated_at: new Date('2026-03-31T08:00:00.000Z'),
-    } as any);
-    webhookRepo.getWebhookTriggerEvent.mockResolvedValue(undefined);
-
-    await expect(
-      service.editWebhook(
-        'webhook-1',
-        { event: 'not.real' },
-        { credentials: {} as any },
-      ),
-    ).rejects.toThrow(InputError);
-
-    expect(webhookRepo.updateWebhook).not.toHaveBeenCalled();
-  });
-
-  it('updates webhooks with mapped repository fields', async () => {
-    webhookRepo.getWebhookById.mockResolvedValue({
-      id: 'webhook-1',
-      title: 'Webhook',
-      description: '',
-      url: 'https://example.com/webhook',
-      trigger_event_name: 'quest.completed',
-      payload: {},
-      created_at: new Date('2026-03-31T08:00:00.000Z'),
-      updated_at: new Date('2026-03-31T08:00:00.000Z'),
-    } as any);
-    webhookRepo.getWebhookTriggerEvent.mockResolvedValue({
-      name: 'badge.earned',
-      created_at: new Date('2026-03-31T08:00:00.000Z'),
-      updated_at: new Date('2026-03-31T08:00:00.000Z'),
-    } as any);
-    webhookRepo.updateWebhook.mockResolvedValue({
-      id: 'webhook-1',
-      title: 'Updated Webhook',
-      description: '',
-      url: 'https://example.com/updated-webhook',
-      trigger_event_name: 'badge.earned',
-      payload: { retries: 3 },
-      created_at: new Date('2026-03-31T08:00:00.000Z'),
-      updated_at: new Date('2026-04-01T09:30:00.000Z'),
-    } as any);
-
-    await service.editWebhook(
-      'webhook-1',
-      {
-        title: 'Updated Webhook',
-        description: '',
-        url: 'https://example.com/updated-webhook',
-        event: 'badge.earned',
-        payload: { retries: 3 },
-      },
-      { credentials: {} as any },
-    );
-
-    expect(webhookRepo.updateWebhook).toHaveBeenCalledWith('webhook-1', {
-      title: 'Updated Webhook',
-      description: '',
-      url: 'https://example.com/updated-webhook',
-      trigger_event_name: 'badge.earned',
-      payload: { retries: 3 },
+      ]),
+    };
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
     });
-  });
 
-  it('delegates webhook deletion to the repository', async () => {
-    webhookRepo.deleteWebhook.mockResolvedValue(true);
+    const service = new WebhookService({
+      webhookRepo: webhookRepo as any,
+    });
 
-    await expect(
-      service.deleteWebhook('webhook-1', {
-        credentials: {} as any,
-      }),
-    ).resolves.toBe(true);
+    await service.deliverDomainEvent({
+      id: 'event-legacy',
+      event_name: 'quest.completed',
+      source_table: 'xp_awards',
+      source_id: 'xp-award-legacy',
+      subject_ref: 'user:default/alice',
+      quest_id: 'quest-1',
+      badge_id: null,
+      payload: {
+        username: 'alice',
+        quest_title: 'Legacy Quest',
+      },
+      delivery_targets: null,
+      occurred_at: new Date('2026-04-06T10:00:00.000Z'),
+      available_at: new Date('2026-04-06T10:00:00.000Z'),
+      claimed_at: null,
+      claimed_by: null,
+      attempt_count: 1,
+      processed_at: null,
+      dead_lettered_at: null,
+      last_error: null,
+    } as DomainEventRow);
 
-    expect(webhookRepo.deleteWebhook).toHaveBeenCalledWith('webhook-1');
+    expect(webhookRepo.getWebhooksByEventNames).toHaveBeenCalledWith([
+      'quest.completed',
+    ]);
   });
 });

@@ -1,4 +1,10 @@
+import type { LoggerService } from '@backstage/backend-plugin-api';
 import { InputError } from '@backstage/errors';
+import Handlebars from 'handlebars';
+import type {
+  DomainEventDeliveryTarget,
+  DomainEventRow,
+} from '../repositories/domainEventsRepository';
 import type {
   WebhookPagination,
   WebhookRepository,
@@ -20,11 +26,26 @@ export type PaginatedWebhookResponse = {
   pagination: WebhookPagination;
 };
 
+export type WebhookEventName =
+  | 'quest.completed'
+  | 'badge.earned'
+  | 'daily'
+  | 'weekly'
+  | 'monthly';
+
 export class WebhookService {
   private readonly webhookRepo: WebhookRepository;
+  private readonly logger?: LoggerService;
+  private readonly requestTimeoutMs: number;
 
-  constructor(options: { webhookRepo: WebhookRepository }) {
+  constructor(options: {
+    webhookRepo: WebhookRepository;
+    logger?: LoggerService;
+    requestTimeoutMs?: number;
+  }) {
     this.webhookRepo = options.webhookRepo;
+    this.logger = options.logger;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 10_000;
   }
 
   private buildWebhook(row: WebhookRow): WebhookResponse {
@@ -115,5 +136,137 @@ export class WebhookService {
       data: result.data.map(row => this.buildWebhook(row)),
       pagination: result.pagination,
     };
+  }
+
+  async deliverDomainEvent(event: DomainEventRow): Promise<void> {
+    const deliveryTargets = await this.resolveDeliveryTargets(event);
+    if (deliveryTargets.length === 0) {
+      return;
+    }
+
+    const context = this.buildDomainEventContext(event);
+
+    for (const target of deliveryTargets) {
+      await this.deliverWebhook(target, event.event_name, event.id, context);
+    }
+  }
+
+  private async resolveDeliveryTargets(
+    event: DomainEventRow,
+  ): Promise<DomainEventDeliveryTarget[]> {
+    if (
+      event.delivery_targets !== null &&
+      event.delivery_targets !== undefined
+    ) {
+      return event.delivery_targets;
+    }
+
+    const webhooks = await this.webhookRepo.getWebhooksByEventNames([
+      event.event_name,
+    ]);
+
+    return webhooks.map(webhook => ({
+      id: webhook.id,
+      title: webhook.title,
+      url: webhook.url,
+      payload: webhook.payload,
+    }));
+  }
+
+  private renderPayloadTemplate(
+    templatePayload: Record<string, unknown>,
+    context: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const renderedEntries = Object.entries(templatePayload).map(
+      ([key, value]) => [
+        this.renderTemplateString(key, context),
+        this.renderTemplateValue(value, context),
+      ],
+    );
+
+    return Object.fromEntries(renderedEntries);
+  }
+
+  private renderTemplateString(
+    template: string,
+    context: Record<string, unknown>,
+  ): string {
+    const render = Handlebars.compile(template, {
+      noEscape: true,
+      strict: true,
+    });
+
+    return render(context);
+  }
+
+  private renderTemplateValue(
+    value: unknown,
+    context: Record<string, unknown>,
+  ): unknown {
+    if (typeof value === 'string') {
+      return this.renderTemplateString(value, context);
+    }
+
+    if (Array.isArray(value)) {
+      return value.map(item => this.renderTemplateValue(item, context));
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, nestedValue]) => [
+          this.renderTemplateString(key, context),
+          this.renderTemplateValue(nestedValue, context),
+        ]),
+      );
+    }
+
+    return value;
+  }
+
+  private buildDomainEventContext(
+    event: DomainEventRow,
+  ): Record<string, unknown> {
+    return {
+      event: {
+        id: event.id,
+        name: event.event_name,
+        occurredAt: event.occurred_at.toISOString(),
+      },
+      event_id: event.id,
+      event_name: event.event_name,
+      event_occurred_at: event.occurred_at.toISOString(),
+      ...(event.payload ?? {}),
+    };
+  }
+
+  private async deliverWebhook(
+    target: DomainEventDeliveryTarget,
+    eventName: WebhookEventName,
+    eventId: string,
+    context: Record<string, unknown>,
+  ): Promise<void> {
+    const payload = this.renderPayloadTemplate(target.payload, context);
+    const response = await fetch(target.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Gamification-Event-Id': eventId,
+        'X-Gamification-Event-Name': eventName,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
+    });
+
+    if (response.ok) {
+      return;
+    }
+
+    const responseBody = await response.text();
+    const reason =
+      responseBody.trim() || `${response.status} ${response.statusText}`;
+
+    throw new Error(
+      `Webhook '${target.title}' (${target.url}) for event '${eventName}' returned ${reason}`,
+    );
   }
 }
