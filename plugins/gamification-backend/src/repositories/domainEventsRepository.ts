@@ -43,6 +43,13 @@ export class DomainEventsRepository {
     occurredAt?: Date;
     availableAt?: Date;
   }): Promise<DomainEventRow | undefined> {
+    const payloadJson = this.db.raw('?::jsonb', [
+      JSON.stringify(params.payload ?? {}),
+    ]);
+    const deliveryTargetsJson = this.db.raw('?::jsonb', [
+      JSON.stringify(params.deliveryTargets ?? []),
+    ]);
+
     const rows = await this.db<DomainEventRow>('domain_events')
       .insert({
         event_name: params.eventName,
@@ -51,8 +58,8 @@ export class DomainEventsRepository {
         subject_ref: params.subjectRef,
         quest_id: params.questId ?? null,
         badge_id: params.badgeId ?? null,
-        payload: params.payload ?? {},
-        delivery_targets: params.deliveryTargets ?? [],
+        payload: payloadJson,
+        delivery_targets: deliveryTargetsJson,
         ...(params.occurredAt ? { occurred_at: params.occurredAt } : {}),
         ...(params.availableAt ? { available_at: params.availableAt } : {}),
       })
