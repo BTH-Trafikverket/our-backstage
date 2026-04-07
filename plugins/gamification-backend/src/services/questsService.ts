@@ -336,50 +336,51 @@ export class QuestsService {
       { token },
     );
 
-    return (res.items ?? [])
-      .map(entity => {
-        const annotations = entity.metadata.annotations ?? {};
-        const profile = (
-          entity.spec as
-            | {
-                profile?: {
-                  displayName?: string;
-                  email?: string;
-                  picture?: string;
-                };
-              }
-            | undefined
-        )?.profile;
-        const githubLogin = annotations['github.com/user-login']?.trim();
-        const githubId = annotations['github.com/user-id']?.trim();
+    const users: GithubCatalogUser[] = [];
 
-        if (!githubLogin && !githubId) {
-          return undefined;
-        }
+    for (const entity of res.items ?? []) {
+      const annotations = entity.metadata.annotations ?? {};
+      const profile = (
+        entity.spec as
+          | {
+              profile?: {
+                displayName?: string;
+                email?: string;
+                picture?: string;
+              };
+            }
+          | undefined
+      )?.profile;
+      const githubLogin = annotations['github.com/user-login']?.trim();
+      const githubId = annotations['github.com/user-id']?.trim();
 
-        const displayName =
-          profile?.displayName?.trim() ||
-          entity.metadata.title?.trim() ||
-          profile?.email?.trim() ||
-          entity.metadata.name;
+      if (!githubLogin && !githubId) {
+        continue;
+      }
 
-        return {
-          entityRef: stringifyEntityRef(entity),
-          displayName,
-          githubLogin: githubLogin || entity.metadata.name,
-          githubId: githubId || undefined,
-          email: profile?.email || undefined,
-          picture: profile?.picture || undefined,
-        };
-      })
-      .filter((user): user is GithubCatalogUser => Boolean(user))
-      .sort((left, right) =>
-        `${left.displayName} ${left.githubLogin}`.localeCompare(
-          `${right.displayName} ${right.githubLogin}`,
-          'en-US',
-          { sensitivity: 'base' },
-        ),
-      );
+      const displayName =
+        profile?.displayName?.trim() ||
+        entity.metadata.title?.trim() ||
+        profile?.email?.trim() ||
+        entity.metadata.name;
+
+      users.push({
+        entityRef: stringifyEntityRef(entity),
+        displayName,
+        githubLogin: githubLogin || entity.metadata.name,
+        githubId: githubId || undefined,
+        email: profile?.email || undefined,
+        picture: profile?.picture || undefined,
+      });
+    }
+
+    return users.sort((left, right) =>
+      `${left.displayName} ${left.githubLogin}`.localeCompare(
+        `${right.displayName} ${right.githubLogin}`,
+        'en-US',
+        { sensitivity: 'base' },
+      ),
+    );
   }
 
   async resolveActorToUserRef(params: {

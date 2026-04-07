@@ -388,6 +388,13 @@ describePostgres18('BadgesRepository integration', () => {
       xp_reward: 40,
       subject_type: 'user',
     });
+    await knex('webhooks').insert({
+      title: 'Badge feed',
+      description: '',
+      url: 'https://example.com/webhooks/badge-feed',
+      trigger_event_name: 'badge.earned',
+      payload: { content: '{{username}} earned {{badge_title}}' },
+    });
     await repository.insertBadgeCriteria(badge.id, [
       { quest_id: quest.id, target_count: 2 },
     ]);
@@ -423,6 +430,13 @@ describePostgres18('BadgesRepository integration', () => {
         badge_id: badge.id,
       })
       .select(['badge_id', 'quest_id', 'xp_amount', 'source']);
+    const domainEvents = await knex('domain_events')
+      .where({
+        event_name: 'badge.earned',
+        subject_ref: 'user:default/alice',
+        badge_id: badge.id,
+      })
+      .select('*');
     const badgeProgress = await listBadgeProgress(
       repository,
       ['user:default/alice'],
@@ -437,6 +451,22 @@ describePostgres18('BadgesRepository integration', () => {
         quest_id: null,
         xp_amount: 40,
         source: 'badge_completion_trigger',
+      },
+    ]);
+    expect(domainEvents).toHaveLength(1);
+    expect(domainEvents[0].payload).toEqual(
+      expect.objectContaining({
+        username: 'alice',
+        badge_title: 'User Badge',
+        badge_xp_reward: 40,
+      }),
+    );
+    expect(domainEvents[0].delivery_targets).toEqual([
+      {
+        id: expect.any(String),
+        title: 'Badge feed',
+        url: 'https://example.com/webhooks/badge-feed',
+        payload: { content: '{{username}} earned {{badge_title}}' },
       },
     ]);
     expect(badgeProgress).toHaveLength(1);

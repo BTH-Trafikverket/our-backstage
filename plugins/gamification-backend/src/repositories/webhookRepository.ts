@@ -111,6 +111,24 @@ export class WebhookRepository {
       .first();
   }
 
+  async getWebhooksByEventNames(eventNames: string[]): Promise<WebhookRow[]> {
+    const names = [
+      ...new Set(eventNames.map(name => name.trim()).filter(Boolean)),
+    ];
+
+    if (names.length === 0) {
+      return [];
+    }
+
+    return this.db<WebhookRow>('webhooks')
+      .whereIn('trigger_event_name', names)
+      .orderBy([
+        { column: 'created_at', order: 'asc' },
+        { column: 'id', order: 'asc' },
+      ])
+      .select('*');
+  }
+
   async getScheduledWebhooks(): Promise<ScheduledWebhookRow[]> {
     const rows = await this.db<WebhookRow>('webhooks')
       .select('*')

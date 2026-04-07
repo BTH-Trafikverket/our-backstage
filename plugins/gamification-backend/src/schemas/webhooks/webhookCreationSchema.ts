@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+export const WEBHOOK_EVENT_NAMES = [
+  'quest.completed',
+  'badge.earned',
+  'daily',
+  'weekly',
+  'monthly',
+] as const;
+
 export const webhookTitleSchema = z
   .string({ required_error: 'Title is required' })
   .trim()
@@ -12,10 +20,10 @@ export const webhookUrlSchema = z
   .trim()
   .url('URL must be a valid URL');
 
-export const webhookEventSchema = z
-  .string({ required_error: 'Event is required' })
-  .trim()
-  .min(1, 'Event is required');
+export const webhookEventSchema = z.enum(WEBHOOK_EVENT_NAMES, {
+  required_error: 'Event is required',
+  invalid_type_error: 'Event is required',
+});
 
 export const webhookPayloadSchema = z.record(z.unknown());
 

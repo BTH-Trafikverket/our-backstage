@@ -26,7 +26,7 @@ describePostgres18('WebhookRepository integration', () => {
       title: 'Third Webhook',
       description: '',
       url: 'https://example.com/third',
-      trigger_event_name: 'user.leveled_up',
+      trigger_event_name: 'quest.completed',
       payload: {},
     });
 
@@ -42,6 +42,14 @@ describePostgres18('WebhookRepository integration', () => {
     expect(await repository.getWebhookTriggerEvent('quest.completed')).toEqual(
       expect.objectContaining({ name: 'quest.completed' }),
     );
+    expect(
+      (
+        await repository.getWebhooksByEventNames([
+          'badge.earned',
+          'quest.completed',
+        ])
+      ).map(webhook => webhook.id),
+    ).toEqual([first.id, second.id, third.id]);
     expect(firstPage.pagination).toEqual({
       page: 1,
       limit: 2,

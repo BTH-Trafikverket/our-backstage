@@ -82,6 +82,67 @@ export const WebhookFormDialog = ({
 
   const eventsLabel =
     WEBHOOK_EVENTS.find(e => e.id === formData.event)?.label ?? 'Select event';
+  const templateVariablesByEvent: Record<string, string[]> = {
+    'quest.completed': [
+      'username',
+      'quest_title',
+      'xp_reward',
+      'completion_count',
+      'total_xp',
+    ],
+    'badge.earned': [
+      'username',
+      'badge_title',
+      'badge_xp_reward',
+      'earned_at',
+      'total_xp',
+    ],
+    daily: [
+      'webhook_title',
+      'period_key',
+      'time_zone',
+      'period_start',
+      'period_end_exclusive',
+      'total_quests_completed',
+      'total_badges_earned',
+      'total_xp_awarded',
+      'top_user_name',
+      'top_user_xp',
+      'top_team_name',
+      'top_team_xp',
+    ],
+    weekly: [
+      'webhook_title',
+      'period_key',
+      'time_zone',
+      'period_start',
+      'period_end_exclusive',
+      'total_quests_completed',
+      'total_badges_earned',
+      'total_xp_awarded',
+      'top_user_name',
+      'top_user_xp',
+      'top_team_name',
+      'top_team_xp',
+    ],
+    monthly: [
+      'webhook_title',
+      'period_key',
+      'time_zone',
+      'period_start',
+      'period_end_exclusive',
+      'total_quests_completed',
+      'total_badges_earned',
+      'total_xp_awarded',
+      'top_user_name',
+      'top_user_xp',
+      'top_team_name',
+      'top_team_xp',
+    ],
+  };
+  const templateVariables =
+    templateVariablesByEvent[formData.event] ??
+    templateVariablesByEvent['quest.completed'];
 
   return (
     <Dialog

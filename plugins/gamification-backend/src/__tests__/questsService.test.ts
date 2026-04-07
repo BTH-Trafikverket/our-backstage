@@ -34,7 +34,6 @@ describe('QuestsService', () => {
     mockAuthService = {
       getPluginRequestToken: jest.fn(async () => ({ token: 'catalog-token' })),
     };
-
     service = new QuestsService({
       questsRepo: mockRepo,
       catalogClient: mockCatalogClient as any,
