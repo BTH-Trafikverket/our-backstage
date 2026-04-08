@@ -10,8 +10,12 @@ import {
   Text,
   TextField,
 } from '@backstage/ui';
-import { useState } from 'react';
-import { WEBHOOK_EVENTS, type WebhookFormData } from './types';
+import { useState, type ReactNode } from 'react';
+import {
+  WEBHOOK_EVENTS,
+  type WebhookEventMetadata,
+  type WebhookFormData,
+} from './types';
 
 type WebhookFormDialogProps = {
   isOpen: boolean;
@@ -19,6 +23,9 @@ type WebhookFormDialogProps = {
   formData: WebhookFormData;
   error: string | null;
   loading: boolean;
+  eventMetadata: WebhookEventMetadata | null;
+  eventMetadataError: string | null;
+  eventMetadataLoading: boolean;
   webhookTitle?: string;
   onClose: () => void;
   onSubmit: () => void;
@@ -31,6 +38,9 @@ export const WebhookFormDialog = ({
   formData,
   error,
   loading,
+  eventMetadata,
+  eventMetadataError,
+  eventMetadataLoading,
   webhookTitle,
   onClose,
   onSubmit,
@@ -45,6 +55,54 @@ export const WebhookFormDialog = ({
 
   const eventsLabel =
     WEBHOOK_EVENTS.find(e => e.id === formData.event)?.label ?? 'Select event';
+  let eventMetadataContent: ReactNode = null;
+
+  if (eventMetadataLoading) {
+    eventMetadataContent = (
+      <Text variant="body-small" color="secondary">
+        Loading available placeholders...
+      </Text>
+    );
+  } else if (eventMetadataError) {
+    eventMetadataContent = (
+      <Text
+        variant="body-small"
+        style={{ color: 'var(--bui-fg-danger, #b42318)' }}
+      >
+        Unable to load placeholders: {eventMetadataError}
+      </Text>
+    );
+  } else if (eventMetadata?.labels.length) {
+    eventMetadataContent = (
+      <Flex gap="2" style={{ flexWrap: 'wrap' }}>
+        {eventMetadata.labels.map(label => (
+          <Box
+            key={label}
+            as="span"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '2px 8px',
+              borderRadius: 999,
+              background: 'var(--bui-bg-solid, rgba(127, 127, 127, 0.12))',
+              fontFamily:
+                'ui-monospace, SFMono-Regular, SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
+              fontSize: 12,
+              lineHeight: 1.5,
+            }}
+          >
+            {label}
+          </Box>
+        ))}
+      </Flex>
+    );
+  } else {
+    eventMetadataContent = (
+      <Text variant="body-small" color="secondary">
+        No placeholders available for this event.
+      </Text>
+    );
+  }
 
   return (
     <Dialog
@@ -109,6 +167,8 @@ export const WebhookFormDialog = ({
               >
                 <button
                   type="button"
+                  aria-expanded={eventsOpen}
+                  aria-haspopup="listbox"
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -126,7 +186,7 @@ export const WebhookFormDialog = ({
                   onClick={() => setEventsOpen(o => !o)}
                 >
                   <span>{eventsLabel}</span>
-                  <span>{eventsOpen ? '▲' : '▼'}</span>
+                  <span aria-hidden="true">{eventsOpen ? '▲' : '▼'}</span>
                 </button>
                 {eventsOpen && (
                   <Flex
@@ -165,6 +225,27 @@ export const WebhookFormDialog = ({
                   </Flex>
                 )}
               </Box>
+
+              {formData.event ? (
+                <Box
+                  style={{
+                    marginTop: 10,
+                    padding: 12,
+                    border:
+                      '1px solid var(--bui-border, rgba(127, 127, 127, 0.3))',
+                    borderRadius: 8,
+                    background:
+                      'var(--bui-bg-surface-2, rgba(127, 127, 127, 0.06))',
+                  }}
+                >
+                  <Flex direction="column" gap="2">
+                    <Text variant="body-small" weight="bold">
+                      Available placeholders
+                    </Text>
+                    {eventMetadataContent}
+                  </Flex>
+                </Box>
+              ) : null}
             </Box>
 
             <Flex direction="column" gap="1">

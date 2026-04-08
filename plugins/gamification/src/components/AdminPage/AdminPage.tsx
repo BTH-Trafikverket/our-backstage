@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Box,
@@ -21,6 +21,7 @@ import { WebhookTable } from './WebhookTable';
 import {
   WEBHOOK_EVENTS,
   type WebhookApiResponse,
+  type WebhookEventMetadata,
   type Webhook,
   type WebhookFormData,
   type WebhookTableRow,
@@ -47,6 +48,13 @@ export const AdminPage = () => {
     payload: '{}',
   });
   const [createError, setCreateError] = useState<string | null>(null);
+  const [createEventMetadata, setCreateEventMetadata] =
+    useState<WebhookEventMetadata | null>(null);
+  const [createEventMetadataError, setCreateEventMetadataError] = useState<
+    string | null
+  >(null);
+  const [createEventMetadataLoading, setCreateEventMetadataLoading] =
+    useState(false);
 
   const [viewWebhook, setViewWebhook] = useState<Webhook | null>(null);
 
@@ -78,6 +86,9 @@ export const AdminPage = () => {
   const resetCreateDialog = () => {
     setIsCreateOpen(false);
     setCreateError(null);
+    setCreateEventMetadata(null);
+    setCreateEventMetadataError(null);
+    setCreateEventMetadataLoading(false);
     setCreateForm({
       title: '',
       description: '',
@@ -86,6 +97,76 @@ export const AdminPage = () => {
       payload: '{}',
     });
   };
+
+  useEffect(() => {
+    if (!isCreateOpen || !createForm.event) {
+      setCreateEventMetadata(null);
+      setCreateEventMetadataError(null);
+      setCreateEventMetadataLoading(false);
+      return undefined;
+    }
+
+    const abortController = new AbortController();
+
+    const loadEventMetadata = async () => {
+      setCreateEventMetadata(null);
+      setCreateEventMetadataError(null);
+      setCreateEventMetadataLoading(true);
+
+      try {
+        const url = await buildGamificationUrl(
+          `/webhooks/events/${encodeURIComponent(createForm.event)}/metadata`,
+        );
+        const response = await fetchApi.fetch(url, {
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response));
+        }
+
+        const result = (await response.json()) as WebhookEventMetadata;
+        setCreateEventMetadata({
+          event: result.event,
+          labels: Array.isArray(result.labels) ? result.labels : [],
+          template:
+            result.template &&
+            !Array.isArray(result.template) &&
+            typeof result.template === 'object'
+              ? result.template
+              : {},
+        });
+      } catch (eventMetadataError) {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        setCreateEventMetadataError(
+          eventMetadataError instanceof Error
+            ? eventMetadataError.message
+            : 'An unknown error occurred',
+        );
+      } finally {
+        if (!abortController.signal.aborted) {
+          setCreateEventMetadataLoading(false);
+        }
+      }
+    };
+
+    loadEventMetadata();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [
+    buildGamificationUrl,
+    createForm.event,
+    fetchApi,
+    isCreateOpen,
+    setCreateEventMetadata,
+    setCreateEventMetadataError,
+    setCreateEventMetadataLoading,
+  ]);
 
   const getData = useCallback(
     async ({
@@ -205,6 +286,9 @@ export const AdminPage = () => {
         mode="create"
         formData={createForm}
         error={createError}
+        eventMetadata={createEventMetadata}
+        eventMetadataError={createEventMetadataError}
+        eventMetadataLoading={createEventMetadataLoading}
         loading={createLoading}
         onClose={resetCreateDialog}
         onSubmit={handleCreateSubmit}
