@@ -28,8 +28,6 @@ describePostgres18('QuestsRepository integration', () => {
         .first();
 
       expect(receipt).toBeUndefined();
-
-      await knex.destroy();
     });
   });
 
@@ -66,8 +64,6 @@ describePostgres18('QuestsRepository integration', () => {
 
       expect(dbQuest).toBeDefined();
       expect(dbQuest.title).toBe(questData.title);
-
-      await knex.destroy();
     });
 
     it('should create multiple quests with different data', async () => {
@@ -96,8 +92,6 @@ describePostgres18('QuestsRepository integration', () => {
 
       const allQuests = await knex('quests').select('*');
       expect(allQuests).toHaveLength(2);
-
-      await knex.destroy();
     });
 
     it('should create global team quests without a quest-level subject_ref column', async () => {
@@ -119,8 +113,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(dbQuest).toBeDefined();
       expect(dbQuest.subject_type).toBe('team');
       expect(dbQuest).not.toHaveProperty('subject_ref');
-
-      await knex.destroy();
     });
 
     it('should set created_at and updated_at timestamps automatically', async () => {
@@ -139,8 +131,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(quest.updated_at.getTime()).toBeGreaterThanOrEqual(
         quest.created_at.getTime(),
       );
-
-      await knex.destroy();
     });
 
     it('should allow zero xp_reward', async () => {
@@ -157,8 +147,6 @@ describePostgres18('QuestsRepository integration', () => {
       const createdQuest = await repository.createQuest(zeroRewardQuest);
 
       expect(createdQuest.xp_reward).toBe(0);
-
-      await knex.destroy();
     });
 
     it('should enforce database constraints (nonnegative xp_reward)', async () => {
@@ -173,8 +161,6 @@ describePostgres18('QuestsRepository integration', () => {
       };
 
       await expect(repository.createQuest(invalidQuest)).rejects.toThrow();
-
-      await knex.destroy();
     });
 
     it('should enforce database constraints (positive target_count)', async () => {
@@ -189,8 +175,6 @@ describePostgres18('QuestsRepository integration', () => {
       };
 
       await expect(repository.createQuest(invalidQuest)).rejects.toThrow();
-
-      await knex.destroy();
     });
   });
 
@@ -226,8 +210,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(retrievedQuest!.description).toBe(questData.description);
       expect(retrievedQuest!.target_count).toBe(questData.target_count);
       expect(retrievedQuest!.xp_reward).toBe(questData.xp_reward);
-
-      await knex.destroy();
     });
 
     it('should return undefined for non-existent quest id', async () => {
@@ -239,8 +221,6 @@ describePostgres18('QuestsRepository integration', () => {
       );
 
       expect(retrievedQuest).toBeUndefined();
-
-      await knex.destroy();
     });
 
     it('should retrieve the correct quest when multiple exist', async () => {
@@ -278,8 +258,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(retrievedQuest).toBeDefined();
       expect(retrievedQuest!.title).toBe('Quest 2');
       expect(retrievedQuest!.xp_reward).toBe(20);
-
-      await knex.destroy();
     });
 
     it('should return quest with all timestamp fields populated', async () => {
@@ -308,8 +286,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(retrievedQuest!.created_at.getTime()).toBeLessThanOrEqual(
         retrievedQuest!.updated_at.getTime(),
       );
-
-      await knex.destroy();
     });
   });
 
@@ -376,8 +352,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(pageTwo.data.map(quest => quest.title)).toEqual([
         'Alpha Team Quest',
       ]);
-
-      await knex.destroy();
     });
 
     it('filters individual quests and preserves pagination totals for out-of-range pages', async () => {
@@ -421,8 +395,6 @@ describePostgres18('QuestsRepository integration', () => {
         total: 2,
         totalPages: 2,
       });
-
-      await knex.destroy();
     });
 
     it('respects order for every exposed quest sort field', async () => {
@@ -525,8 +497,6 @@ describePostgres18('QuestsRepository integration', () => {
         'Bravo Quest',
         'Alpha Quest',
       ]);
-
-      await knex.destroy();
     });
   });
 
@@ -601,8 +571,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(engineeringTeamQuest).toBeDefined();
       expect(engineeringTeamQuest!.completion_count).toBe(0);
       expect(engineeringTeamQuest!.progress_toward_target).toBe(0);
-
-      await knex.destroy();
     });
 
     it('does not return team quests when the user is not in any teams', async () => {
@@ -634,8 +602,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(quests).toHaveLength(1);
       expect(quests[0].subject_type).toBe('user');
       expect(quests[0].subject_ref).toBe('user:default/alice');
-
-      await knex.destroy();
     });
 
     it('returns empty pagination when only team quests are requested without owned teams', async () => {
@@ -660,8 +626,6 @@ describePostgres18('QuestsRepository integration', () => {
         data: [],
         pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
       });
-
-      await knex.destroy();
     });
 
     it('filters completed team quests by team ref case-insensitively', async () => {
@@ -699,8 +663,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(result.data).toHaveLength(1);
       expect(result.data[0].subject_ref).toBe('group:default/platform');
       expect(result.data[0].completion_count).toBe(2);
-
-      await knex.destroy();
     });
 
     it('keeps pagination totals when a progress query page is out of range', async () => {
@@ -731,8 +693,6 @@ describePostgres18('QuestsRepository integration', () => {
           totalPages: 1,
         },
       });
-
-      await knex.destroy();
     });
 
     it('respects order for every exposed progress sort field', async () => {
@@ -846,8 +806,6 @@ describePostgres18('QuestsRepository integration', () => {
         'Bravo Progress Quest',
         'Alpha Progress Quest',
       ]);
-
-      await knex.destroy();
     });
   });
 
@@ -875,8 +833,6 @@ describePostgres18('QuestsRepository integration', () => {
       const directDbRead = await knex('quests').where({ id: row.id }).first();
       expect(directDbRead).toBeDefined();
       expect(directDbRead.title).toBe('Full CRUD Test');
-
-      await knex.destroy();
     });
 
     it('should handle concurrent quest creation', async () => {
@@ -898,8 +854,6 @@ describePostgres18('QuestsRepository integration', () => {
 
       const allQuests = await knex('quests').select('*');
       expect(allQuests).toHaveLength(5);
-
-      await knex.destroy();
     });
 
     it('should maintain data integrity after database operations', async () => {
@@ -926,8 +880,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(quest).toBeDefined();
       expect(quest!.title).toBe('Modified Title');
       expect(quest!.description).toBe('Original description');
-
-      await knex.destroy();
     });
 
     it('should handle deletion correctly (via raw knex)', async () => {
@@ -953,8 +905,6 @@ describePostgres18('QuestsRepository integration', () => {
 
       quest = await repository.getQuestById(row.id);
       expect(quest).toBeUndefined();
-
-      await knex.destroy();
     });
 
     it('edits and deletes quests through repository methods', async () => {
@@ -1000,8 +950,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(missing).toBe(false);
       expect(archivedRow.archived_at).toBeTruthy();
       expect(hiddenQuest).toBeUndefined();
-
-      await knex.destroy();
     });
 
     it('includes archived quests in admin reads but excludes them from user reads', async () => {
@@ -1054,8 +1002,6 @@ describePostgres18('QuestsRepository integration', () => {
       expect(progressResult.data.map(quest => quest.title)).toEqual([
         'Active Quest',
       ]);
-
-      await knex.destroy();
     });
 
     it('lists badge usage for quests referenced by badge criteria', async () => {
@@ -1090,8 +1036,6 @@ describePostgres18('QuestsRepository integration', () => {
       await expect(
         questsRepository.getBadgeCriteriaUsage(quest.id),
       ).resolves.toEqual([]);
-
-      await knex.destroy();
     });
 
     it('de-duplicates quest event receipts by event id', async () => {
@@ -1112,8 +1056,6 @@ describePostgres18('QuestsRepository integration', () => {
 
       expect(firstInsert).toBe(true);
       expect(duplicateInsert).toBe(false);
-
-      await knex.destroy();
     });
   });
 });

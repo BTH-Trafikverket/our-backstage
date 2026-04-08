@@ -46,8 +46,6 @@ describePostgres18('Completion policy integration', () => {
       // Verify DB round-trip
       const fromDb = await repo.getQuestById(quest.id);
       expect(fromDb?.completion_policy).toBe('ONE_TIME');
-
-      await knex.destroy();
     });
 
     it('allows first completion of a ONE_TIME quest', async () => {
@@ -69,8 +67,6 @@ describePostgres18('Completion policy integration', () => {
         'user:default/alice',
       );
       expect(progress.completion_count).toBe(1);
-
-      await knex.destroy();
     });
 
     it('blocks second completion of a ONE_TIME quest for the same user', async () => {
@@ -101,8 +97,6 @@ describePostgres18('Completion policy integration', () => {
         quest.id,
       );
       expect(progress?.completion_count).toBe(1);
-
-      await knex.destroy();
     });
 
     it('allows a different user to complete the same ONE_TIME quest', async () => {
@@ -132,8 +126,6 @@ describePostgres18('Completion policy integration', () => {
         'user:default/bob',
       );
       expect(bobProgress.completion_count).toBe(1);
-
-      await knex.destroy();
     });
   });
 
@@ -156,8 +148,6 @@ describePostgres18('Completion policy integration', () => {
 
       const fromDb = await repo.getQuestById(quest.id);
       expect(fromDb?.cooldown_days).toBe(7);
-
-      await knex.destroy();
     });
 
     it('getLastAwardedAt returns null when no xp_awards rows exist', async () => {
@@ -169,8 +159,6 @@ describePostgres18('Completion policy integration', () => {
         randomUUID(),
       );
       expect(last).toBeNull();
-
-      await knex.destroy();
     });
 
     it('getLastAwardedAt returns the most recent award timestamp', async () => {
@@ -217,8 +205,6 @@ describePostgres18('Completion policy integration', () => {
       const last = await repo.getLastAwardedAt(userRef, questId);
       expect(last).not.toBeNull();
       expect(last!.getTime()).toBe(newerDate.getTime());
-
-      await knex.destroy();
     });
 
     it('blocks re-completion when user is within cooldown window', async () => {
@@ -250,8 +236,6 @@ describePostgres18('Completion policy integration', () => {
       await expect(
         service.completeQuest(quest.id, 'user:default/dave'),
       ).rejects.toThrow(/on cooldown/);
-
-      await knex.destroy();
     });
 
     it('allows re-completion after cooldown has expired', async () => {
@@ -293,8 +277,6 @@ describePostgres18('Completion policy integration', () => {
         'user:default/eve',
       );
       expect(progress.completion_count).toBe(2);
-
-      await knex.destroy();
     });
 
     it('REPEATABLE quests without cooldown_days allow unlimited completions', async () => {
@@ -319,8 +301,6 @@ describePostgres18('Completion policy integration', () => {
         );
         expect(progress.completion_count).toBe(i);
       }
-
-      await knex.destroy();
     });
   });
 });

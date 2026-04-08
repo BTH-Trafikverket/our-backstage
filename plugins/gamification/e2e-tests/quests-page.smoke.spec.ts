@@ -1,39 +1,47 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { guestStorageStatePath } from './guestAuth';
 
-async function signInAndOpenQuests(page: Page) {
-  await page.goto('/');
-  await expect(page.getByText('Guest', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Enter' }).click();
-  await expect(page).toHaveURL(/\/catalog$/);
-  await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
-  await page.getByRole('link', { name: 'Quests' }).click();
+test.use({ storageState: guestStorageStatePath });
+test.describe.configure({ mode: 'serial' });
+
+let context: BrowserContext;
+let sharedPage: Page;
+
+async function openQuestsPage(page: Page) {
+  await page.goto('/gamification');
   await expect(page.getByRole('button', { name: 'Create quest' })).toBeVisible({
     timeout: 15_000,
   });
   await expect(page).toHaveURL(/\/gamification$/);
 }
 
-test('loads the quests page with seeded quest rows', async ({ page }) => {
-  await signInAndOpenQuests(page);
-
-  await page
-    .getByRole('searchbox', { name: 'Search quests' })
-    .fill('Merge a PR');
-  await expect(page.getByText('Merge a PR')).toBeVisible();
-
-  await page
-    .getByRole('searchbox', { name: 'Search quests' })
-    .fill('Security Patch Sweep');
-  await expect(page.getByText('Security Patch Sweep')).toBeVisible();
+test.beforeAll(async ({ browser }) => {
+  context = await browser.newContext({ storageState: guestStorageStatePath });
+  sharedPage = await context.newPage();
+  await openQuestsPage(sharedPage);
 });
 
-test('filters quests by search term', async ({ page }) => {
-  await signInAndOpenQuests(page);
+test.afterAll(async () => {
+  await context.close();
+});
 
-  await page
+test('loads the quests page with seeded quest rows', async () => {
+  await sharedPage
+    .getByRole('searchbox', { name: 'Search quests' })
+    .fill('Merge a PR');
+  await expect(sharedPage.getByText('Merge a PR')).toBeVisible();
+
+  await sharedPage
+    .getByRole('searchbox', { name: 'Search quests' })
+    .fill('Security Patch Sweep');
+  await expect(sharedPage.getByText('Security Patch Sweep')).toBeVisible();
+});
+
+test('filters quests by search term', async () => {
+  await sharedPage
     .getByRole('searchbox', { name: 'Search quests' })
     .fill('Merge a PR');
 
-  await expect(page.getByText('Merge a PR')).toBeVisible();
-  await expect(page.getByText('Review PRs')).not.toBeVisible();
+  await expect(sharedPage.getByText('Merge a PR')).toBeVisible();
+  await expect(sharedPage.getByText('Review PRs')).not.toBeVisible();
 });

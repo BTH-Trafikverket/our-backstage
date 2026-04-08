@@ -17,7 +17,7 @@
 import { defineConfig, type Project } from '@playwright/test';
 import { generateProjects } from '@backstage/e2e-test-utils/playwright';
 
-const baseURL = process.env.PLAYWRIGHT_URL;
+const baseURL = process.env.PLAYWRIGHT_URL ?? process.env.APP_BASE_URL;
 const configuredWorkers = Number.parseInt(
   process.env.PLAYWRIGHT_WORKERS ?? '',
   10,
@@ -31,7 +31,9 @@ const workers =
     : undefined;
 
 if (!baseURL) {
-  throw new Error('PLAYWRIGHT_URL must be set for Docker E2E runs');
+  throw new Error(
+    'PLAYWRIGHT_URL or APP_BASE_URL must be set for local Playwright runs',
+  );
 }
 
 const projects: Project[] = (generateProjects() ?? []).map(project => ({
@@ -47,6 +49,8 @@ const projects: Project[] = (generateProjects() ?? []).map(project => ({
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
+  globalSetup: './playwright.guest-auth.setup.ts',
+
   timeout: 60_000,
 
   expect: {

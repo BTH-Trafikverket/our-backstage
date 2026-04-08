@@ -54,8 +54,6 @@ describePostgres18('BadgesRepository integration', () => {
     await expect(
       knex('badges').where({ title: 'Transactional Badge' }),
     ).resolves.toEqual([]);
-
-    await knex.destroy();
   });
 
   async function createQuest(
@@ -224,8 +222,6 @@ describePostgres18('BadgesRepository integration', () => {
     await expect(
       listBadgeProgress(repository, ['', 'catalog:default/component/example']),
     ).resolves.toEqual([]);
-
-    await knex.destroy();
   });
 
   it('rejects criteria whose quest type does not match the badge type', async () => {
@@ -373,8 +369,6 @@ describePostgres18('BadgesRepository integration', () => {
       { title: 'Earned Badge', isEarned: true },
       { title: 'Unearned Badge', isEarned: false },
     ]);
-
-    await knex.destroy();
   });
 
   it('awards each badge only once for a user subject even when progress keeps increasing', async () => {
@@ -471,8 +465,6 @@ describePostgres18('BadgesRepository integration', () => {
     ]);
     expect(badgeProgress).toHaveLength(1);
     expect(badgeProgress[0].is_earned).toBe(true);
-
-    await knex.destroy();
   });
 
   it('does not award a badge until the quest reaches its own completion threshold', async () => {
@@ -551,8 +543,6 @@ describePostgres18('BadgesRepository integration', () => {
         badge_id: badge.id,
       },
     ]);
-
-    await knex.destroy();
   });
 
   it('clears persisted runtime state when criteria are replaced', async () => {
@@ -604,8 +594,6 @@ describePostgres18('BadgesRepository integration', () => {
         source: 'badge_completion_trigger',
       },
     ]);
-
-    await knex.destroy();
   });
 
   it('aggregates earned badge state across user and team subject refs', async () => {
@@ -639,8 +627,6 @@ describePostgres18('BadgesRepository integration', () => {
     expect(badgeProgress[0].title).toBe('Team Earned Badge');
     expect(badgeProgress[0].is_earned).toBe(true);
     expect(badgeProgress[0].earned_at).toBeTruthy();
-
-    await knex.destroy();
   });
 
   it('returns criterion progress rows for each requested subject ref', async () => {
@@ -691,8 +677,6 @@ describePostgres18('BadgesRepository integration', () => {
         completion_count: 0,
       },
     ]);
-
-    await knex.destroy();
   });
 
   it('limits active badge visibility to the subject types in the requested refs', async () => {
@@ -734,8 +718,6 @@ describePostgres18('BadgesRepository integration', () => {
     expect(userOnlyProgress.map(badge => badge.title)).toEqual([
       'User Badge Visible',
     ]);
-
-    await knex.destroy();
   });
 
   it('supports search and deterministic sorting for badge progress', async () => {
@@ -904,8 +886,6 @@ describePostgres18('BadgesRepository integration', () => {
       'Reviewer Starter',
       'Mentor Path',
     ]);
-
-    await knex.destroy();
   });
 
   it('sorts earned badge progress consistently in both directions', async () => {
@@ -978,8 +958,6 @@ describePostgres18('BadgesRepository integration', () => {
       'Earned Badge Sort',
       'In Progress Badge Sort',
     ]);
-
-    await knex.destroy();
   });
 
   it('sorts badge progress by completed criteria before partial criteria progress', async () => {
@@ -1120,8 +1098,6 @@ describePostgres18('BadgesRepository integration', () => {
       'Badge Mixed Second',
       'Badge Earned First',
     ]);
-
-    await knex.destroy();
   });
 
   it('sorts badge progress by completed criteria count and then average criteria progress', async () => {
@@ -1294,8 +1270,6 @@ describePostgres18('BadgesRepository integration', () => {
         ratio: 0,
       },
     ]);
-
-    await knex.destroy();
   });
 
   it('sorts badge progress using completed quest milestones instead of raw quest increments', async () => {
@@ -1371,8 +1345,6 @@ describePostgres18('BadgesRepository integration', () => {
         criteriaProgress: 0,
       },
     ]);
-
-    await knex.destroy();
   });
 
   it('archives a badge instead of deleting it', async () => {
@@ -1460,7 +1432,5 @@ describePostgres18('BadgesRepository integration', () => {
         totalPages: 1,
       },
     });
-
-    await knex.destroy();
   });
 });

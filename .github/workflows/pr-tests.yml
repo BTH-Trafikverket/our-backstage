@@ -11,13 +11,36 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      APP_BASE_URL_E2E: http://127.0.0.1:3001
+      BACKEND_BASE_URL_E2E: http://127.0.0.1:7008
+      BACKEND_PORT_E2E: '7008'
+      CORS_ORIGIN_E2E: http://127.0.0.1:3001
+      DB_HOST_E2E: 127.0.0.1
+      DB_PORT_E2E: '5432'
+      DB_USER_E2E: backstage
+      DB_PASSWORD_E2E: backstage
+      DB_NAME_E2E: backstage_e2e
+      PLAYWRIGHT_URL: http://127.0.0.1:3001
+      PLAYWRIGHT_BACKEND_URL: http://127.0.0.1:7008
+    services:
+      postgres:
+        image: postgres:18-trixie
+        env:
+          POSTGRES_USER: backstage
+          POSTGRES_PASSWORD: backstage
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U backstage -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -45,17 +68,41 @@ jobs:
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: yarn install --immutable
 
-      - name: Build cached E2E runner image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.e2e
-          tags: backstage-e2e-runner:latest
-          load: true
-          cache-from: type=gha,scope=backstage-e2e-runner
-          cache-to: type=gha,mode=max,scope=backstage-e2e-runner
+      - name: Install Playwright Chromium
+        run: yarn exec playwright install --with-deps chromium
 
-      - name: Verify gamification plugin and Docker E2E
-        env:
-          E2E_USE_HOST_NODE_MODULES: "true"
+      - name: Prepare local test env
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > .env.local <<'EOF'
+          APP_BASE_URL=http://127.0.0.1:3000
+          BACKEND_BASE_URL=http://127.0.0.1:7007
+          BACKEND_PORT=7007
+          CORS_ORIGIN=http://127.0.0.1:3000
+          DB_HOST=127.0.0.1
+          DB_PORT=5432
+          DB_USER=backstage
+          DB_PASSWORD=backstage
+          DB_NAME=backstage
+          POSTMAN_STATIC_TOKEN=testing123
+          EOF
+
+      - name: Start local E2E app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          nohup yarn start:e2e > tmp/e2e-backstage.log 2>&1 &
+
+      - name: Verify gamification plugin
         run: yarn verify:ci
+
+      - name: Show E2E app log on failure
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f tmp/e2e-backstage.log ]; then
+            tail -n 200 tmp/e2e-backstage.log
+          fi

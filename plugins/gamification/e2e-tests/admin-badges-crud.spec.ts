@@ -1,7 +1,13 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { guestStorageStatePath } from './guestAuth';
 
 const badgeTitle = `E2E Badge ${Date.now()}`;
 const updatedBadgeTitle = `${badgeTitle} Updated`;
+
+test.use({ storageState: guestStorageStatePath });
+
+let context: BrowserContext;
+let sharedPage: Page;
 
 function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -11,14 +17,8 @@ function badgeRow(page: Page, title: string) {
   return page.getByLabel(new RegExp(`^${escapeRegex(title)}`));
 }
 
-async function signInAndOpenAdminBadges(page: Page) {
-  await page.goto('/');
-  await expect(page.getByText('Guest', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Enter' }).click();
-  await expect(page).toHaveURL(/\/catalog$/);
-  await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
-  await page.getByRole('link', { name: 'Quests' }).click();
-  await page.getByRole('tab', { name: 'Badges' }).click();
+async function openAdminBadgesPage(page: Page) {
+  await page.goto('/gamification/badges');
   await expect(page.getByRole('button', { name: 'Create badge' })).toBeVisible({
     timeout: 15_000,
   });
@@ -39,59 +39,69 @@ async function selectQuestCriterion(page: Page, questTitle: string) {
 }
 
 test.describe.serial('admin badge crud', () => {
-  test('creates a badge', async ({ page }) => {
-    await signInAndOpenAdminBadges(page);
+  test.beforeAll(async ({ browser }) => {
+    context = await browser.newContext({ storageState: guestStorageStatePath });
+    sharedPage = await context.newPage();
+    await openAdminBadgesPage(sharedPage);
+  });
 
-    await page.getByRole('button', { name: 'Create badge' }).click();
-    await page.getByRole('textbox', { name: 'Title' }).fill(badgeTitle);
-    await page
+  test.afterAll(async () => {
+    await context.close();
+  });
+
+  test('creates a badge', async () => {
+    await sharedPage.getByRole('button', { name: 'Create badge' }).click();
+    await sharedPage.getByRole('textbox', { name: 'Title' }).fill(badgeTitle);
+    await sharedPage
       .getByRole('textbox', { name: 'Description' })
       .fill('Created by the admin badge CRUD E2E flow');
-    await page.getByRole('textbox', { name: 'XP reward' }).fill('200');
-    await selectQuestCriterion(page, 'Merge a PR');
-    await page
+    await sharedPage.getByRole('textbox', { name: 'XP reward' }).fill('200');
+    await selectQuestCriterion(sharedPage, 'Merge a PR');
+    await sharedPage
       .getByLabel('Create badge')
       .getByRole('button', { name: 'Create badge' })
       .click();
 
-    await searchBadges(page, badgeTitle);
-    await expect(badgeRow(page, badgeTitle)).toBeVisible();
-    await expect(badgeRow(page, badgeTitle)).toContainText('200 XP');
+    await searchBadges(sharedPage, badgeTitle);
+    await expect(badgeRow(sharedPage, badgeTitle)).toBeVisible();
+    await expect(badgeRow(sharedPage, badgeTitle)).toContainText('200 XP');
   });
 
-  test('edits a badge', async ({ page }) => {
-    await signInAndOpenAdminBadges(page);
-
-    await searchBadges(page, badgeTitle);
-    await expect(badgeRow(page, badgeTitle)).toBeVisible();
-    await badgeRow(page, badgeTitle)
+  test('edits a badge', async () => {
+    await searchBadges(sharedPage, badgeTitle);
+    await expect(badgeRow(sharedPage, badgeTitle)).toBeVisible();
+    await badgeRow(sharedPage, badgeTitle)
       .getByRole('button', { name: 'Edit' })
       .click();
-    await page.getByRole('textbox', { name: 'Title' }).fill(updatedBadgeTitle);
-    await page
+    await sharedPage
+      .getByRole('textbox', { name: 'Title' })
+      .fill(updatedBadgeTitle);
+    await sharedPage
       .getByRole('textbox', { name: 'Description' })
       .fill('Updated by the admin badge CRUD E2E flow');
-    await page.getByRole('textbox', { name: 'XP reward' }).fill('250');
-    await page.getByRole('button', { name: 'Save changes' }).click();
+    await sharedPage.getByRole('textbox', { name: 'XP reward' }).fill('250');
+    await sharedPage.getByRole('button', { name: 'Save changes' }).click();
 
-    await searchBadges(page, updatedBadgeTitle);
-    await expect(badgeRow(page, updatedBadgeTitle)).toBeVisible();
-    await expect(badgeRow(page, updatedBadgeTitle)).toContainText('250 XP');
+    await searchBadges(sharedPage, updatedBadgeTitle);
+    await expect(badgeRow(sharedPage, updatedBadgeTitle)).toBeVisible();
+    await expect(badgeRow(sharedPage, updatedBadgeTitle)).toContainText(
+      '250 XP',
+    );
   });
 
-  test('archives a badge', async ({ page }) => {
-    await signInAndOpenAdminBadges(page);
-
-    await searchBadges(page, updatedBadgeTitle);
-    await expect(badgeRow(page, updatedBadgeTitle)).toBeVisible();
-    await badgeRow(page, updatedBadgeTitle)
+  test('archives a badge', async () => {
+    await searchBadges(sharedPage, updatedBadgeTitle);
+    await expect(badgeRow(sharedPage, updatedBadgeTitle)).toBeVisible();
+    await badgeRow(sharedPage, updatedBadgeTitle)
       .getByRole('button', { name: 'Archive' })
       .click();
     await expect(
-      page.getByRole('heading', { name: 'Archive badge' }),
+      sharedPage.getByRole('heading', { name: 'Archive badge' }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Archive badge' }).click();
+    await sharedPage.getByRole('button', { name: 'Archive badge' }).click();
 
-    await expect(badgeRow(page, updatedBadgeTitle)).toContainText('Archived');
+    await expect(badgeRow(sharedPage, updatedBadgeTitle)).toContainText(
+      'Archived',
+    );
   });
 });

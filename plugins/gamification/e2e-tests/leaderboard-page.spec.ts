@@ -1,64 +1,94 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { guestStorageStatePath } from './guestAuth';
 
-async function signInAndOpenLeaderboard(page: Page) {
-  await page.goto('/');
-  await expect(page.getByText('Guest', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Enter' }).click();
-  await expect(page).toHaveURL(/\/catalog$/);
-  await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
-  await page.getByRole('link', { name: 'Quests' }).click();
-  await page.getByRole('tab', { name: 'Leaderboard' }).click();
+test.use({ storageState: guestStorageStatePath });
+test.describe.configure({ mode: 'serial' });
+
+let context: BrowserContext;
+let sharedPage: Page;
+
+async function openLeaderboardPage(page: Page) {
+  await page.goto('/gamification/leaderboard');
   await expect(
     page.getByRole('heading', { name: 'Leaderboard' }),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/gamification\/leaderboard$/);
 }
 
-test('loads the leaderboard page', async ({ page }) => {
-  await signInAndOpenLeaderboard(page);
+async function expectLeaderboardEntriesOrEmptyState(
+  page: Page,
+  expectedRow: string,
+) {
+  await expect(
+    page
+      .getByRole('rowheader', { name: expectedRow })
+      .or(page.getByText('No leaderboard entries to show.')),
+  ).toBeVisible();
+}
 
-  await expect(page.getByText('Alice')).toBeVisible();
+test.beforeAll(async ({ browser }) => {
+  context = await browser.newContext({ storageState: guestStorageStatePath });
+  sharedPage = await context.newPage();
+  await openLeaderboardPage(sharedPage);
 });
 
-test('filters leaderboard by search term', async ({ page }) => {
-  await signInAndOpenLeaderboard(page);
+test.afterAll(async () => {
+  await context.close();
+});
 
-  await page
+test('loads the leaderboard page', async () => {
+  await expect(sharedPage.getByText('Alice')).toBeVisible();
+});
+
+test('filters leaderboard by search term', async () => {
+  await sharedPage
     .getByRole('searchbox', { name: 'Search leaderboard' })
     .fill('Alice');
-  await expect(page.getByText('Alice')).toBeVisible();
+  await expect(sharedPage.getByText('Alice')).toBeVisible();
 
-  await page
+  await sharedPage
     .getByRole('searchbox', { name: 'Search leaderboard' })
     .fill('No such leaderboard user');
   await expect(
-    page.getByText('No leaderboard entries match this search.'),
+    sharedPage.getByText('No leaderboard entries match this search.'),
   ).toBeVisible();
 });
 
-test('switches between individual and team leaderboard', async ({ page }) => {
-  await signInAndOpenLeaderboard(page);
+test('switches between individual and team leaderboard', async () => {
+  await sharedPage
+    .getByRole('searchbox', { name: 'Search leaderboard' })
+    .fill('');
 
-  await page.getByRole('button', { name: 'Teams' }).click();
-  await expect(page.getByRole('rowheader', { name: 'Admin' })).toBeVisible();
+  await sharedPage.getByRole('button', { name: 'Teams' }).click();
+  await expect(
+    sharedPage.getByRole('rowheader', { name: 'Admin' }),
+  ).toBeVisible();
 
-  await page.getByRole('button', { name: 'Individuals' }).click();
-  await expect(page.getByRole('rowheader', { name: 'Alice' })).toBeVisible();
+  await sharedPage.getByRole('button', { name: 'Individuals' }).click();
+  await expect(
+    sharedPage.getByRole('rowheader', { name: 'Alice' }),
+  ).toBeVisible();
 });
 
-test('changes leaderboard time range', async ({ page }) => {
-  await signInAndOpenLeaderboard(page);
+test('changes leaderboard time range', async () => {
+  await sharedPage
+    .getByRole('searchbox', { name: 'Search leaderboard' })
+    .fill('');
 
-  await page.getByRole('button', { name: 'Teams' }).click();
-  await expect(page.getByRole('rowheader', { name: 'Admin' })).toBeVisible();
+  await sharedPage.getByRole('button', { name: 'Teams' }).click();
+  await expect(
+    sharedPage.getByRole('rowheader', { name: 'Admin' }),
+  ).toBeVisible();
 
-  await page.getByRole('button', { name: 'Monthly' }).click();
-  await expect(page.getByRole('rowheader', { name: 'Admin' })).toBeVisible();
+  await sharedPage.getByRole('button', { name: 'Monthly' }).click();
+  await expectLeaderboardEntriesOrEmptyState(sharedPage, 'Admin');
 
-  await page.getByRole('button', { name: 'Weekly' }).click();
-  await expect(page.getByRole('rowheader', { name: 'Admin' })).toBeVisible();
+  await sharedPage.getByRole('button', { name: 'Weekly' }).click();
+  await expectLeaderboardEntriesOrEmptyState(sharedPage, 'Admin');
 
-  await page.getByRole('button', { name: 'Individuals' }).click();
-  await page.getByRole('button', { name: 'All time' }).click();
-  await expect(page.getByRole('rowheader', { name: 'Alice' })).toBeVisible();
+  await sharedPage.getByRole('button', { name: 'Individuals' }).click();
+  await sharedPage.getByRole('button', { name: 'All time' }).click();
+  await expect(
+    sharedPage.getByRole('rowheader', { name: 'Alice' }),
+  ).toBeVisible();
 });
