@@ -1,7 +1,13 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { guestStorageStatePath } from './guestAuth';
 
 const questTitle = `E2E Quest ${Date.now()}`;
 const updatedQuestTitle = `${questTitle} Updated`;
+
+test.use({ storageState: guestStorageStatePath });
+
+let context: BrowserContext;
+let sharedPage: Page;
 
 function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -11,13 +17,8 @@ function questRow(page: Page, title: string) {
   return page.getByLabel(new RegExp(`^${escapeRegex(title)}`));
 }
 
-async function signInAndOpenAdminQuests(page: Page) {
-  await page.goto('/');
-  await expect(page.getByText('Guest', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Enter' }).click();
-  await expect(page).toHaveURL(/\/catalog$/);
-  await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
-  await page.getByRole('link', { name: 'Quests' }).click();
+async function openAdminQuestsPage(page: Page) {
+  await page.goto('/gamification');
   await expect(page.getByRole('button', { name: 'Create quest' })).toBeVisible({
     timeout: 15_000,
   });
@@ -29,58 +30,66 @@ async function searchQuests(page: Page, value: string) {
 }
 
 test.describe.serial('admin quest crud', () => {
-  test('creates a quest', async ({ page }) => {
-    await signInAndOpenAdminQuests(page);
+  test.beforeAll(async ({ browser }) => {
+    context = await browser.newContext({ storageState: guestStorageStatePath });
+    sharedPage = await context.newPage();
+    await openAdminQuestsPage(sharedPage);
+  });
 
-    await page.getByRole('button', { name: 'Create quest' }).click();
-    await page.getByRole('textbox', { name: 'Title' }).fill(questTitle);
-    await page
+  test.afterAll(async () => {
+    await context.close();
+  });
+
+  test('creates a quest', async () => {
+    await sharedPage.getByRole('button', { name: 'Create quest' }).click();
+    await sharedPage.getByRole('textbox', { name: 'Title' }).fill(questTitle);
+    await sharedPage
       .getByRole('textbox', { name: 'Description' })
       .fill('Created by the admin quest CRUD E2E flow');
-    await page.getByRole('button', { name: 'One-time' }).click();
-    await page.getByRole('textbox', { name: 'Target' }).fill('1');
-    await page.getByRole('textbox', { name: 'XP reward' }).fill('200');
-    await page
+    await sharedPage.getByRole('button', { name: 'One-time' }).click();
+    await sharedPage.getByRole('textbox', { name: 'Target' }).fill('1');
+    await sharedPage.getByRole('textbox', { name: 'XP reward' }).fill('200');
+    await sharedPage
       .getByLabel('Create quest')
       .getByRole('button', { name: 'Create quest' })
       .click();
 
-    await searchQuests(page, questTitle);
-    await expect(questRow(page, questTitle)).toBeVisible();
+    await searchQuests(sharedPage, questTitle);
+    await expect(questRow(sharedPage, questTitle)).toBeVisible();
   });
 
-  test('edits a quest', async ({ page }) => {
-    await signInAndOpenAdminQuests(page);
-
-    await searchQuests(page, questTitle);
-    await expect(questRow(page, questTitle)).toBeVisible();
-    await questRow(page, questTitle)
+  test('edits a quest', async () => {
+    await searchQuests(sharedPage, questTitle);
+    await expect(questRow(sharedPage, questTitle)).toBeVisible();
+    await questRow(sharedPage, questTitle)
       .getByRole('button', { name: 'Edit' })
       .click();
-    await page.getByRole('textbox', { name: 'Title' }).fill(updatedQuestTitle);
-    await page
+    await sharedPage
+      .getByRole('textbox', { name: 'Title' })
+      .fill(updatedQuestTitle);
+    await sharedPage
       .getByRole('textbox', { name: 'Description' })
       .fill('Updated by the admin quest CRUD E2E flow');
-    await page.getByRole('textbox', { name: 'XP reward' }).fill('250');
-    await page.getByRole('button', { name: 'Save changes' }).click();
+    await sharedPage.getByRole('textbox', { name: 'XP reward' }).fill('250');
+    await sharedPage.getByRole('button', { name: 'Save changes' }).click();
 
-    await searchQuests(page, updatedQuestTitle);
-    await expect(questRow(page, updatedQuestTitle)).toBeVisible();
+    await searchQuests(sharedPage, updatedQuestTitle);
+    await expect(questRow(sharedPage, updatedQuestTitle)).toBeVisible();
   });
 
-  test('archives a quest', async ({ page }) => {
-    await signInAndOpenAdminQuests(page);
-
-    await searchQuests(page, updatedQuestTitle);
-    await expect(questRow(page, updatedQuestTitle)).toBeVisible();
-    await questRow(page, updatedQuestTitle)
+  test('archives a quest', async () => {
+    await searchQuests(sharedPage, updatedQuestTitle);
+    await expect(questRow(sharedPage, updatedQuestTitle)).toBeVisible();
+    await questRow(sharedPage, updatedQuestTitle)
       .getByRole('button', { name: 'Archive' })
       .click();
     await expect(
-      page.getByRole('heading', { name: 'Archive quest' }),
+      sharedPage.getByRole('heading', { name: 'Archive quest' }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Archive quest' }).click();
+    await sharedPage.getByRole('button', { name: 'Archive quest' }).click();
 
-    await expect(questRow(page, updatedQuestTitle)).toContainText('Archived');
+    await expect(questRow(sharedPage, updatedQuestTitle)).toContainText(
+      'Archived',
+    );
   });
 });

@@ -217,7 +217,5 @@ describePostgres18('ScheduledWebhookSummaryRepository integration', () => {
         ],
       }),
     );
-
-    await knex.destroy();
   });
 });

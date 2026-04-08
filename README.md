@@ -7,7 +7,9 @@ Our own version of Backstage where we can test the plugin locally.
 - Node.js (22 or 24)
 - Yarn (Berry) / Corepack enabled
 - GitHub CLI (`gh`) installed and authenticated
-- Docker if you want to run the app database locally or run backend integration tests
+- PostgreSQL running locally and reachable with the credentials in `.env.local`
+- Playwright Chromium installed locally: `yarn exec playwright install chromium`
+- Docker only if you want the full app in containers for development
 
 ## First-time setup
 
@@ -56,15 +58,31 @@ Notes:
 
 - `pre-commit` only checks staged files under `plugins/gamification` and `plugins/gamification-backend`. It runs Prettier write, Prettier check, and strict ESLint with autofix for fixable issues.
 - `pre-push` only runs `yarn gamification:verify` when the pushed refs touch gamification code or its test harness; unrelated pushes skip it.
-- `yarn test:e2e` starts its own Dockerized Backstage, Postgres, and Playwright stack with `app-config.e2e.yaml`; you do not need to run `yarn start:e2e` first.
-- The first `yarn test:e2e` run installs dependencies into dedicated Docker volumes. Later runs reuse those volumes, so they should avoid the cold-start install cost unless dependencies change.
-- In GitHub Actions CI, `yarn test:e2e` reuses the runner's existing `node_modules` through an explicit CI-only compose override instead of reinstalling dependencies inside the e2e containers.
-- The host-mounted dependency override is intentionally blocked outside GitHub Actions so local runs cannot accidentally create root-owned `node_modules` on a developer machine.
+- Backend integration tests use your existing local Postgres cluster. The configured Postgres user must be able to create temporary databases for the test harness.
+- `yarn test:e2e` runs Playwright on your machine against whichever app is already running. By default it uses the normal dev URLs from `.env.local`, so it works against `yarn start` or `docker compose up`.
+- In the normal development app, the sign-in page now exposes both `Guest` and `GitHub`, so the Playwright flows can use guest auth against the dev stack.
+- `yarn gamification:verify` uses that same running dev app for its E2E step. Start your dev environment first.
+- `yarn start:e2e` is still available if you want a lighter isolated app on `http://localhost:3001` and `http://localhost:7008` with the `backstage_e2e` database. It creates that database automatically if it does not already exist.
 - The e2e backend runs in a slimmed-down mode that keeps the auth, catalog, permission, and gamification pieces needed by the tests, while skipping unrelated plugin startup work.
-- `yarn gamification:verify` now prewarms the e2e Backstage/Postgres stack in the background while the frontend and backend suites run, then waits only if startup is still in progress before launching Playwright.
-- `yarn test:e2e` leaves the stopped e2e containers in place after completion; they are reused on the next run. If you want to remove them, run `docker compose -p backstage-e2e -f docker-compose.e2e.yml down`.
 - `yarn gamification:verify` now prints per-step timings so it is easier to see whether time is going into checks, unit tests, or e2e startup.
-- `yarn start:e2e` is only for manually running the app outside Docker with the e2e config.
+
+Optional E2E env overrides:
+
+```sh
+APP_BASE_URL_E2E=http://localhost:3001
+BACKEND_BASE_URL_E2E=http://localhost:7008
+BACKEND_PORT_E2E=7008
+CORS_ORIGIN_E2E=http://localhost:3001
+DB_HOST_E2E=localhost
+DB_PORT_E2E=5432
+DB_USER_E2E=backstage
+DB_PASSWORD_E2E=backstage
+DB_NAME_E2E=backstage_e2e
+
+# Explicit Playwright target override
+PLAYWRIGHT_URL=http://localhost:3001
+PLAYWRIGHT_BACKEND_URL=http://localhost:7008
+```
 
 Useful commands:
 
@@ -72,17 +90,21 @@ Useful commands:
 # Sync the catalog API entity from the authoritative backend OpenAPI file
 yarn gamification:openapi:sync
 
-# Full local verification for the gamification plugin, including Docker e2e (same command used in CI and pre-push)
+# Full local verification for the gamification plugin against your local Postgres and running dev app
 yarn gamification:verify
 
 # Run only the frontend plugin tests
 yarn gamification:test:frontend
 
-# Run only the backend plugin tests against a temporary Postgres container on a random host port
+# Run only the backend plugin tests against your local Postgres
 yarn gamification:test:backend
+
+# Run Playwright against the running dev app or docker-compose app
+yarn test:e2e
+
+# Optional isolated E2E app on separate ports and database
+yarn start:e2e
 
 # Run the full gamification plugin test suite
 yarn gamification:test
 ```
-
-Backend integration tests no longer require a manually started `docker-compose` Postgres instance or a fixed local `localhost:5432` database. `yarn gamification:test:backend` starts a disposable Postgres container with Docker, publishes Postgres on a random host port, points the existing backend integration tests at it, and tears it down afterward.

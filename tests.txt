@@ -1,0 +1,437 @@
+==> Gamification OpenAPI check
+<== Gamification OpenAPI check completed in 0s
+==> Gamification Prettier check
+Checking formatting...
+All matched files use Prettier code style!
+<== Gamification Prettier check completed in 3s
+==> Gamification ESLint
+<== Gamification ESLint completed in 2s
+==> Gamification frontend tests
+<== Gamification frontend tests completed in 9s
+==> Gamification backend tests
+[38;5;142m[dotenvx@1.52.0] injecting env (19) from .env.local[39m
+<== Gamification backend tests completed in 49s
+==> Gamification E2E tests
+[38;5;142m[dotenvx@1.52.0] injecting env (19) from .env.local[39m
+
+Running 15 tests using 6 workers
+
+[1A[2K[1/15] [app] › packages/app/e2e-tests/app.test.ts:32:5 › Guest sign-in reaches the app shell
+[1A[2K[2/15] [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:17:5 › loads the leaderboard page
+[1A[2K[3/15] [@internal/gamification] › plugins/gamification/e2e-tests/quests-page.smoke.spec.ts:16:5 › loads the quests page with seeded quest rows
+[1A[2K[4/15] [@internal/gamification] › plugins/gamification/e2e-tests/badges-page.smoke.spec.ts:27:5 › loads the badges page with seeded badge rows
+[1A[2K[5/15] [@internal/gamification] › plugins/gamification/e2e-tests/admin-quests-crud.spec.ts:32:7 › admin quest crud › creates a quest
+[1A[2K[6/15] [@internal/gamification] › plugins/gamification/e2e-tests/admin-badges-crud.spec.ts:42:7 › admin badge crud › creates a badge
+[1A[2K  1) [@internal/gamification] › plugins/gamification/e2e-tests/badges-page.smoke.spec.ts:27:5 › loads the badges page with seeded badge rows 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      11 | async function signInAndOpenBadges(page: Page) {
+      12 |   await page.goto('/');
+    > 13 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+         |                                                          ^
+      14 |   await page.getByRole('button', { name: 'Enter' }).click();
+      15 |   await expect(page).toHaveURL(/\/catalog$/);
+      16 |   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+        at signInAndOpenBadges (/home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/badges-page.smoke.spec.ts:13:58)
+        at /home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/badges-page.smoke.spec.ts:28:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/badges-page.smoke-loads-th-a1f38-page-with-seeded-badge-rows--internal-gamification/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/badges-page.smoke-loads-th-a1f38-page-with-seeded-badge-rows--internal-gamification/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/badges-page.smoke-loads-th-a1f38-page-with-seeded-badge-rows--internal-gamification/error-context.md
+
+
+[1A[2K  2) [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:17:5 › loads the leaderboard page 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      3 | async function signInAndOpenLeaderboard(page: Page) {
+      4 |   await page.goto('/');
+    > 5 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+        |                                                          ^
+      6 |   await page.getByRole('button', { name: 'Enter' }).click();
+      7 |   await expect(page).toHaveURL(/\/catalog$/);
+      8 |   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+        at signInAndOpenLeaderboard (/home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/leaderboard-page.spec.ts:5:58)
+        at /home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/leaderboard-page.spec.ts:18:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/leaderboard-page-loads-the-leaderboard-page--internal-gamification/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/leaderboard-page-loads-the-leaderboard-page--internal-gamification/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/leaderboard-page-loads-the-leaderboard-page--internal-gamification/error-context.md
+
+
+[1A[2K  3) [@internal/gamification] › plugins/gamification/e2e-tests/admin-badges-crud.spec.ts:42:7 › admin badge crud › creates a badge 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      14 | async function signInAndOpenAdminBadges(page: Page) {
+      15 |   await page.goto('/');
+    > 16 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+         |                                                          ^
+      17 |   await page.getByRole('button', { name: 'Enter' }).click();
+      18 |   await expect(page).toHaveURL(/\/catalog$/);
+      19 |   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+        at signInAndOpenAdminBadges (/home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/admin-badges-crud.spec.ts:16:58)
+        at /home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/admin-badges-crud.spec.ts:43:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/admin-badges-crud-admin-badge-crud-creates-a-badge--internal-gamification/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/admin-badges-crud-admin-badge-crud-creates-a-badge--internal-gamification/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/admin-badges-crud-admin-badge-crud-creates-a-badge--internal-gamification/error-context.md
+
+
+[1A[2K[7/15] [@internal/gamification] › plugins/gamification/e2e-tests/admin-badges-crud.spec.ts:62:7 › admin badge crud › edits a badge
+[1A[2K[8/15] [@internal/gamification] › plugins/gamification/e2e-tests/admin-badges-crud.spec.ts:82:7 › admin badge crud › archives a badge
+[1A[2K  4) [@internal/gamification] › plugins/gamification/e2e-tests/quests-page.smoke.spec.ts:16:5 › loads the quests page with seeded quest rows 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      3 | async function signInAndOpenQuests(page: Page) {
+      4 |   await page.goto('/');
+    > 5 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+        |                                                          ^
+      6 |   await page.getByRole('button', { name: 'Enter' }).click();
+      7 |   await expect(page).toHaveURL(/\/catalog$/);
+      8 |   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+        at signInAndOpenQuests (/home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/quests-page.smoke.spec.ts:5:58)
+        at /home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/quests-page.smoke.spec.ts:17:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/quests-page.smoke-loads-th-b0078-page-with-seeded-quest-rows--internal-gamification/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/quests-page.smoke-loads-th-b0078-page-with-seeded-quest-rows--internal-gamification/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/quests-page.smoke-loads-th-b0078-page-with-seeded-quest-rows--internal-gamification/error-context.md
+
+
+[1A[2K  5) [@internal/gamification] › plugins/gamification/e2e-tests/admin-quests-crud.spec.ts:32:7 › admin quest crud › creates a quest 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      14 | async function signInAndOpenAdminQuests(page: Page) {
+      15 |   await page.goto('/');
+    > 16 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+         |                                                          ^
+      17 |   await page.getByRole('button', { name: 'Enter' }).click();
+      18 |   await expect(page).toHaveURL(/\/catalog$/);
+      19 |   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+        at signInAndOpenAdminQuests (/home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/admin-quests-crud.spec.ts:16:58)
+        at /home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/admin-quests-crud.spec.ts:33:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/admin-quests-crud-admin-quest-crud-creates-a-quest--internal-gamification/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/admin-quests-crud-admin-quest-crud-creates-a-quest--internal-gamification/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/admin-quests-crud-admin-quest-crud-creates-a-quest--internal-gamification/error-context.md
+
+
+[1A[2K[9/15] [@internal/gamification] › plugins/gamification/e2e-tests/admin-quests-crud.spec.ts:52:7 › admin quest crud › edits a quest
+[1A[2K[10/15] [@internal/gamification] › plugins/gamification/e2e-tests/admin-quests-crud.spec.ts:71:7 › admin quest crud › archives a quest
+[1A[2K  6) [app] › packages/app/e2e-tests/app.test.ts:32:5 › Guest sign-in reaches the app shell ─────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      20 |   await page.goto('/');
+      21 |
+    > 22 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+         |                                                          ^
+      23 |
+      24 |   const enterButton = page.getByRole('button', { name: 'Enter' });
+      25 |   await expect(enterButton).toBeVisible();
+        at signInAsGuest (/home/linus/Dev/School/our-backstage/packages/app/e2e-tests/app.test.ts:22:58)
+        at /home/linus/Dev/School/our-backstage/packages/app/e2e-tests/app.test.ts:33:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/app-Guest-sign-in-reaches-the-app-shell-app/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/app-Guest-sign-in-reaches-the-app-shell-app/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/app-Guest-sign-in-reaches-the-app-shell-app/error-context.md
+
+
+[1A[2K[11/15] [@internal/gamification] › plugins/gamification/e2e-tests/badges-page.smoke.spec.ts:41:5 › filters badges by search term
+[1A[2K[12/15] [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:23:5 › filters leaderboard by search term
+[1A[2K[13/15] [@internal/gamification] › plugins/gamification/e2e-tests/quests-page.smoke.spec.ts:30:5 › filters quests by search term
+[1A[2K  7) [@internal/gamification] › plugins/gamification/e2e-tests/badges-page.smoke.spec.ts:41:5 › filters badges by search term 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      11 | async function signInAndOpenBadges(page: Page) {
+      12 |   await page.goto('/');
+    > 13 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+         |                                                          ^
+      14 |   await page.getByRole('button', { name: 'Enter' }).click();
+      15 |   await expect(page).toHaveURL(/\/catalog$/);
+      16 |   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+        at signInAndOpenBadges (/home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/badges-page.smoke.spec.ts:13:58)
+        at /home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/badges-page.smoke.spec.ts:42:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/badges-page.smoke-filters-badges-by-search-term--internal-gamification/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/badges-page.smoke-filters-badges-by-search-term--internal-gamification/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/badges-page.smoke-filters-badges-by-search-term--internal-gamification/error-context.md
+
+
+[1A[2K  8) [@internal/gamification] › plugins/gamification/e2e-tests/quests-page.smoke.spec.ts:30:5 › filters quests by search term 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      3 | async function signInAndOpenQuests(page: Page) {
+      4 |   await page.goto('/');
+    > 5 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+        |                                                          ^
+      6 |   await page.getByRole('button', { name: 'Enter' }).click();
+      7 |   await expect(page).toHaveURL(/\/catalog$/);
+      8 |   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+        at signInAndOpenQuests (/home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/quests-page.smoke.spec.ts:5:58)
+        at /home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/quests-page.smoke.spec.ts:31:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/quests-page.smoke-filters-quests-by-search-term--internal-gamification/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/quests-page.smoke-filters-quests-by-search-term--internal-gamification/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/quests-page.smoke-filters-quests-by-search-term--internal-gamification/error-context.md
+
+
+[1A[2K  9) [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:23:5 › filters leaderboard by search term 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      3 | async function signInAndOpenLeaderboard(page: Page) {
+      4 |   await page.goto('/');
+    > 5 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+        |                                                          ^
+      6 |   await page.getByRole('button', { name: 'Enter' }).click();
+      7 |   await expect(page).toHaveURL(/\/catalog$/);
+      8 |   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+        at signInAndOpenLeaderboard (/home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/leaderboard-page.spec.ts:5:58)
+        at /home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/leaderboard-page.spec.ts:24:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/leaderboard-page-filters-leaderboard-by-search-term--internal-gamification/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/leaderboard-page-filters-leaderboard-by-search-term--internal-gamification/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/leaderboard-page-filters-leaderboard-by-search-term--internal-gamification/error-context.md
+
+
+[1A[2K[14/15] [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:39:5 › switches between individual and team leaderboard
+[1A[2K  10) [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:39:5 › switches between individual and team leaderboard 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      3 | async function signInAndOpenLeaderboard(page: Page) {
+      4 |   await page.goto('/');
+    > 5 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+        |                                                          ^
+      6 |   await page.getByRole('button', { name: 'Enter' }).click();
+      7 |   await expect(page).toHaveURL(/\/catalog$/);
+      8 |   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+        at signInAndOpenLeaderboard (/home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/leaderboard-page.spec.ts:5:58)
+        at /home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/leaderboard-page.spec.ts:40:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/leaderboard-page-switches--593d6-vidual-and-team-leaderboard--internal-gamification/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/leaderboard-page-switches--593d6-vidual-and-team-leaderboard--internal-gamification/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/leaderboard-page-switches--593d6-vidual-and-team-leaderboard--internal-gamification/error-context.md
+
+
+[1A[2K[15/15] [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:49:5 › changes leaderboard time range
+[1A[2K  11) [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:49:5 › changes leaderboard time range 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Guest', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Guest', { exact: true })[22m
+
+
+      3 | async function signInAndOpenLeaderboard(page: Page) {
+      4 |   await page.goto('/');
+    > 5 |   await expect(page.getByText('Guest', { exact: true })).toBeVisible();
+        |                                                          ^
+      6 |   await page.getByRole('button', { name: 'Enter' }).click();
+      7 |   await expect(page).toHaveURL(/\/catalog$/);
+      8 |   await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
+        at signInAndOpenLeaderboard (/home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/leaderboard-page.spec.ts:5:58)
+        at /home/linus/Dev/School/our-backstage/plugins/gamification/e2e-tests/leaderboard-page.spec.ts:50:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/leaderboard-page-changes-leaderboard-time-range--internal-gamification/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    tmp/e2e/results/leaderboard-page-changes-leaderboard-time-range--internal-gamification/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: tmp/e2e/results/leaderboard-page-changes-leaderboard-time-range--internal-gamification/error-context.md
+
+
+[1A[2K  11 failed
+    [app] › packages/app/e2e-tests/app.test.ts:32:5 › Guest sign-in reaches the app shell ──────────
+    [@internal/gamification] › plugins/gamification/e2e-tests/admin-badges-crud.spec.ts:42:7 › admin badge crud › creates a badge 
+    [@internal/gamification] › plugins/gamification/e2e-tests/admin-quests-crud.spec.ts:32:7 › admin quest crud › creates a quest 
+    [@internal/gamification] › plugins/gamification/e2e-tests/badges-page.smoke.spec.ts:27:5 › loads the badges page with seeded badge rows 
+    [@internal/gamification] › plugins/gamification/e2e-tests/badges-page.smoke.spec.ts:41:5 › filters badges by search term 
+    [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:17:5 › loads the leaderboard page 
+    [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:23:5 › filters leaderboard by search term 
+    [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:39:5 › switches between individual and team leaderboard 
+    [@internal/gamification] › plugins/gamification/e2e-tests/leaderboard-page.spec.ts:49:5 › changes leaderboard time range 
+    [@internal/gamification] › plugins/gamification/e2e-tests/quests-page.smoke.spec.ts:16:5 › loads the quests page with seeded quest rows 
+    [@internal/gamification] › plugins/gamification/e2e-tests/quests-page.smoke.spec.ts:30:5 › filters quests by search term 
+  4 did not run
+
+To open last HTML report run:
+[36m[39m
+[36m  yarn playwright show-report tmp/e2e/report[39m
+[36m[39m
+==> Gamification OpenAPI check

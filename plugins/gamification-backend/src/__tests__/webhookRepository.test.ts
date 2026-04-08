@@ -63,8 +63,6 @@ describePostgres18('WebhookRepository integration', () => {
     expect(secondPage.data.map(webhook => webhook.id)).toEqual([first.id]);
     expect(firstPage.data[0]?.payload).toEqual({});
     expect(firstPage.data[1]?.payload).toEqual({ retries: 3 });
-
-    await knex.destroy();
   });
 
   it('enforces that webhooks reference a known trigger event', async () => {
@@ -84,8 +82,6 @@ describePostgres18('WebhookRepository integration', () => {
         payload: {},
       }),
     ).rejects.toThrow();
-
-    await knex.destroy();
   });
 
   it('updates and deletes persisted webhooks', async () => {
@@ -132,7 +128,5 @@ describePostgres18('WebhookRepository integration', () => {
     await expect(
       repository.getWebhookById(webhook.id),
     ).resolves.toBeUndefined();
-
-    await knex.destroy();
   });
 });
