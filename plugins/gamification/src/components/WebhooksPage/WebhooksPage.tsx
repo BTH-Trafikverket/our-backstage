@@ -40,10 +40,10 @@ const createEmptyWebhookForm = (): WebhookFormData => ({
   description: '',
   url: '',
   event: '',
-  payload: '{}',
+  payload: '',
 });
 
-export const AdminPage = () => {
+export const WebhooksPage = () => {
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
 

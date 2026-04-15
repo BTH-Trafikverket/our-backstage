@@ -60,8 +60,6 @@ describePostgres18('subject_xp_state sync', () => {
       current_level_xp: 100,
       next_level_xp: 400,
     });
-
-    await knex.destroy();
   });
 
   it('recomputes persisted totals and level thresholds when quest rewards rewrite ledger rows', async () => {
@@ -95,8 +93,6 @@ describePostgres18('subject_xp_state sync', () => {
       current_level_xp: 400,
       next_level_xp: 900,
     });
-
-    await knex.destroy();
   });
 
   it('refreshes both subjects when a ledger row changes subject_ref', async () => {
@@ -139,8 +135,6 @@ describePostgres18('subject_xp_state sync', () => {
       current_level_xp: 100,
       next_level_xp: 400,
     });
-
-    await knex.destroy();
   });
 
   it('keeps a zeroed level row when the last xp award is removed by cascade delete', async () => {
@@ -167,7 +161,5 @@ describePostgres18('subject_xp_state sync', () => {
       current_level_xp: 0,
       next_level_xp: 100,
     });
-
-    await knex.destroy();
   });
 });

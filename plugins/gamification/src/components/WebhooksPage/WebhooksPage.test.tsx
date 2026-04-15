@@ -2,9 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { discoveryApiRef, fetchApiRef } from '@backstage/core-plugin-api';
 import { TestApiProvider } from '@backstage/test-utils';
-import { AdminPage } from './AdminPage';
+import { WebhooksPage } from './WebhooksPage';
 
-describe('AdminPage webhook management', () => {
+describe('WebhooksPage', () => {
   jest.setTimeout(15000);
 
   const baseUrl = 'http://example.test/api/gamification';
@@ -59,7 +59,7 @@ describe('AdminPage webhook management', () => {
           [fetchApiRef, fetchApi as any],
         ]}
       >
-        <AdminPage />
+        <WebhooksPage />
       </TestApiProvider>,
     );
   }

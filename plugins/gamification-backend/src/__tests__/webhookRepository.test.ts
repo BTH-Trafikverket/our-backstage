@@ -26,7 +26,7 @@ describePostgres18('WebhookRepository integration', () => {
       title: 'Third Webhook',
       description: '',
       url: 'https://example.com/third',
-      trigger_event_name: 'user.leveled_up',
+      trigger_event_name: 'quest.completed',
       payload: {},
     });
 
@@ -42,6 +42,14 @@ describePostgres18('WebhookRepository integration', () => {
     expect(await repository.getWebhookTriggerEvent('quest.completed')).toEqual(
       expect.objectContaining({ name: 'quest.completed' }),
     );
+    expect(
+      (
+        await repository.getWebhooksByEventNames([
+          'badge.earned',
+          'quest.completed',
+        ])
+      ).map(webhook => webhook.id),
+    ).toEqual([first.id, second.id, third.id]);
     expect(firstPage.pagination).toEqual({
       page: 1,
       limit: 2,
@@ -55,8 +63,6 @@ describePostgres18('WebhookRepository integration', () => {
     expect(secondPage.data.map(webhook => webhook.id)).toEqual([first.id]);
     expect(firstPage.data[0]?.payload).toEqual({});
     expect(firstPage.data[1]?.payload).toEqual({ retries: 3 });
-
-    await knex.destroy();
   });
 
   it('enforces that webhooks reference a known trigger event', async () => {
@@ -76,8 +82,6 @@ describePostgres18('WebhookRepository integration', () => {
         payload: {},
       }),
     ).rejects.toThrow();
-
-    await knex.destroy();
   });
 
   it('updates and deletes persisted webhooks', async () => {
@@ -124,7 +128,5 @@ describePostgres18('WebhookRepository integration', () => {
     await expect(
       repository.getWebhookById(webhook.id),
     ).resolves.toBeUndefined();
-
-    await knex.destroy();
   });
 });

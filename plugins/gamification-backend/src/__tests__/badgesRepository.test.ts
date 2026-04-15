@@ -54,8 +54,6 @@ describePostgres18('BadgesRepository integration', () => {
     await expect(
       knex('badges').where({ title: 'Transactional Badge' }),
     ).resolves.toEqual([]);
-
-    await knex.destroy();
   });
 
   async function createQuest(
@@ -224,8 +222,6 @@ describePostgres18('BadgesRepository integration', () => {
     await expect(
       listBadgeProgress(repository, ['', 'catalog:default/component/example']),
     ).resolves.toEqual([]);
-
-    await knex.destroy();
   });
 
   it('rejects criteria whose quest type does not match the badge type', async () => {
@@ -373,8 +369,6 @@ describePostgres18('BadgesRepository integration', () => {
       { title: 'Earned Badge', isEarned: true },
       { title: 'Unearned Badge', isEarned: false },
     ]);
-
-    await knex.destroy();
   });
 
   it('awards each badge only once for a user subject even when progress keeps increasing', async () => {
@@ -387,6 +381,13 @@ describePostgres18('BadgesRepository integration', () => {
       description: 'Awarded once',
       xp_reward: 40,
       subject_type: 'user',
+    });
+    await knex('webhooks').insert({
+      title: 'Badge feed',
+      description: '',
+      url: 'https://example.com/webhooks/badge-feed',
+      trigger_event_name: 'badge.earned',
+      payload: { content: '{{username}} earned {{badge_title}}' },
     });
     await repository.insertBadgeCriteria(badge.id, [
       { quest_id: quest.id, target_count: 2 },
@@ -423,6 +424,13 @@ describePostgres18('BadgesRepository integration', () => {
         badge_id: badge.id,
       })
       .select(['badge_id', 'quest_id', 'xp_amount', 'source']);
+    const domainEvents = await knex('domain_events')
+      .where({
+        event_name: 'badge.earned',
+        subject_ref: 'user:default/alice',
+        badge_id: badge.id,
+      })
+      .select('*');
     const badgeProgress = await listBadgeProgress(
       repository,
       ['user:default/alice'],
@@ -439,10 +447,24 @@ describePostgres18('BadgesRepository integration', () => {
         source: 'badge_completion_trigger',
       },
     ]);
+    expect(domainEvents).toHaveLength(1);
+    expect(domainEvents[0].payload).toEqual(
+      expect.objectContaining({
+        username: 'alice',
+        badge_title: 'User Badge',
+        badge_xp_reward: 40,
+      }),
+    );
+    expect(domainEvents[0].delivery_targets).toEqual([
+      {
+        id: expect.any(String),
+        title: 'Badge feed',
+        url: 'https://example.com/webhooks/badge-feed',
+        payload: { content: '{{username}} earned {{badge_title}}' },
+      },
+    ]);
     expect(badgeProgress).toHaveLength(1);
     expect(badgeProgress[0].is_earned).toBe(true);
-
-    await knex.destroy();
   });
 
   it('does not award a badge until the quest reaches its own completion threshold', async () => {
@@ -521,8 +543,6 @@ describePostgres18('BadgesRepository integration', () => {
         badge_id: badge.id,
       },
     ]);
-
-    await knex.destroy();
   });
 
   it('clears persisted runtime state when criteria are replaced', async () => {
@@ -574,8 +594,6 @@ describePostgres18('BadgesRepository integration', () => {
         source: 'badge_completion_trigger',
       },
     ]);
-
-    await knex.destroy();
   });
 
   it('aggregates earned badge state across user and team subject refs', async () => {
@@ -609,8 +627,6 @@ describePostgres18('BadgesRepository integration', () => {
     expect(badgeProgress[0].title).toBe('Team Earned Badge');
     expect(badgeProgress[0].is_earned).toBe(true);
     expect(badgeProgress[0].earned_at).toBeTruthy();
-
-    await knex.destroy();
   });
 
   it('returns criterion progress rows for each requested subject ref', async () => {
@@ -661,8 +677,6 @@ describePostgres18('BadgesRepository integration', () => {
         completion_count: 0,
       },
     ]);
-
-    await knex.destroy();
   });
 
   it('limits active badge visibility to the subject types in the requested refs', async () => {
@@ -704,8 +718,6 @@ describePostgres18('BadgesRepository integration', () => {
     expect(userOnlyProgress.map(badge => badge.title)).toEqual([
       'User Badge Visible',
     ]);
-
-    await knex.destroy();
   });
 
   it('supports search and deterministic sorting for badge progress', async () => {
@@ -874,8 +886,6 @@ describePostgres18('BadgesRepository integration', () => {
       'Reviewer Starter',
       'Mentor Path',
     ]);
-
-    await knex.destroy();
   });
 
   it('sorts earned badge progress consistently in both directions', async () => {
@@ -948,8 +958,6 @@ describePostgres18('BadgesRepository integration', () => {
       'Earned Badge Sort',
       'In Progress Badge Sort',
     ]);
-
-    await knex.destroy();
   });
 
   it('sorts badge progress by completed criteria before partial criteria progress', async () => {
@@ -1090,8 +1098,6 @@ describePostgres18('BadgesRepository integration', () => {
       'Badge Mixed Second',
       'Badge Earned First',
     ]);
-
-    await knex.destroy();
   });
 
   it('sorts badge progress by completed criteria count and then average criteria progress', async () => {
@@ -1264,8 +1270,6 @@ describePostgres18('BadgesRepository integration', () => {
         ratio: 0,
       },
     ]);
-
-    await knex.destroy();
   });
 
   it('sorts badge progress using completed quest milestones instead of raw quest increments', async () => {
@@ -1341,8 +1345,6 @@ describePostgres18('BadgesRepository integration', () => {
         criteriaProgress: 0,
       },
     ]);
-
-    await knex.destroy();
   });
 
   it('archives a badge instead of deleting it', async () => {
@@ -1430,7 +1432,5 @@ describePostgres18('BadgesRepository integration', () => {
         totalPages: 1,
       },
     });
-
-    await knex.destroy();
   });
 });

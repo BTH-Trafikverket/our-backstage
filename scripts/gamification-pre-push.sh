@@ -8,9 +8,6 @@ RELEVANT_FILES=(
   ".yarnrc.yml"
   "playwright.config.ts"
   "app-config.e2e.yaml"
-  "Dockerfile.e2e"
-  "docker-compose.e2e.yml"
-  "docker-compose.e2e.ci.yml"
   ".github/workflows/pr-tests.yml"
 )
 RELEVANT_PREFIXES=(
@@ -19,12 +16,11 @@ RELEVANT_PREFIXES=(
   "packages/app/"
   "packages/backend/"
   "catalog/apis/gamification-api.yaml"
-  "scripts/docker-e2e-start.sh"
-  "scripts/test-e2e-docker.sh"
   "scripts/gamification-verify.sh"
   "scripts/gamification-pre-push.sh"
-  "scripts/run-with-temp-postgres.mjs"
-  "scripts/run-with-postgres18-test-container.mjs"
+  "scripts/run-gamification-backend-tests.mjs"
+  "scripts/run-local-e2e.mjs"
+  "scripts/start-local-e2e.mjs"
   "scripts/run-gamification-eslint.mjs"
   "scripts/sync-gamification-openapi.mjs"
 )

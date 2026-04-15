@@ -1,4 +1,11 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { guestStorageStatePath } from './guestAuth';
+
+test.use({ storageState: guestStorageStatePath });
+test.describe.configure({ mode: 'serial' });
+
+let context: BrowserContext;
+let sharedPage: Page;
 
 function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -8,14 +15,8 @@ function badgeRow(page: Page, title: string) {
   return page.getByLabel(new RegExp(`^${escapeRegex(title)}`));
 }
 
-async function signInAndOpenBadges(page: Page) {
-  await page.goto('/');
-  await expect(page.getByText('Guest', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Enter' }).click();
-  await expect(page).toHaveURL(/\/catalog$/);
-  await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
-  await page.getByRole('link', { name: 'Quests' }).click();
-  await page.getByRole('tab', { name: 'Badges' }).click();
+async function openBadgesPage(page: Page) {
+  await page.goto('/gamification/badges');
   await expect(
     page.getByRole('searchbox', { name: 'Search badges' }),
   ).toBeVisible({
@@ -24,27 +25,35 @@ async function signInAndOpenBadges(page: Page) {
   await expect(page).toHaveURL(/\/gamification\/badges$/);
 }
 
-test('loads the badges page with seeded badge rows', async ({ page }) => {
-  await signInAndOpenBadges(page);
-
-  await page
-    .getByRole('searchbox', { name: 'Search badges' })
-    .fill('First Merge');
-  await expect(badgeRow(page, 'First Merge')).toBeVisible();
-
-  await page
-    .getByRole('searchbox', { name: 'Search badges' })
-    .fill('All-round Contributor');
-  await expect(badgeRow(page, 'All-round Contributor')).toBeVisible();
+test.beforeAll(async ({ browser }) => {
+  context = await browser.newContext({ storageState: guestStorageStatePath });
+  sharedPage = await context.newPage();
+  await openBadgesPage(sharedPage);
 });
 
-test('filters badges by search term', async ({ page }) => {
-  await signInAndOpenBadges(page);
+test.afterAll(async () => {
+  await context.close();
+});
 
-  await page
+test('loads the badges page with seeded badge rows', async () => {
+  await sharedPage
+    .getByRole('searchbox', { name: 'Search badges' })
+    .fill('First Merge');
+  await expect(badgeRow(sharedPage, 'First Merge')).toBeVisible();
+
+  await sharedPage
+    .getByRole('searchbox', { name: 'Search badges' })
+    .fill('All-round Contributor');
+  await expect(badgeRow(sharedPage, 'All-round Contributor')).toBeVisible();
+});
+
+test('filters badges by search term', async () => {
+  await sharedPage
     .getByRole('searchbox', { name: 'Search badges' })
     .fill('First Merge');
 
-  await expect(badgeRow(page, 'First Merge')).toBeVisible({ timeout: 15_000 });
-  await expect(badgeRow(page, 'All-round Contributor')).toHaveCount(0);
+  await expect(badgeRow(sharedPage, 'First Merge')).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(badgeRow(sharedPage, 'All-round Contributor')).toHaveCount(0);
 });

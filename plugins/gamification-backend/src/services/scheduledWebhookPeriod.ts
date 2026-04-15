@@ -111,11 +111,11 @@ function formatMonthKey(parts: Pick<LocalDateParts, 'year' | 'month'>): string {
   return `${parts.year}-${String(parts.month).padStart(2, '0')}`;
 }
 
-function getNextDay(parts: LocalDateParts): LocalDateParts {
+function getPreviousDay(parts: LocalDateParts): LocalDateParts {
   const currentDate = new Date(
     Date.UTC(parts.year, parts.month - 1, parts.day),
   );
-  currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  currentDate.setUTCDate(currentDate.getUTCDate() - 1);
 
   return {
     year: currentDate.getUTCFullYear(),
@@ -141,11 +141,15 @@ function getStartOfWeek(
   };
 }
 
-function getStartOfNextWeek(parts: LocalDateParts): LocalDateParts {
+function formatWeekKey(parts: LocalDateParts): string {
+  return `week:${formatDayKey(parts)}`;
+}
+
+function getStartOfPreviousWeek(parts: LocalDateParts): LocalDateParts {
   const currentDate = new Date(
     Date.UTC(parts.year, parts.month - 1, parts.day),
   );
-  currentDate.setUTCDate(currentDate.getUTCDate() + 7);
+  currentDate.setUTCDate(currentDate.getUTCDate() - 7);
 
   return {
     year: currentDate.getUTCFullYear(),
@@ -154,18 +158,14 @@ function getStartOfNextWeek(parts: LocalDateParts): LocalDateParts {
   };
 }
 
-function formatWeekKey(parts: LocalDateParts): string {
-  return `week:${formatDayKey(parts)}`;
-}
-
-function getNextMonth(
+function getPreviousMonth(
   parts: Pick<LocalDateParts, 'year' | 'month'>,
 ): LocalDateParts {
-  if (parts.month === 12) {
-    return { year: parts.year + 1, month: 1, day: 1 };
+  if (parts.month === 1) {
+    return { year: parts.year - 1, month: 12, day: 1 };
   }
 
-  return { year: parts.year, month: parts.month + 1, day: 1 };
+  return { year: parts.year, month: parts.month - 1, day: 1 };
 }
 
 export function resolveScheduledWebhookPeriod(options: {
@@ -178,43 +178,44 @@ export function resolveScheduledWebhookPeriod(options: {
   const localToday = getLocalDateParts(now, timeZone);
 
   if (options.event === 'daily') {
-    const nextDay = getNextDay(localToday);
+    const previousDay = getPreviousDay(localToday);
     return {
       event: 'daily',
-      periodKey: formatDayKey(localToday),
+      periodKey: formatDayKey(previousDay),
       timeZone,
-      periodStart: getUtcDateForLocalMidnight(localToday, timeZone),
-      periodEndExclusive: getUtcDateForLocalMidnight(nextDay, timeZone),
+      periodStart: getUtcDateForLocalMidnight(previousDay, timeZone),
+      periodEndExclusive: getUtcDateForLocalMidnight(localToday, timeZone),
     };
   }
 
   if (options.event === 'weekly') {
     const dayOfWeek = getLocalWeekday(now, timeZone);
-    const startOfWeek = getStartOfWeek(localToday, dayOfWeek);
-    const startOfNextWeek = getStartOfNextWeek(startOfWeek);
+    const currentWeekStart = getStartOfWeek(localToday, dayOfWeek);
+    const previousWeekStart = getStartOfPreviousWeek(currentWeekStart);
 
     return {
       event: 'weekly',
-      periodKey: formatWeekKey(startOfWeek),
+      periodKey: formatWeekKey(previousWeekStart),
       timeZone,
-      periodStart: getUtcDateForLocalMidnight(startOfWeek, timeZone),
-      periodEndExclusive: getUtcDateForLocalMidnight(startOfNextWeek, timeZone),
+      periodStart: getUtcDateForLocalMidnight(previousWeekStart, timeZone),
+      periodEndExclusive: getUtcDateForLocalMidnight(
+        currentWeekStart,
+        timeZone,
+      ),
     };
   }
 
-  const nextMonth = getNextMonth(localToday);
+  const currentMonthStart = {
+    year: localToday.year,
+    month: localToday.month,
+    day: 1,
+  };
+  const previousMonthStart = getPreviousMonth(currentMonthStart);
   return {
     event: 'monthly',
-    periodKey: formatMonthKey(localToday),
+    periodKey: formatMonthKey(previousMonthStart),
     timeZone,
-    periodStart: getUtcDateForLocalMidnight(
-      {
-        year: localToday.year,
-        month: localToday.month,
-        day: 1,
-      },
-      timeZone,
-    ),
-    periodEndExclusive: getUtcDateForLocalMidnight(nextMonth, timeZone),
+    periodStart: getUtcDateForLocalMidnight(previousMonthStart, timeZone),
+    periodEndExclusive: getUtcDateForLocalMidnight(currentMonthStart, timeZone),
   };
 }

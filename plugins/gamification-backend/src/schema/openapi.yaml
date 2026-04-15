@@ -1223,7 +1223,6 @@ components:
       type: string
       enum:
         - quest.completed
-        - user.leveled_up
         - badge.earned
         - daily
         - weekly

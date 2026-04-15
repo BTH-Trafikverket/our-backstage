@@ -6,11 +6,11 @@ import {
   useApi,
 } from '@backstage/core-plugin-api';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { AdminPage } from './AdminPage';
 import { BadgesPage } from './BadgesPage';
 import { LeaderboardPage } from './LeaderboardPage';
 import { QuestsPage } from './QuestsPage';
 import { TestPage } from './TestPage';
+import { WebhooksPage } from './WebhooksPage';
 
 export const GamificationRootPage = () => {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -72,9 +72,9 @@ export const GamificationRootPage = () => {
     ...(effectiveIsAdmin
       ? [
           {
-            id: 'admin',
-            label: 'Admin',
-            href: '/gamification/admin',
+            id: 'webhooks',
+            label: 'Webhooks',
+            href: '/gamification/webhooks',
           },
         ]
       : []),
@@ -122,10 +122,10 @@ export const GamificationRootPage = () => {
             <Route path="leaderboard" element={<LeaderboardPage />} />
             <Route path="test" element={<TestPage isAdmin={isAdmin} />} />
             <Route
-              path="admin"
+              path="webhooks"
               element={
                 effectiveIsAdmin ? (
-                  <AdminPage />
+                  <WebhooksPage />
                 ) : (
                   <Navigate to="/gamification" replace />
                 )
