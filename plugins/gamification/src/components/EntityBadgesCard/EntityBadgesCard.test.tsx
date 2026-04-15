@@ -70,7 +70,7 @@ describe('BadgesCard', () => {
         JSON.stringify({
           subjectRefs: ['group:default/platform'],
           badges: [],
-          pagination: { total: 0, page: 1, limit: 100, pages: 0 },
+          pagination: { total: 0, page: 1, limit: 100, totalPages: 0 },
         }),
         {
           status: 200,
@@ -89,7 +89,7 @@ describe('BadgesCard', () => {
           JSON.stringify({
             subjectRefs: ['group:default/platform'],
             badges: [],
-            pagination: { total: 0, page: 1, limit: 100, pages: 0 },
+            pagination: { total: 0, page: 1, limit: 100, totalPages: 0 },
           }),
           {
             status: 200,
@@ -137,7 +137,7 @@ describe('BadgesCard', () => {
                 criterias: [{ quest_id: 'quest-3', target_count: 1 }],
               },
             ],
-            pagination: { total: 101, page: 2, limit: 100, pages: 2 },
+            pagination: { total: 101, page: 2, limit: 100, totalPages: 2 },
           }),
           {
             status: 200,
@@ -182,7 +182,7 @@ describe('BadgesCard', () => {
               archived_at: null,
             },
           ],
-          pagination: { total: 101, page: 1, limit: 100, pages: 2 },
+          pagination: { total: 101, page: 1, limit: 100, totalPages: 2 },
         }),
         {
           status: 200,

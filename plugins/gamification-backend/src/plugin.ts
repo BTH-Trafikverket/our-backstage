@@ -64,23 +64,57 @@ export const gamificationBackendPlugin = createBackendPlugin({
         const webhookTimeZone =
           config.getOptionalString('gamification.webhooks.timeZone') ??
           DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE;
+        const webhookStartupScanEnabled =
+          config.getOptionalBoolean(
+            'gamification.webhooks.startupScan.enabled',
+          ) ?? true;
         const scheduledWebhooksService = new ScheduledWebhooksService({
           webhookRepo: new WebhookRepository(knex),
           eventsRanRepo: new EventsRanRepository(knex),
-          deliveryService: new WebhookDeliveryService(),
+          deliveryService: new WebhookDeliveryService({
+            timeoutMs:
+              config.getOptionalNumber(
+                'gamification.webhooks.delivery.timeoutMs',
+              ) ?? 10_000,
+            allowedHosts:
+              config.getOptionalStringArray(
+                'gamification.webhooks.delivery.allowedHosts',
+              ) ?? [],
+            allowHttp:
+              config.getOptionalBoolean(
+                'gamification.webhooks.delivery.allowHttp',
+              ) ?? false,
+            allowPrivateTargets:
+              config.getOptionalBoolean(
+                'gamification.webhooks.delivery.allowPrivateTargets',
+              ) ?? false,
+          }),
           logger,
           timeZone: webhookTimeZone,
         });
-        const startupScan =
-          await scheduledWebhooksService.scanAndRunScheduledWebhooks();
-
-        logger.info(
-          `gamification scheduled webhook startup scan completed (executed=${startupScan.executedCount}, skipped=${startupScan.skippedCount}, failed=${startupScan.failedCount})`,
-        );
 
         httpRouter.use(
           createRouter({ httpAuth, userInfo, knex, config, auth, discovery }),
         );
+
+        if (webhookStartupScanEnabled) {
+          void scheduledWebhooksService
+            .scanAndRunScheduledWebhooks()
+            .then(startupScan => {
+              logger.info(
+                `gamification scheduled webhook startup scan completed (executed=${startupScan.executedCount}, skipped=${startupScan.skippedCount}, failed=${startupScan.failedCount})`,
+              );
+            })
+            .catch(error => {
+              const message =
+                error instanceof Error ? error.message : String(error);
+              logger.error(
+                `gamification scheduled webhook startup scan failed: ${message}`,
+              );
+            });
+        } else {
+          logger.info('gamification scheduled webhook startup scan disabled');
+        }
       },
     });
   },

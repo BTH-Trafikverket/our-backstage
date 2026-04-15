@@ -3,7 +3,7 @@ import type {
   HttpAuthService,
   UserInfoService,
 } from '@backstage/backend-plugin-api';
-import { InputError } from '@backstage/errors';
+import { InputError, NotAllowedError } from '@backstage/errors';
 import type { XpService } from '../services/xpService';
 
 export function XpRouter(options: {
@@ -31,9 +31,27 @@ export function XpRouter(options: {
       );
     }
 
-    const subjectRef = requested
-      ? requested
-      : (await userInfo.getUserInfo(credentials)).userEntityRef;
+    let subjectRef = requested;
+
+    if (requested) {
+      if (credentials.principal.type === 'user') {
+        const info = await userInfo.getUserInfo(credentials);
+        const allowedSubjectRefs = new Set(
+          [
+            credentials.principal.userEntityRef,
+            ...info.ownershipEntityRefs,
+          ].map(ref => ref.toLocaleLowerCase('en-US')),
+        );
+
+        if (!allowedSubjectRefs.has(requested.toLocaleLowerCase('en-US'))) {
+          throw new NotAllowedError(
+            'You can only view XP for yourself or your ownership groups',
+          );
+        }
+      }
+    } else {
+      subjectRef = (await userInfo.getUserInfo(credentials)).userEntityRef;
+    }
 
     const status = await xpService.getStatus(subjectRef);
     res.json(status);
