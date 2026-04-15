@@ -8,6 +8,22 @@ export interface Config {
        */
       groups?: string[];
     };
+    badges?: {
+      imageUpload?: {
+        /**
+         * Maximum allowed badge image upload size in bytes.
+         * Defaults to 1048576 (1 MiB).
+         * @visibility backend
+         */
+        maxBytes?: number;
+        /**
+         * Maximum allowed source image pixel count before sharp rejects it.
+         * Defaults to 16777216.
+         * @visibility backend
+         */
+        maxPixels?: number;
+      };
+    };
     quests?: {
       /**
        * Service principal subjects that are allowed to post quest events.
@@ -69,6 +85,24 @@ export interface Config {
          * @visibility backend
          */
         requestTimeoutMs?: number;
+        /**
+         * Optional outbound host allowlist for webhook delivery.
+         * When provided, only these hosts may be called.
+         * @visibility backend
+         */
+        allowedHosts?: string[];
+        /**
+         * Whether plain HTTP webhook targets are allowed.
+         * Defaults to false.
+         * @visibility backend
+         */
+        allowHttp?: boolean;
+        /**
+         * Whether localhost and private literal IP targets are allowed.
+         * Defaults to false.
+         * @visibility backend
+         */
+        allowPrivateTargets?: boolean;
       };
     };
     actorResolution?: {

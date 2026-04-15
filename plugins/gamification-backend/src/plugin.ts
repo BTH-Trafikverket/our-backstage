@@ -107,6 +107,18 @@ export const gamificationBackendPlugin = createBackendPlugin({
             webhookRepo,
             logger,
             requestTimeoutMs,
+            allowedHosts:
+              config.getOptionalStringArray(
+                'gamification.webhooks.delivery.allowedHosts',
+              ) ?? [],
+            allowHttp:
+              config.getOptionalBoolean(
+                'gamification.webhooks.delivery.allowHttp',
+              ) ?? false,
+            allowPrivateTargets:
+              config.getOptionalBoolean(
+                'gamification.webhooks.delivery.allowPrivateTargets',
+              ) ?? false,
           }),
           logger,
           pollIntervalMs:

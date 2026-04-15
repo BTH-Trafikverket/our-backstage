@@ -80,7 +80,7 @@ spec:
               required: false
               schema:
                 type: string
-              description: Optional Backstage subject ref. If omitted, the authenticated user is used. Service credentials must provide subjectRef.
+              description: Optional Backstage subject ref. If omitted, the authenticated user is used. User credentials may only request the authenticated user or one of their ownership groups. Service credentials must provide subjectRef.
           responses:
             '200':
               description: XP status

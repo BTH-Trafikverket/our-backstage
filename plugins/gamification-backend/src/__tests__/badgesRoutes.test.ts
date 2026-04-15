@@ -122,6 +122,10 @@ describe('badges routes auth and errors', () => {
         ...((data as object) ?? {}),
       })),
       deleteBadge: jest.fn(async () => true),
+      createBadgeImage: jest.fn(async (image: string) => [{ id: 1, image }]),
+      getBadgeImages: jest.fn(async () => [
+        { id: 1, image: 'data:image/webp;base64,AAAA' },
+      ]),
     };
 
     const app = express();
@@ -185,6 +189,51 @@ describe('badges routes auth and errors', () => {
     expect(res.status).toBe(403);
     expect(res.body?.error?.name).toBe('NotAllowedError');
     expect(badgesService.createBadge).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 for non-admin users on badge image uploads', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, 'group:default/engineering'],
+    });
+    const { app, badgesService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .post('/badges/badge-images')
+      .set('authorization', mockCredentials.user.header(userRef))
+      .attach('image', Buffer.from('not-used'), 'badge.png');
+
+    expect(res.status).toBe(403);
+    expect(res.body?.error?.name).toBe('NotAllowedError');
+    expect(badgesService.createBadgeImage).not.toHaveBeenCalled();
+  });
+
+  it('requires user credentials to list badge images', async () => {
+    const { app, badgesService } = makeApp();
+
+    const res = await request(app)
+      .get('/badges/badge-images')
+      .set('authorization', mockCredentials.none.header());
+
+    expect(res.status).toBe(401);
+    expect(badgesService.getBadgeImages).not.toHaveBeenCalled();
+  });
+
+  it('allows authenticated users to list badge images', async () => {
+    const userRef = 'user:default/alice';
+    const { app, badgesService } = makeApp({
+      userInfo: mockServices.userInfo({
+        ownershipEntityRefs: [userRef, 'group:default/engineering'],
+      }),
+    });
+
+    const res = await request(app)
+      .get('/badges/badge-images')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([{ id: 1, image: 'data:image/webp;base64,AAAA' }]);
+    expect(badgesService.getBadgeImages).toHaveBeenCalledTimes(1);
   });
 
   it('allows users to fetch badge progress for a subject without admin access', async () => {

@@ -1,16 +1,14 @@
 import { useMemo } from 'react';
-import hljs from 'highlight.js';
-import 'highlight.js/styles/atom-one-dark.css';
 
 type JsonHighlightProps = {
   value: unknown;
 };
 
 export const JsonHighlight = ({ value }: JsonHighlightProps) => {
-  const highlightedHtml = useMemo(() => {
-    const json = JSON.stringify(value ?? {}, null, 2);
-    return hljs.highlight(json, { language: 'json' }).value;
-  }, [value]);
+  const formattedJson = useMemo(
+    () => JSON.stringify(value ?? {}, null, 2),
+    [value],
+  );
 
   return (
     <pre
@@ -28,10 +26,7 @@ export const JsonHighlight = ({ value }: JsonHighlightProps) => {
         lineHeight: 1.6,
       }}
     >
-      <code
-        className="hljs language-json"
-        dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-      />
+      <code>{formattedJson}</code>
     </pre>
   );
 };

@@ -60,7 +60,7 @@ type BadgeProgressResponse = {
     total: number;
     page: number;
     limit: number;
-    pages: number;
+    totalPages: number;
   };
 };
 
@@ -263,7 +263,7 @@ export const BadgesCard = ({
 
         const firstPage = await fetchPage(1);
         const remainingPageNumbers = Array.from(
-          { length: Math.max(0, firstPage.pagination.pages - 1) },
+          { length: Math.max(0, firstPage.pagination.totalPages - 1) },
           (_, index) => index + 2,
         );
         const remainingPages =
@@ -306,7 +306,10 @@ export const BadgesCard = ({
     const fetchImages = async () => {
       try {
         const baseUrl = await discoveryApi.getBaseUrl('gamification');
-        const res = await fetchApi.fetch(`${baseUrl}/badges/badge-images`);
+        const { token } = await identityApi.getCredentials();
+        const res = await fetchApi.fetch(`${baseUrl}/badges/badge-images`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!res.ok) {
           return;
         }
@@ -318,7 +321,7 @@ export const BadgesCard = ({
     };
 
     fetchImages();
-  }, [discoveryApi, fetchApi]);
+  }, [discoveryApi, fetchApi, identityApi]);
 
   const earnedBadges = data?.badges.filter(badge => badge.isEarned) ?? [];
 
