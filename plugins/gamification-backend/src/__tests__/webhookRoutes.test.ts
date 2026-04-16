@@ -1,6 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import type { UserInfoService } from '@backstage/backend-plugin-api';
+import { NotFoundError } from '@backstage/errors';
 import {
   mockCredentials,
   mockErrorHandler,
@@ -78,6 +79,14 @@ describe('webhook routes auth', () => {
         data: [],
         pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
       })),
+      getWebhookEventMetadata: jest.fn(async (event: string) => ({
+        event,
+        labels: ['username', 'quest_title', 'total_xp', 'xp_reward'],
+        template: {
+          content:
+            '{{username}} completed {{quest_title}} and earned {{xp_reward}} XP.',
+        },
+      })),
     };
 
     const app = express();
@@ -127,6 +136,22 @@ describe('webhook routes auth', () => {
       expect(webhookService.getWebhooks).not.toHaveBeenCalled();
     },
   );
+
+  it('returns 403 for non-admin users when reading webhook event metadata', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, 'group:default/engineering'],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .get('/webhooks/events/quest.completed/metadata')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(403);
+    expect(res.body?.error?.name).toBe('NotAllowedError');
+    expect(webhookService.getWebhookEventMetadata).not.toHaveBeenCalled();
+  });
 
   it('allows admin users to create webhooks', async () => {
     const userRef = 'user:default/alice';
@@ -202,6 +227,74 @@ describe('webhook routes auth', () => {
     expect(res.status).toBe(400);
     expect(res.body?.error?.name).toBe('InputError');
     expect(webhookService.createWebhook).not.toHaveBeenCalled();
+  });
+
+  it('allows admin users to fetch webhook event metadata', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .get('/webhooks/events/quest.completed/metadata')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(webhookService.getWebhookEventMetadata).toHaveBeenCalledWith(
+      'quest.completed',
+      {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'user',
+            userEntityRef: userRef,
+          }),
+        }),
+      },
+    );
+    expect(res.body).toEqual({
+      event: 'quest.completed',
+      labels: ['username', 'quest_title', 'total_xp', 'xp_reward'],
+      template: {
+        content:
+          '{{username}} completed {{quest_title}} and earned {{xp_reward}} XP.',
+      },
+    });
+  });
+
+  it('returns 400 for invalid webhook event metadata params', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .get('/webhooks/events/%20/metadata')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.name).toBe('InputError');
+    expect(webhookService.getWebhookEventMetadata).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when webhook event metadata does not exist', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    (webhookService.getWebhookEventMetadata as jest.Mock).mockRejectedValue(
+      new NotFoundError("Webhook trigger event 'unknown.event' not found"),
+    );
+
+    const res = await request(app)
+      .get('/webhooks/events/unknown.event/metadata')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(404);
+    expect(res.body?.error?.name).toBe('NotFoundError');
   });
 
   it('allows admin users to list paginated webhooks', async () => {

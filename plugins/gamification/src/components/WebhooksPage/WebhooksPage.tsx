@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Box,
@@ -21,8 +21,9 @@ import { WebhookFormDialog } from './WebhookFormDialog';
 import { WebhookTable } from './WebhookTable';
 import {
   WEBHOOK_EVENTS,
-  type WebhookApiResponse,
   type Webhook,
+  type WebhookApiResponse,
+  type WebhookEventMetadata,
   type WebhookFormData,
   type WebhookTableRow,
 } from './types';
@@ -53,6 +54,13 @@ export const WebhooksPage = () => {
     createEmptyWebhookForm(),
   );
   const [createError, setCreateError] = useState<string | null>(null);
+  const [createEventMetadata, setCreateEventMetadata] =
+    useState<WebhookEventMetadata | null>(null);
+  const [createEventMetadataError, setCreateEventMetadataError] = useState<
+    string | null
+  >(null);
+  const [createEventMetadataLoading, setCreateEventMetadataLoading] =
+    useState(false);
 
   const [editWebhook, setEditWebhook] = useState<Webhook | null>(null);
   const [editLoading, setEditLoading] = useState(false);
@@ -92,15 +100,18 @@ export const WebhooksPage = () => {
     setCreateError(null);
   };
 
-  const resetCreateDialog = () => {
-    setIsCreateOpen(false);
-    setCreateError(null);
-    setCreateForm(createEmptyWebhookForm());
-  };
-
   const handleEditChange = (field: keyof WebhookFormData, value: string) => {
     setEditForm(prev => ({ ...prev, [field]: value }));
     setEditError(null);
+  };
+
+  const resetCreateDialog = () => {
+    setIsCreateOpen(false);
+    setCreateError(null);
+    setCreateEventMetadata(null);
+    setCreateEventMetadataError(null);
+    setCreateEventMetadataLoading(false);
+    setCreateForm(createEmptyWebhookForm());
   };
 
   const resetEditDialog = () => {
@@ -113,6 +124,68 @@ export const WebhooksPage = () => {
     setDeleteWebhook(null);
     setDeleteError(null);
   };
+
+  useEffect(() => {
+    if (!isCreateOpen || !createForm.event) {
+      setCreateEventMetadata(null);
+      setCreateEventMetadataError(null);
+      setCreateEventMetadataLoading(false);
+      return undefined;
+    }
+
+    const abortController = new AbortController();
+
+    const loadEventMetadata = async () => {
+      setCreateEventMetadata(null);
+      setCreateEventMetadataError(null);
+      setCreateEventMetadataLoading(true);
+
+      try {
+        const url = await buildGamificationUrl(
+          `/webhooks/events/${encodeURIComponent(createForm.event)}/metadata`,
+        );
+        const response = await fetchApi.fetch(url, {
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response));
+        }
+
+        const result = (await response.json()) as WebhookEventMetadata;
+        setCreateEventMetadata({
+          event: result.event,
+          labels: Array.isArray(result.labels) ? result.labels : [],
+          template:
+            result.template &&
+            !Array.isArray(result.template) &&
+            typeof result.template === 'object'
+              ? result.template
+              : {},
+        });
+      } catch (eventMetadataError) {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        setCreateEventMetadataError(
+          eventMetadataError instanceof Error
+            ? eventMetadataError.message
+            : 'An unknown error occurred',
+        );
+      } finally {
+        if (!abortController.signal.aborted) {
+          setCreateEventMetadataLoading(false);
+        }
+      }
+    };
+
+    loadEventMetadata();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [buildGamificationUrl, createForm.event, fetchApi, isCreateOpen]);
 
   const getData = useCallback(
     async ({
@@ -314,6 +387,9 @@ export const WebhooksPage = () => {
         mode="create"
         formData={createForm}
         error={createError}
+        eventMetadata={createEventMetadata}
+        eventMetadataError={createEventMetadataError}
+        eventMetadataLoading={createEventMetadataLoading}
         loading={createLoading}
         onClose={resetCreateDialog}
         onSubmit={handleCreateSubmit}
@@ -325,6 +401,9 @@ export const WebhooksPage = () => {
         mode="edit"
         formData={editForm}
         error={editError}
+        eventMetadata={null}
+        eventMetadataError={null}
+        eventMetadataLoading={false}
         loading={editLoading}
         webhookTitle={editWebhook?.title}
         onClose={resetEditDialog}

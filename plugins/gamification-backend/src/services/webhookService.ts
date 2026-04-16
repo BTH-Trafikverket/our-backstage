@@ -1,6 +1,6 @@
 import { isIP } from 'node:net';
 import type { LoggerService } from '@backstage/backend-plugin-api';
-import { InputError } from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 import Handlebars from 'handlebars';
 import type {
   DomainEventDeliveryTarget,
@@ -13,6 +13,10 @@ import type {
 } from '../repositories/webhookRepository';
 import type { WebhookCreationInput } from '../schemas/webhooks/webhookCreationSchema';
 import type { WebhookEditInput } from '../schemas/webhooks/webhookEditSchema';
+import {
+  getStaticWebhookEventMetadata,
+  type WebhookEventMetadata,
+} from './webhookEventMetadata';
 
 type WebhookServiceOpts = {
   credentials: any;
@@ -64,7 +68,6 @@ function isPrivateIpv6Address(hostname: string): boolean {
 
 export class WebhookService {
   private readonly webhookRepo: WebhookRepository;
-  private readonly logger?: LoggerService;
   private readonly requestTimeoutMs: number;
   private readonly allowedHosts: Set<string>;
   private readonly allowHttp: boolean;
@@ -79,7 +82,6 @@ export class WebhookService {
     allowPrivateTargets?: boolean;
   }) {
     this.webhookRepo = options.webhookRepo;
-    this.logger = options.logger;
     this.requestTimeoutMs = options.requestTimeoutMs ?? 10_000;
     this.allowedHosts = new Set(
       (options.allowedHosts ?? []).map(host => host.toLocaleLowerCase('en-US')),
@@ -176,6 +178,19 @@ export class WebhookService {
       data: result.data.map(row => this.buildWebhook(row)),
       pagination: result.pagination,
     };
+  }
+
+  async getWebhookEventMetadata(
+    event: string,
+    _opts?: WebhookServiceOpts,
+  ): Promise<WebhookEventMetadata> {
+    const metadata = getStaticWebhookEventMetadata(event);
+
+    if (!metadata) {
+      throw new NotFoundError(`Webhook trigger event '${event}' not found`);
+    }
+
+    return metadata;
   }
 
   async deliverDomainEvent(event: DomainEventRow): Promise<void> {

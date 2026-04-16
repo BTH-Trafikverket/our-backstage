@@ -26,10 +26,10 @@ describe('WebhooksPage', () => {
       ...init,
     });
 
-  const createWebhookListResponse = () =>
+  const createWebhookListResponse = (data: unknown[] = [webhook]) =>
     createJsonResponse({
-      data: [webhook],
-      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      data,
+      pagination: { page: 1, limit: 10, total: data.length, totalPages: 1 },
     });
 
   const getRequestUrl = (input: RequestInfo | URL) => {
@@ -63,6 +63,103 @@ describe('WebhooksPage', () => {
       </TestApiProvider>,
     );
   }
+
+  it('loads and displays event metadata for the selected create event', async () => {
+    const user = userEvent.setup();
+    let resolveMetadataResponse!: (response: Response) => void;
+
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL) => {
+      const url = getRequestUrl(input);
+
+      if (url === `${baseUrl}/webhooks/events/quest.completed/metadata`) {
+        return new Promise<Response>(resolve => {
+          resolveMetadataResponse = resolve;
+        });
+      }
+
+      if (url === `${baseUrl}/webhooks`) {
+        return createWebhookListResponse([]);
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    renderPage(fetchImpl);
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Create Webhook' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Select event' }));
+    await user.click(screen.getByLabelText('Quest Completed'));
+
+    expect(
+      screen.getByText('Loading available placeholders...'),
+    ).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(fetchImpl).toHaveBeenCalledWith(
+        `${baseUrl}/webhooks/events/quest.completed/metadata`,
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+        }),
+      ),
+    );
+
+    resolveMetadataResponse(
+      createJsonResponse({
+        event: 'quest.completed',
+        labels: ['username', 'quest_title', 'total_xp', 'xp_reward'],
+        template: {
+          content:
+            '{{username}} completed {{quest_title}} and earned {{xp_reward}} XP.',
+        },
+      }),
+    );
+
+    expect(await screen.findByText('username')).toBeInTheDocument();
+    expect(screen.getByText('quest_title')).toBeInTheDocument();
+    expect(screen.getByText('total_xp')).toBeInTheDocument();
+    expect(screen.getByText('xp_reward')).toBeInTheDocument();
+    expect(screen.getByText('Template example')).toBeInTheDocument();
+  });
+
+  it('shows an error message when event metadata fails to load', async () => {
+    const user = userEvent.setup();
+
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL) => {
+      const url = getRequestUrl(input);
+
+      if (url === `${baseUrl}/webhooks/events/badge.earned/metadata`) {
+        return new Response(
+          JSON.stringify({ error: { message: 'Metadata lookup failed' } }),
+          {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+      }
+
+      if (url === `${baseUrl}/webhooks`) {
+        return createWebhookListResponse([]);
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    renderPage(fetchImpl);
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Create Webhook' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Select event' }));
+    await user.click(screen.getByLabelText('Badge Earned'));
+
+    expect(
+      await screen.findByText(
+        'Unable to load placeholders: Metadata lookup failed',
+      ),
+    ).toBeInTheDocument();
+  });
 
   it('submits webhook edits through the backend patch endpoint', async () => {
     const user = userEvent.setup();

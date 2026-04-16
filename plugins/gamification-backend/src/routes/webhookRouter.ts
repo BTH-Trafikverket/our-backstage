@@ -8,6 +8,7 @@ import express from 'express';
 import Router from 'express-promise-router';
 import { webhookCreationSchema } from '../schemas/webhooks/webhookCreationSchema';
 import { webhookEditSchema } from '../schemas/webhooks/webhookEditSchema';
+import { webhookEventMetadataParamsSchema } from '../schemas/webhooks/webhookEventMetadataSchema';
 import { WebhookService } from '../services/webhookService';
 import { createRequireAdminCredentials } from './adminAccess';
 
@@ -55,6 +56,21 @@ export function WebhookRouter({
     });
 
     res.status(201).json(created);
+  });
+
+  router.get('/events/:event/metadata', async (req, res) => {
+    const parsed = webhookEventMetadataParamsSchema.safeParse(req.params);
+    if (!parsed.success) {
+      throw new InputError(parsed.error.toString());
+    }
+
+    const credentials = await requireAdminCredentials(req);
+    const metadata = await webhookService.getWebhookEventMetadata(
+      parsed.data.event,
+      { credentials },
+    );
+
+    res.status(200).json(metadata);
   });
 
   router.get('/', async (req, res) => {
