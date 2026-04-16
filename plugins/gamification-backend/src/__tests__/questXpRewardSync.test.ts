@@ -66,8 +66,6 @@ describePostgres18('quests xp_reward -> xp_awards sync trigger', () => {
     expect(syncedRows).toHaveLength(2);
     expect(syncedRows.map(row => row.xp_amount)).toEqual([35, 35]);
     expect(untouchedRow?.xp_amount).toBe(5);
-
-    await knex.destroy();
   });
 
   it('does not touch ledger rows when another quest field changes', async () => {

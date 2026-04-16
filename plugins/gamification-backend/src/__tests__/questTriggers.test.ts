@@ -17,6 +17,14 @@ describePostgres18('quest_progress trigger -> xp_awards', () => {
       target_count: 3,
       xp_reward: 10,
     });
+    await knex('webhooks').insert({
+      id: randomUUID(),
+      title: 'Quest feed',
+      description: '',
+      url: 'https://example.com/webhooks/quest-feed',
+      trigger_event_name: 'quest.completed',
+      payload: { content: '{{username}} completed {{quest_title}}' },
+    });
 
     await knex('quest_progress').insert({
       subject_ref: userRef,
@@ -31,11 +39,35 @@ describePostgres18('quest_progress trigger -> xp_awards', () => {
       .update({ completion_count: 3 });
 
     const rows = await knex('xp_awards').select('*');
+    const domainEvents = await knex('domain_events')
+      .where({
+        event_name: 'quest.completed',
+        subject_ref: userRef,
+        quest_id: questId,
+      })
+      .select('*');
     expect(rows).toHaveLength(1);
+    expect(domainEvents).toHaveLength(1);
     expect(rows[0].subject_ref).toBe(userRef);
     expect(rows[0].quest_id).toBe(questId);
     expect(rows[0].awarded_on_completion_count).toBe(3);
     expect(rows[0].xp_amount).toBe(10);
+    expect(domainEvents[0].payload).toEqual(
+      expect.objectContaining({
+        username: 'alice',
+        quest_title: 'Merge PRs',
+        completion_count: 3,
+        xp_reward: 10,
+      }),
+    );
+    expect(domainEvents[0].delivery_targets).toEqual([
+      {
+        id: expect.any(String),
+        title: 'Quest feed',
+        url: 'https://example.com/webhooks/quest-feed',
+        payload: { content: '{{username}} completed {{quest_title}}' },
+      },
+    ]);
   });
 
   it('failsafe: does not award when completion_count stays the same', async () => {

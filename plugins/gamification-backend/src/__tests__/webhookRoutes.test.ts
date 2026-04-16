@@ -11,6 +11,7 @@ import { WebhookRouter } from '../routes/webhookRouter';
 
 describe('webhook routes auth', () => {
   const adminGroup = 'group:default/admin';
+  const webhookId = '6f7f43df-e673-477f-aa99-0f7db82c1b58';
 
   const createWebhookPayload = {
     title: 'Production Webhook',
@@ -20,6 +21,15 @@ describe('webhook routes auth', () => {
     payload: {
       timeout: 5000,
       retries: 3,
+    },
+  };
+  const editWebhookPayload = {
+    title: 'Updated Production Webhook',
+    description: '',
+    url: 'https://example.com/webhooks/updated-gamification',
+    event: 'badge.earned',
+    payload: {
+      timeout: 2500,
     },
   };
 
@@ -45,7 +55,7 @@ describe('webhook routes auth', () => {
 
     const webhookService = {
       createWebhook: jest.fn(async (data: any) => ({
-        id: '6f7f43df-e673-477f-aa99-0f7db82c1b58',
+        id: webhookId,
         title: data.title,
         description: data.description,
         url: data.url,
@@ -54,6 +64,17 @@ describe('webhook routes auth', () => {
         created_at: '2026-03-31T08:00:00.000Z',
         updated_at: '2026-03-31T08:00:00.000Z',
       })),
+      editWebhook: jest.fn(async (id: string, data: any) => ({
+        id,
+        title: data.title ?? createWebhookPayload.title,
+        description: data.description ?? createWebhookPayload.description,
+        url: data.url ?? createWebhookPayload.url,
+        events: [data.event ?? createWebhookPayload.event],
+        payload: data.payload ?? createWebhookPayload.payload,
+        created_at: '2026-03-31T08:00:00.000Z',
+        updated_at: '2026-04-01T09:30:00.000Z',
+      })),
+      deleteWebhook: jest.fn(async () => true),
       getWebhooks: jest.fn(async () => ({
         data: [],
         pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
@@ -87,6 +108,8 @@ describe('webhook routes auth', () => {
   test.each([
     ['get', '/webhooks', undefined],
     ['post', '/webhooks', createWebhookPayload],
+    ['patch', `/webhooks/${webhookId}`, editWebhookPayload],
+    ['delete', `/webhooks/${webhookId}`, undefined],
   ] as const)(
     'returns 403 for non-admin users on %s %s',
     async (method, path, body) => {
@@ -108,6 +131,8 @@ describe('webhook routes auth', () => {
       expect(res.status).toBe(403);
       expect(res.body?.error?.name).toBe('NotAllowedError');
       expect(webhookService.createWebhook).not.toHaveBeenCalled();
+      expect(webhookService.editWebhook).not.toHaveBeenCalled();
+      expect(webhookService.deleteWebhook).not.toHaveBeenCalled();
       expect(webhookService.getWebhooks).not.toHaveBeenCalled();
     },
   );
@@ -327,5 +352,106 @@ describe('webhook routes auth', () => {
       ],
       pagination: { page: 2, limit: 5, total: 7, totalPages: 2 },
     });
+  });
+
+  it('allows admin users to update webhooks', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .patch(`/webhooks/${webhookId}`)
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send(editWebhookPayload);
+
+    expect(res.status).toBe(200);
+    expect(webhookService.editWebhook).toHaveBeenCalledWith(
+      webhookId,
+      editWebhookPayload,
+      {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'user',
+            userEntityRef: userRef,
+          }),
+        }),
+      },
+    );
+  });
+
+  it('returns 400 for invalid webhook edit payloads', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .patch(`/webhooks/${webhookId}`)
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.name).toBe('InputError');
+    expect(webhookService.editWebhook).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when updating a missing webhook', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    (webhookService.editWebhook as jest.Mock).mockResolvedValue(undefined);
+
+    const res = await request(app)
+      .patch(`/webhooks/${webhookId}`)
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send(editWebhookPayload);
+
+    expect(res.status).toBe(404);
+    expect(res.body?.error?.name).toBe('NotFoundError');
+  });
+
+  it('allows admin users to delete webhooks', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .delete(`/webhooks/${webhookId}`)
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(204);
+    expect(webhookService.deleteWebhook).toHaveBeenCalledWith(webhookId, {
+      credentials: expect.objectContaining({
+        principal: expect.objectContaining({
+          type: 'user',
+          userEntityRef: userRef,
+        }),
+      }),
+    });
+  });
+
+  it('returns 404 when deleting a missing webhook', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    (webhookService.deleteWebhook as jest.Mock).mockResolvedValue(false);
+
+    const res = await request(app)
+      .delete(`/webhooks/${webhookId}`)
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(404);
+    expect(res.body?.error?.name).toBe('NotFoundError');
   });
 });

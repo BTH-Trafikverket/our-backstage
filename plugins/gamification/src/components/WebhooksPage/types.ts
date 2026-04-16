@@ -1,6 +1,5 @@
 export const WEBHOOK_EVENTS = [
   { id: 'quest.completed', label: 'Quest Completed' },
-  { id: 'user.leveled_up', label: 'User Leveled Up' },
   { id: 'badge.earned', label: 'Badge Earned' },
   { id: 'daily', label: 'Daily' },
   { id: 'weekly', label: 'Weekly' },
@@ -31,6 +30,7 @@ export type Webhook = {
   events: string[];
   payload: Record<string, unknown>;
   createdAt: string;
+  updatedAt: string;
 };
 
 export type WebhookTableRow = {

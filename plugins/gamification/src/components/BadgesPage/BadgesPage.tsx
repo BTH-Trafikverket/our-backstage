@@ -205,7 +205,10 @@ export const BadgesPage = ({
     const fetchImages = async () => {
       try {
         const url = await buildGamificationUrl('/badges/badge-images');
-        const res = await fetchApi.fetch(url);
+        const { token } = await identityApi.getCredentials();
+        const res = await fetchApi.fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!res.ok) {
           throw new Error(await readErrorMessage(res));
         }
@@ -219,7 +222,7 @@ export const BadgesPage = ({
     };
 
     fetchImages();
-  }, [buildGamificationUrl, fetchApi]);
+  }, [buildGamificationUrl, fetchApi, identityApi]);
 
   const getData = useCallback(
     async ({

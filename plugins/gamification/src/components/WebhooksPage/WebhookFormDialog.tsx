@@ -10,7 +10,16 @@ import {
   Text,
   TextField,
 } from '@backstage/ui';
-import { useState, type ReactNode } from 'react';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/atom-one-dark.css';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   WEBHOOK_EVENTS,
   type WebhookEventMetadata,
@@ -23,9 +32,9 @@ type WebhookFormDialogProps = {
   formData: WebhookFormData;
   error: string | null;
   loading: boolean;
-  eventMetadata: WebhookEventMetadata | null;
-  eventMetadataError: string | null;
-  eventMetadataLoading: boolean;
+  eventMetadata?: WebhookEventMetadata | null;
+  eventMetadataError?: string | null;
+  eventMetadataLoading?: boolean;
   webhookTitle?: string;
   onClose: () => void;
   onSubmit: () => void;
@@ -38,23 +47,64 @@ export const WebhookFormDialog = ({
   formData,
   error,
   loading,
-  eventMetadata,
-  eventMetadataError,
-  eventMetadataLoading,
+  eventMetadata = null,
+  eventMetadataError = null,
+  eventMetadataLoading = false,
   webhookTitle,
   onClose,
   onSubmit,
   onChange,
 }: WebhookFormDialogProps) => {
   const [eventsOpen, setEventsOpen] = useState(false);
+  const [isPayloadFocused, setIsPayloadFocused] = useState(false);
+  const payloadTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const payloadPreviewRef = useRef<HTMLPreElement | null>(null);
+  const payloadEditorBackground = '#282c34';
+  const payloadEditorBorder = '1px solid rgba(255, 255, 255, 0.14)';
+  const showPayloadPlaceholder =
+    !isPayloadFocused && formData.payload.trim().length === 0;
+
+  const highlightedPayload = useMemo(() => {
+    const payload = showPayloadPlaceholder
+      ? '{\n  "key": "value"\n}'
+      : formData.payload;
+
+    return hljs.highlight(payload, {
+      language: 'json',
+      ignoreIllegals: true,
+    }).value;
+  }, [formData.payload, showPayloadPlaceholder]);
+
+  const eventTemplatePreview = useMemo(
+    () => JSON.stringify(eventMetadata?.template ?? {}, null, 2),
+    [eventMetadata],
+  );
+
+  const syncPayloadScroll = useCallback(() => {
+    if (!payloadTextareaRef.current || !payloadPreviewRef.current) {
+      return;
+    }
+
+    payloadPreviewRef.current.scrollTop = payloadTextareaRef.current.scrollTop;
+    payloadPreviewRef.current.scrollLeft =
+      payloadTextareaRef.current.scrollLeft;
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setEventsOpen(false);
+    }
+  }, [isOpen, mode, webhookTitle]);
+
   const title =
     mode === 'create'
       ? 'Create Webhook'
-      : `Edit webhook${webhookTitle ? `: ${webhookTitle}` : ''}`;
+      : `Edit Webhook${webhookTitle ? `: ${webhookTitle}` : ''}`;
   const submitLabel = mode === 'create' ? 'Create Webhook' : 'Save changes';
 
   const eventsLabel =
     WEBHOOK_EVENTS.find(e => e.id === formData.event)?.label ?? 'Select event';
+
   let eventMetadataContent: ReactNode = null;
 
   if (eventMetadataLoading) {
@@ -72,34 +122,63 @@ export const WebhookFormDialog = ({
         Unable to load placeholders: {eventMetadataError}
       </Text>
     );
-  } else if (eventMetadata?.labels.length) {
+  } else if (eventMetadata) {
     eventMetadataContent = (
-      <Flex gap="2" style={{ flexWrap: 'wrap' }}>
-        {eventMetadata.labels.map(label => (
-          <Box
-            key={label}
-            as="span"
+      <Flex direction="column" gap="3">
+        {eventMetadata.labels.length ? (
+          <Flex gap="2" style={{ flexWrap: 'wrap' }}>
+            {eventMetadata.labels.map(label => (
+              <Box
+                key={label}
+                as="span"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '2px 8px',
+                  borderRadius: 999,
+                  background: 'var(--bui-bg-solid, rgba(127, 127, 127, 0.12))',
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                {label}
+              </Box>
+            ))}
+          </Flex>
+        ) : (
+          <Text variant="body-small" color="secondary">
+            No placeholders available for this event.
+          </Text>
+        )}
+
+        <Box>
+          <Text variant="body-small" weight="bold">
+            Template example
+          </Text>
+          <pre
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '2px 8px',
-              borderRadius: 999,
-              background: 'var(--bui-bg-solid, rgba(127, 127, 127, 0.12))',
-              fontFamily:
-                'ui-monospace, SFMono-Regular, SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
+              margin: '8px 0 0 0',
+              padding: 12,
+              borderRadius: 8,
+              background: '#1f2329',
+              color: '#f6f8fa',
+              overflow: 'auto',
               fontSize: 12,
               lineHeight: 1.5,
+              whiteSpace: 'pre',
             }}
           >
-            {label}
-          </Box>
-        ))}
+            <code>{eventTemplatePreview}</code>
+          </pre>
+        </Box>
       </Flex>
     );
   } else {
     eventMetadataContent = (
       <Text variant="body-small" color="secondary">
-        No placeholders available for this event.
+        No metadata available for this event.
       </Text>
     );
   }
@@ -226,7 +305,7 @@ export const WebhookFormDialog = ({
                 )}
               </Box>
 
-              {formData.event ? (
+              {mode === 'create' && formData.event ? (
                 <Box
                   style={{
                     marginTop: 10,
@@ -240,7 +319,7 @@ export const WebhookFormDialog = ({
                 >
                   <Flex direction="column" gap="2">
                     <Text variant="body-small" weight="bold">
-                      Available placeholders
+                      Event metadata
                     </Text>
                     {eventMetadataContent}
                   </Flex>
@@ -252,28 +331,78 @@ export const WebhookFormDialog = ({
               <Text variant="body-small" weight="bold">
                 Payload (JSON)
               </Text>
-              <textarea
-                value={formData.payload}
-                onChange={e => onChange('payload', e.target.value)}
-                disabled={loading}
-                rows={16}
-                placeholder='{"key": "value"}'
+              <Box
                 style={{
+                  position: 'relative',
                   width: '100%',
                   minHeight: 360,
-                  fontFamily: 'monospace',
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                  padding: '10px 12px',
                   borderRadius: 8,
-                  border:
-                    '1px solid var(--bui-input-border, rgba(127,127,127,0.4))',
-                  background: 'var(--bui-bg-base, transparent)',
-                  color: 'inherit',
-                  resize: 'vertical',
-                  boxSizing: 'border-box',
+                  border: payloadEditorBorder,
+                  background: payloadEditorBackground,
+                  overflow: 'hidden',
                 }}
-              />
+              >
+                <pre
+                  ref={payloadPreviewRef}
+                  aria-hidden
+                  style={{
+                    margin: 0,
+                    minHeight: 360,
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    padding: '10px 12px',
+                    background: payloadEditorBackground,
+                    color: '#abb2bf',
+                    overflow: 'auto',
+                    whiteSpace: 'pre',
+                    boxSizing: 'border-box',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <code
+                    className="hljs language-json"
+                    style={{
+                      display: 'block',
+                      minHeight: '100%',
+                      margin: 0,
+                      padding: 0,
+                      background: 'transparent',
+                      opacity: showPayloadPlaceholder ? 0.75 : 1,
+                    }}
+                    dangerouslySetInnerHTML={{ __html: highlightedPayload }}
+                  />
+                </pre>
+                <textarea
+                  ref={payloadTextareaRef}
+                  value={formData.payload}
+                  onChange={e => onChange('payload', e.target.value)}
+                  onScroll={syncPayloadScroll}
+                  onFocus={() => setIsPayloadFocused(true)}
+                  onBlur={() => setIsPayloadFocused(false)}
+                  disabled={loading}
+                  rows={16}
+                  spellCheck={false}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    minHeight: 360,
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    padding: '10px 12px',
+                    background: 'transparent',
+                    color: 'transparent',
+                    caretColor: '#f8f8f2',
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                    overflow: 'auto',
+                    border: 'none',
+                    outline: 'none',
+                  }}
+                />
+              </Box>
             </Flex>
           </Flex>
         </Box>

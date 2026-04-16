@@ -175,6 +175,47 @@ describePostgres18('xp routes', () => {
     );
   });
 
+  it('GET /xp allows users to query one of their ownership groups', async () => {
+    const knex = await initDb();
+    const userRef = 'user:local/alice';
+    const teamRef = 'group:default/platform';
+    await seedXpForSubject(knex, teamRef, 65);
+
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, teamRef],
+    });
+    const { app } = makeApp({ knex, userInfo });
+
+    const res = await request(app)
+      .get('/api/backstage-backend-gamification/xp')
+      .query({ subjectRef: teamRef })
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(res.body.subjectRef).toBe(teamRef);
+    expect(res.body.totalXp).toBe(65);
+  });
+
+  it('GET /xp rejects users querying unrelated subjects', async () => {
+    const knex = await initDb();
+    const userRef = 'user:local/alice';
+    const teamRef = 'group:default/platform';
+    await seedXpForSubject(knex, teamRef, 65);
+
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, 'group:default/engineering'],
+    });
+    const { app } = makeApp({ knex, userInfo });
+
+    const res = await request(app)
+      .get('/api/backstage-backend-gamification/xp')
+      .query({ subjectRef: teamRef })
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(403);
+    expect(res.body?.error?.name).toBe('NotAllowedError');
+  });
+
   it('returns 0 totalXp for a valid user with no ledger rows', async () => {
     const knex = await initDb();
     const { app } = makeApp({ knex });

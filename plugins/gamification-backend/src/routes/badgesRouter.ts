@@ -25,7 +25,18 @@ export function BadgesRouter({
   config: RootConfigService;
 }): express.Router {
   const router = Router();
-  const upload = multer();
+  const maxBadgeImageBytes =
+    config.getOptionalNumber('gamification.badges.imageUpload.maxBytes') ??
+    1024 * 1024;
+  const maxBadgeImagePixels =
+    config.getOptionalNumber('gamification.badges.imageUpload.maxPixels') ??
+    4096 * 4096;
+  const upload = multer({
+    limits: {
+      files: 1,
+      fileSize: maxBadgeImageBytes,
+    },
+  });
   const parseBadgeProgressSort = (
     sortByQuery: string | undefined,
   ):
@@ -86,6 +97,37 @@ export function BadgesRouter({
     config,
     deniedMessage: 'Only admin users can manage badges',
   });
+  const requireBadgeAdminAccess: express.RequestHandler = (req, _res, next) => {
+    requireAdminCredentials(req)
+      .then(() => next())
+      .catch(next);
+  };
+  const uploadBadgeImage: express.RequestHandler = (req, res, next) => {
+    upload.single('image')(req, res, error => {
+      if (!error) {
+        next();
+        return;
+      }
+
+      if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+          next(
+            new InputError(
+              `Badge image must be ${Math.floor(
+                maxBadgeImageBytes / 1024,
+              )} KB or smaller`,
+            ),
+          );
+          return;
+        }
+
+        next(new InputError(error.message));
+        return;
+      }
+
+      next(error);
+    });
+  };
 
   router.get('/progress', async (req, res) => {
     const credentials = await httpAuth.credentials(req, {
@@ -229,7 +271,8 @@ export function BadgesRouter({
 
   router.post(
     '/badge-images',
-    upload.single('image') as any,
+    requireBadgeAdminAccess,
+    uploadBadgeImage,
     async (req, res) => {
       if (!req.file) {
         throw new InputError('No file uploaded');
@@ -239,7 +282,9 @@ export function BadgesRouter({
         throw new InputError('Only image files are allowed');
       }
 
-      const base64 = await processImage(req.file.buffer);
+      const base64 = await processImage(req.file.buffer, {
+        maxInputPixels: maxBadgeImagePixels,
+      });
 
       const [image] = await badgesService.createBadgeImage(base64);
 
@@ -247,7 +292,8 @@ export function BadgesRouter({
     },
   );
 
-  router.get('/badge-images', async (_req, res) => {
+  router.get('/badge-images', async (req, res) => {
+    await httpAuth.credentials(req, { allow: ['user'] });
     const images = await badgesService.getBadgeImages();
     res.status(200).json(images);
   });

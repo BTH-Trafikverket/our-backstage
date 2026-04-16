@@ -3,10 +3,11 @@ import {
   RootConfigService,
   UserInfoService,
 } from '@backstage/backend-plugin-api';
-import { InputError } from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 import express from 'express';
 import Router from 'express-promise-router';
 import { webhookCreationSchema } from '../schemas/webhooks/webhookCreationSchema';
+import { webhookEditSchema } from '../schemas/webhooks/webhookEditSchema';
 import { webhookEventMetadataParamsSchema } from '../schemas/webhooks/webhookEventMetadataSchema';
 import { WebhookService } from '../services/webhookService';
 import { createRequireAdminCredentials } from './adminAccess';
@@ -81,6 +82,45 @@ export function WebhookRouter({
     );
 
     res.status(200).json(webhooks);
+  });
+
+  router.patch('/:id', async (req, res) => {
+    const { id } = req.params;
+    if (!id) {
+      throw new InputError('Missing webhook id');
+    }
+
+    const parsed = webhookEditSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new InputError(parsed.error.toString());
+    }
+
+    const credentials = await requireAdminCredentials(req);
+    const updated = await webhookService.editWebhook(id, parsed.data, {
+      credentials,
+    });
+
+    if (!updated) {
+      throw new NotFoundError('Webhook not found');
+    }
+
+    res.status(200).json(updated);
+  });
+
+  router.delete('/:id', async (req, res) => {
+    const { id } = req.params;
+    if (!id) {
+      throw new InputError('Missing webhook id');
+    }
+
+    const credentials = await requireAdminCredentials(req);
+    const deleted = await webhookService.deleteWebhook(id, { credentials });
+
+    if (!deleted) {
+      throw new NotFoundError('Webhook not found');
+    }
+
+    res.status(204).send();
   });
 
   return router;

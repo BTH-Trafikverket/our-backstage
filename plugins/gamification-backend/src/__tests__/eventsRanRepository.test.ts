@@ -55,7 +55,7 @@ describePostgres18('EventsRanRepository integration', () => {
       expect.objectContaining({
         webhook_id: webhook.id,
         trigger_event_name: 'daily',
-        period_key: '2026-04-01',
+        period_key: '2026-03-31',
       }),
     );
   });

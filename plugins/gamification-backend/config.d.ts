@@ -8,6 +8,22 @@ export interface Config {
        */
       groups?: string[];
     };
+    badges?: {
+      imageUpload?: {
+        /**
+         * Maximum allowed badge image upload size in bytes.
+         * Defaults to 1048576 (1 MiB).
+         * @visibility backend
+         */
+        maxBytes?: number;
+        /**
+         * Maximum allowed source image pixel count before sharp rejects it.
+         * Defaults to 16777216.
+         * @visibility backend
+         */
+        maxPixels?: number;
+      };
+    };
     quests?: {
       /**
        * Service principal subjects that are allowed to post quest events.
@@ -26,11 +42,68 @@ export interface Config {
     };
     webhooks?: {
       /**
-       * IANA timezone used when resolving daily, weekly, and monthly webhook periods.
+       * IANA timezone used for scheduled webhook period boundaries.
        * Defaults to Europe/Stockholm.
        * @visibility backend
        */
       timeZone?: string;
+      /**
+       * Scan interval in milliseconds for scheduled daily/weekly/monthly
+       * webhook enqueueing. Defaults to 60000.
+       * @visibility backend
+       */
+      scheduleScanIntervalMs?: number;
+      delivery?: {
+        /**
+         * Fallback polling interval for the domain-event webhook worker in
+         * milliseconds. LISTEN/NOTIFY is used for fast wakeups, while polling
+         * remains the recovery path. Defaults to 600000.
+         * @visibility backend
+         */
+        pollIntervalMs?: number;
+        /**
+         * Maximum number of domain events to claim per worker batch.
+         * Defaults to 25.
+         * @visibility backend
+         */
+        batchSize?: number;
+        /**
+         * Maximum number of delivery attempts before a domain event is dead-lettered.
+         * Defaults to 10.
+         * @visibility backend
+         */
+        maxAttempts?: number;
+        /**
+         * Time in milliseconds after which an uncompleted claim can be reclaimed
+         * by the worker. Defaults to 60000.
+         * @visibility backend
+         */
+        claimTtlMs?: number;
+        /**
+         * Timeout in milliseconds for outbound webhook HTTP requests.
+         * Defaults to 10000.
+         * @visibility backend
+         */
+        requestTimeoutMs?: number;
+        /**
+         * Optional outbound host allowlist for webhook delivery.
+         * When provided, only these hosts may be called.
+         * @visibility backend
+         */
+        allowedHosts?: string[];
+        /**
+         * Whether plain HTTP webhook targets are allowed.
+         * Defaults to false.
+         * @visibility backend
+         */
+        allowHttp?: boolean;
+        /**
+         * Whether localhost and private literal IP targets are allowed.
+         * Defaults to false.
+         * @visibility backend
+         */
+        allowPrivateTargets?: boolean;
+      };
     };
     actorResolution?: {
       providers?: {

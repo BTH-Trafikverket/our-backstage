@@ -53,8 +53,6 @@ describePostgres18('XpRepository integration', () => {
       const totalXp = await repository.getTotalXp(userRef);
 
       expect(totalXp).toBe(0);
-
-      await knex.destroy();
     });
 
     it('should return correct XP for a user with a single entry', async () => {
@@ -84,8 +82,6 @@ describePostgres18('XpRepository integration', () => {
         .first();
       expect(dbEntry).toBeDefined();
       expect(dbEntry.xp_amount).toBe(100);
-
-      await knex.destroy();
     });
 
     it('should correctly sum multiple XP entries for the same user', async () => {
@@ -124,8 +120,6 @@ describePostgres18('XpRepository integration', () => {
       const totalXp = await repository.getTotalXp(userRef);
 
       expect(totalXp).toBe(250); // 50 + 75 + 125
-
-      await knex.destroy();
     });
 
     it('should only return XP for the specified user', async () => {
@@ -158,8 +152,6 @@ describePostgres18('XpRepository integration', () => {
 
       expect(user1Xp).toBe(100);
       expect(user2Xp).toBe(200);
-
-      await knex.destroy();
     });
 
     it('should handle multiple XP entries from the same quest for the same user', async () => {
@@ -200,8 +192,6 @@ describePostgres18('XpRepository integration', () => {
       const totalXp = await repository.getTotalXp(userRef);
 
       expect(totalXp).toBe(150); // 50 + 50 + 50
-
-      await knex.destroy();
     });
 
     it('should handle zero XP amounts correctly', async () => {
@@ -223,8 +213,6 @@ describePostgres18('XpRepository integration', () => {
       const totalXp = await repository.getTotalXp(userRef);
 
       expect(totalXp).toBe(0);
-
-      await knex.destroy();
     });
 
     it('should handle large XP values correctly', async () => {
@@ -253,8 +241,6 @@ describePostgres18('XpRepository integration', () => {
       const totalXp = await repository.getTotalXp(userRef);
 
       expect(totalXp).toBe(1999999);
-
-      await knex.destroy();
     });
 
     it('should return correct total after database modifications', async () => {
@@ -287,8 +273,6 @@ describePostgres18('XpRepository integration', () => {
 
       totalXp = await repository.getTotalXp(userRef);
       expect(totalXp).toBe(150);
-
-      await knex.destroy();
     });
 
     it('should handle entity reference formats correctly', async () => {
@@ -319,8 +303,6 @@ describePostgres18('XpRepository integration', () => {
         const totalXp = await repository.getTotalXp(userRefs[i]);
         expect(totalXp).toBe((i + 1) * 10);
       }
-
-      await knex.destroy();
     });
   });
 
@@ -342,8 +324,6 @@ describePostgres18('XpRepository integration', () => {
           source: 'test',
         }),
       ).rejects.toThrow();
-
-      await knex.destroy();
     });
 
     it('should verify unique constraint on subject_ref, quest_id, and awarded_on_completion_count', async () => {
@@ -371,8 +351,6 @@ describePostgres18('XpRepository integration', () => {
           awardedOnCompletionCount: 5, // Same completion count
         }),
       ).rejects.toThrow();
-
-      await knex.destroy();
     });
 
     it('should allow same user and quest with different completion counts', async () => {
@@ -408,8 +386,6 @@ describePostgres18('XpRepository integration', () => {
 
       const totalXp = await repository.getTotalXp(userRef);
       expect(totalXp).toBe(150);
-
-      await knex.destroy();
     });
 
     it('should cascade delete XP entries when quest is deleted', async () => {
@@ -436,8 +412,6 @@ describePostgres18('XpRepository integration', () => {
       // XP should now be 0 because the award entry was cascade deleted
       totalXp = await repository.getTotalXp(userRef);
       expect(totalXp).toBe(0);
-
-      await knex.destroy();
     });
   });
 
@@ -515,8 +489,6 @@ describePostgres18('XpRepository integration', () => {
 
       totalXp = await repository.getTotalXp(userRef);
       expect(totalXp).toBe(1120);
-
-      await knex.destroy();
     });
 
     it('should handle concurrent XP additions for different users', async () => {
@@ -551,8 +523,6 @@ describePostgres18('XpRepository integration', () => {
       );
 
       expect(xpResults).toEqual([100, 200, 300, 400, 500]);
-
-      await knex.destroy();
     });
   });
 });

@@ -4,12 +4,15 @@ import {
 } from '@backstage/backend-plugin-api';
 import { initGameDb } from './database';
 import { EventsRanRepository } from './repositories/eventsRanRepository';
-import { WebhookRepository } from './repositories/webhookRepository';
 import { runSeeds } from './seed';
 import { createRouter } from './router';
+import { DomainEventsRepository } from './repositories/domainEventsRepository';
+import { WebhookRepository } from './repositories/webhookRepository';
+import { DomainEventWorker } from './services/domainEventWorker';
+import { WebhookService } from './services/webhookService';
 import { ScheduledWebhooksService } from './services/scheduledWebhooksService';
 import { DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE } from './services/scheduledWebhookPeriod';
-import { WebhookDeliveryService } from './services/webhookDeliveryService';
+import { ScheduledWebhooksWorker } from './services/scheduledWebhooksWorker';
 
 export const gamificationBackendPlugin = createBackendPlugin({
   pluginId: 'gamification',
@@ -67,20 +70,79 @@ export const gamificationBackendPlugin = createBackendPlugin({
         const scheduledWebhooksService = new ScheduledWebhooksService({
           webhookRepo: new WebhookRepository(knex),
           eventsRanRepo: new EventsRanRepository(knex),
-          deliveryService: new WebhookDeliveryService(),
           logger,
           timeZone: webhookTimeZone,
         });
-        const startupScan =
-          await scheduledWebhooksService.scanAndRunScheduledWebhooks();
-
-        logger.info(
-          `gamification scheduled webhook startup scan completed (executed=${startupScan.executedCount}, skipped=${startupScan.skippedCount}, failed=${startupScan.failedCount})`,
-        );
+        const scheduledWebhooksWorker = new ScheduledWebhooksWorker({
+          scheduledWebhooksService,
+          logger,
+          scanIntervalMs:
+            config.getOptionalNumber(
+              'gamification.webhooks.scheduleScanIntervalMs',
+            ) ?? 60_000,
+        });
 
         httpRouter.use(
-          createRouter({ httpAuth, userInfo, knex, config, auth, discovery }),
+          createRouter({
+            httpAuth,
+            userInfo,
+            knex,
+            config,
+            auth,
+            discovery,
+            logger,
+          }),
         );
+
+        const webhookRepo = new WebhookRepository(knex);
+        const domainEventsRepo = new DomainEventsRepository(knex);
+        const requestTimeoutMs =
+          config.getOptionalNumber(
+            'gamification.webhooks.delivery.requestTimeoutMs',
+          ) ?? 10_000;
+        const domainEventWorker = new DomainEventWorker({
+          db: knex,
+          domainEventsRepo,
+          webhookService: new WebhookService({
+            webhookRepo,
+            logger,
+            requestTimeoutMs,
+            allowedHosts:
+              config.getOptionalStringArray(
+                'gamification.webhooks.delivery.allowedHosts',
+              ) ?? [],
+            allowHttp:
+              config.getOptionalBoolean(
+                'gamification.webhooks.delivery.allowHttp',
+              ) ?? false,
+            allowPrivateTargets:
+              config.getOptionalBoolean(
+                'gamification.webhooks.delivery.allowPrivateTargets',
+              ) ?? false,
+          }),
+          logger,
+          pollIntervalMs:
+            config.getOptionalNumber(
+              'gamification.webhooks.delivery.pollIntervalMs',
+            ) ?? 10 * 60_000,
+          batchSize:
+            config.getOptionalNumber(
+              'gamification.webhooks.delivery.batchSize',
+            ) ?? 25,
+          maxAttempts:
+            config.getOptionalNumber(
+              'gamification.webhooks.delivery.maxAttempts',
+            ) ?? 10,
+          claimTtlMs:
+            config.getOptionalNumber(
+              'gamification.webhooks.delivery.claimTtlMs',
+            ) ?? 60_000,
+        });
+
+        domainEventWorker.start();
+        logger.info('gamification domain event worker started');
+        scheduledWebhooksWorker.start();
+        logger.info('gamification scheduled webhook worker started');
       },
     });
   },

@@ -16,37 +16,43 @@ import {
   fetchApiRef,
   useApi,
 } from '@backstage/core-plugin-api';
+import { WebhookDeleteDialog } from './WebhookDeleteDialog';
 import { WebhookFormDialog } from './WebhookFormDialog';
 import { WebhookTable } from './WebhookTable';
 import {
   WEBHOOK_EVENTS,
+  type Webhook,
   type WebhookApiResponse,
   type WebhookEventMetadata,
-  type Webhook,
   type WebhookFormData,
   type WebhookTableRow,
 } from './types';
 import {
   buildWebhookPayload,
+  createWebhookFormData,
   normalizeWebhook,
   readErrorMessage,
   validateWebhookForm,
 } from './utils';
 import { JsonHighlight } from './JsonHighlight';
 
-export const AdminPage = () => {
+const createEmptyWebhookForm = (): WebhookFormData => ({
+  title: '',
+  description: '',
+  url: '',
+  event: '',
+  payload: '',
+});
+
+export const WebhooksPage = () => {
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
-  const [createForm, setCreateForm] = useState<WebhookFormData>({
-    title: '',
-    description: '',
-    url: '',
-    event: '',
-    payload: '{}',
-  });
+  const [createForm, setCreateForm] = useState<WebhookFormData>(
+    createEmptyWebhookForm(),
+  );
   const [createError, setCreateError] = useState<string | null>(null);
   const [createEventMetadata, setCreateEventMetadata] =
     useState<WebhookEventMetadata | null>(null);
@@ -55,6 +61,17 @@ export const AdminPage = () => {
   >(null);
   const [createEventMetadataLoading, setCreateEventMetadataLoading] =
     useState(false);
+
+  const [editWebhook, setEditWebhook] = useState<Webhook | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editForm, setEditForm] = useState<WebhookFormData>(
+    createEmptyWebhookForm(),
+  );
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const [deleteWebhook, setDeleteWebhook] = useState<Webhook | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [viewWebhook, setViewWebhook] = useState<Webhook | null>(null);
 
@@ -83,19 +100,29 @@ export const AdminPage = () => {
     setCreateError(null);
   };
 
+  const handleEditChange = (field: keyof WebhookFormData, value: string) => {
+    setEditForm(prev => ({ ...prev, [field]: value }));
+    setEditError(null);
+  };
+
   const resetCreateDialog = () => {
     setIsCreateOpen(false);
     setCreateError(null);
     setCreateEventMetadata(null);
     setCreateEventMetadataError(null);
     setCreateEventMetadataLoading(false);
-    setCreateForm({
-      title: '',
-      description: '',
-      url: '',
-      event: '',
-      payload: '{}',
-    });
+    setCreateForm(createEmptyWebhookForm());
+  };
+
+  const resetEditDialog = () => {
+    setEditWebhook(null);
+    setEditError(null);
+    setEditForm(createEmptyWebhookForm());
+  };
+
+  const resetDeleteDialog = () => {
+    setDeleteWebhook(null);
+    setDeleteError(null);
   };
 
   useEffect(() => {
@@ -158,15 +185,7 @@ export const AdminPage = () => {
     return () => {
       abortController.abort();
     };
-  }, [
-    buildGamificationUrl,
-    createForm.event,
-    fetchApi,
-    isCreateOpen,
-    setCreateEventMetadata,
-    setCreateEventMetadataError,
-    setCreateEventMetadataLoading,
-  ]);
+  }, [buildGamificationUrl, createForm.event, fetchApi, isCreateOpen]);
 
   const getData = useCallback(
     async ({
@@ -271,12 +290,94 @@ export const AdminPage = () => {
     setViewWebhook(webhook);
   };
 
-  const handleEditWebhook = (_webhook: Webhook) => {
-    // TODO: open edit dialog
+  const handleEditWebhook = (webhook: Webhook) => {
+    setEditWebhook(webhook);
+    setEditForm(createWebhookFormData(webhook));
+    setEditError(null);
   };
 
-  const handleDeleteWebhook = (_webhook: Webhook) => {
-    // TODO: open delete dialog
+  const handleEditSubmit = async () => {
+    if (!editWebhook) {
+      return;
+    }
+
+    const validationError = validateWebhookForm(editForm);
+    if (validationError) {
+      setEditError(validationError);
+      return;
+    }
+
+    setEditLoading(true);
+    setEditError(null);
+
+    try {
+      const url = await buildGamificationUrl(`/webhooks/${editWebhook.id}`);
+      const response = await fetchApi.fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildWebhookPayload(editForm)),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      const updatedWebhook = normalizeWebhook(
+        (await response.json()) as WebhookApiResponse,
+      );
+
+      setViewWebhook(current =>
+        current?.id === updatedWebhook.id ? updatedWebhook : current,
+      );
+      resetEditDialog();
+      reload();
+    } catch (saveWebhookError) {
+      setEditError(
+        saveWebhookError instanceof Error
+          ? saveWebhookError.message
+          : 'An unknown error occurred',
+      );
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDeleteWebhook = (webhook: Webhook) => {
+    setDeleteWebhook(webhook);
+    setDeleteError(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteWebhook) {
+      return;
+    }
+
+    setDeleteLoading(true);
+    setDeleteError(null);
+
+    try {
+      const deletedWebhookId = deleteWebhook.id;
+      const url = await buildGamificationUrl(`/webhooks/${deletedWebhookId}`);
+      const response = await fetchApi.fetch(url, { method: 'DELETE' });
+
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      setViewWebhook(current =>
+        current?.id === deletedWebhookId ? null : current,
+      );
+      resetDeleteDialog();
+      reload();
+    } catch (deleteWebhookError) {
+      setDeleteError(
+        deleteWebhookError instanceof Error
+          ? deleteWebhookError.message
+          : 'An unknown error occurred',
+      );
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   return (
@@ -293,6 +394,30 @@ export const AdminPage = () => {
         onClose={resetCreateDialog}
         onSubmit={handleCreateSubmit}
         onChange={handleCreateChange}
+      />
+
+      <WebhookFormDialog
+        isOpen={editWebhook !== null}
+        mode="edit"
+        formData={editForm}
+        error={editError}
+        eventMetadata={null}
+        eventMetadataError={null}
+        eventMetadataLoading={false}
+        loading={editLoading}
+        webhookTitle={editWebhook?.title}
+        onClose={resetEditDialog}
+        onSubmit={handleEditSubmit}
+        onChange={handleEditChange}
+      />
+
+      <WebhookDeleteDialog
+        isOpen={deleteWebhook !== null}
+        webhook={deleteWebhook}
+        error={deleteError}
+        loading={deleteLoading}
+        onClose={resetDeleteDialog}
+        onConfirm={handleConfirmDelete}
       />
 
       <Flex direction="column" gap="4">

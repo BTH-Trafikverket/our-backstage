@@ -5,6 +5,7 @@ import { questEditSchema } from '../schemas/quests/questEditSchema';
 import { questEventSchema } from '../schemas/quests/questEventSchema';
 import { webhookCreationSchema } from '../schemas/webhooks/webhookCreationSchema';
 import { webhookEventMetadataParamsSchema } from '../schemas/webhooks/webhookEventMetadataSchema';
+import { webhookEditSchema } from '../schemas/webhooks/webhookEditSchema';
 
 describe('validation schemas', () => {
   describe('questCreationSchema', () => {
@@ -255,6 +256,55 @@ describe('validation schemas', () => {
         title: '   ',
         url: 'not-a-url',
         event: 'quest.completed',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.path)).toEqual([
+        ['title'],
+        ['url'],
+      ]);
+    });
+
+    it('rejects unsupported webhook events', () => {
+      const result = webhookCreationSchema.safeParse({
+        title: 'Unsupported event webhook',
+        url: 'https://example.com/webhooks/gamification',
+        event: 'user.leveled_up',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.path)).toEqual([
+        ['event'],
+      ]);
+    });
+  });
+
+  describe('webhookEditSchema', () => {
+    it('accepts partial webhook edits and allows clearing the description', () => {
+      expect(
+        webhookEditSchema.parse({
+          description: '   ',
+          payload: { retries: 5 },
+        }),
+      ).toEqual({
+        description: '',
+        payload: { retries: 5 },
+      });
+    });
+
+    it('rejects empty webhook edit payloads', () => {
+      const result = webhookEditSchema.safeParse({});
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe(
+        'No fields provided to update',
+      );
+    });
+
+    it('rejects whitespace-only titles and invalid URLs for webhook edits', () => {
+      const result = webhookEditSchema.safeParse({
+        title: '   ',
+        url: 'not-a-url',
       });
 
       expect(result.success).toBe(false);

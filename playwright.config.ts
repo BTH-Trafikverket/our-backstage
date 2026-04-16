@@ -17,49 +17,66 @@
 import { defineConfig, type Project } from '@playwright/test';
 import { generateProjects } from '@backstage/e2e-test-utils/playwright';
 
-const baseURL = process.env.PLAYWRIGHT_URL;
+const baseURL = process.env.PLAYWRIGHT_URL ?? process.env.APP_BASE_URL;
+const configuredWorkers = Number.parseInt(
+  process.env.PLAYWRIGHT_WORKERS ?? '',
+  10,
+);
+const maxWorkers = 2;
+const workers =
+  Number.isFinite(configuredWorkers) && configuredWorkers > 0
+    ? Math.min(configuredWorkers, maxWorkers)
+    : process.env.CI
+    ? maxWorkers
+    : undefined;
 
 if (!baseURL) {
-	throw new Error('PLAYWRIGHT_URL must be set for Docker E2E runs');
+  throw new Error(
+    'PLAYWRIGHT_URL or APP_BASE_URL must be set for local Playwright runs',
+  );
 }
 
 const projects: Project[] = (generateProjects() ?? []).map(project => ({
-	...project,
-	use: {
-		...(project?.use ?? {}),
-		browserName: 'chromium',
-		channel: 'chromium',
-	},
+  ...project,
+  use: {
+    ...(project?.use ?? {}),
+    browserName: 'chromium',
+    channel: 'chromium',
+  },
 }));
 
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-	timeout: 60_000,
+  globalSetup: './playwright.guest-auth.setup.ts',
 
-	expect: {
-		timeout: 5_000,
-	},
+  timeout: 60_000,
 
-	webServer: [],
+  expect: {
+    timeout: 5_000,
+  },
 
-	forbidOnly: !!process.env.CI,
+  webServer: [],
 
-	retries: process.env.CI ? 2 : 0,
+  forbidOnly: !!process.env.CI,
 
-	reporter: [['html', { open: 'never', outputFolder: 'tmp/e2e/report' }]],
+  retries: process.env.CI ? 2 : 0,
 
-	use: {
-		actionTimeout: 0,
-		baseURL,
-		browserName: 'chromium',
-		channel: 'chromium',
-		screenshot: 'only-on-failure',
-		trace: 'on-first-retry',
-	},
+  reporter: [['html', { open: 'never', outputFolder: 'tmp/e2e/report' }]],
 
-	outputDir: 'tmp/e2e/results',
+  workers,
 
-	projects,
+  use: {
+    actionTimeout: 0,
+    baseURL,
+    browserName: 'chromium',
+    channel: 'chromium',
+    screenshot: 'only-on-failure',
+    trace: 'on-first-retry',
+  },
+
+  outputDir: 'tmp/e2e/results',
+
+  projects,
 });

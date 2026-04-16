@@ -26,7 +26,7 @@ describePostgres18('WebhookRepository integration', () => {
       title: 'Third Webhook',
       description: '',
       url: 'https://example.com/third',
-      trigger_event_name: 'user.leveled_up',
+      trigger_event_name: 'quest.completed',
       payload: {},
     });
 
@@ -42,6 +42,14 @@ describePostgres18('WebhookRepository integration', () => {
     expect(await repository.getWebhookTriggerEvent('quest.completed')).toEqual(
       expect.objectContaining({ name: 'quest.completed' }),
     );
+    expect(
+      (
+        await repository.getWebhooksByEventNames([
+          'badge.earned',
+          'quest.completed',
+        ])
+      ).map(webhook => webhook.id),
+    ).toEqual([first.id, second.id, third.id]);
     expect(firstPage.pagination).toEqual({
       page: 1,
       limit: 2,
@@ -55,8 +63,6 @@ describePostgres18('WebhookRepository integration', () => {
     expect(secondPage.data.map(webhook => webhook.id)).toEqual([first.id]);
     expect(firstPage.data[0]?.payload).toEqual({});
     expect(firstPage.data[1]?.payload).toEqual({ retries: 3 });
-
-    await knex.destroy();
   });
 
   it('enforces that webhooks reference a known trigger event', async () => {
@@ -76,7 +82,51 @@ describePostgres18('WebhookRepository integration', () => {
         payload: {},
       }),
     ).rejects.toThrow();
+  });
 
-    await knex.destroy();
+  it('updates and deletes persisted webhooks', async () => {
+    const knex = await initDb();
+    const repository = new WebhookRepository(knex);
+
+    const webhook = await repository.createWebhook({
+      title: 'Mutable Webhook',
+      description: 'Before update',
+      url: 'https://example.com/original',
+      trigger_event_name: 'quest.completed',
+      payload: { retries: 1 },
+    });
+
+    const updated = await repository.updateWebhook(webhook.id, {
+      title: 'Updated Webhook',
+      description: '',
+      url: 'https://example.com/updated',
+      trigger_event_name: 'badge.earned',
+      payload: { retries: 5 },
+    });
+
+    expect(updated).toEqual(
+      expect.objectContaining({
+        id: webhook.id,
+        title: 'Updated Webhook',
+        description: '',
+        url: 'https://example.com/updated',
+        trigger_event_name: 'badge.earned',
+        payload: { retries: 5 },
+      }),
+    );
+    expect(updated?.updated_at.getTime()).toBeGreaterThanOrEqual(
+      webhook.updated_at.getTime(),
+    );
+    expect(await repository.getWebhookById(webhook.id)).toEqual(
+      expect.objectContaining({
+        id: webhook.id,
+        title: 'Updated Webhook',
+      }),
+    );
+
+    await expect(repository.deleteWebhook(webhook.id)).resolves.toBe(true);
+    await expect(
+      repository.getWebhookById(webhook.id),
+    ).resolves.toBeUndefined();
   });
 });

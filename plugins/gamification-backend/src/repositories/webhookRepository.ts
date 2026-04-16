@@ -38,6 +38,8 @@ export type CreateWebhookRow = {
   payload: Record<string, unknown>;
 };
 
+export type UpdateWebhookRow = Partial<CreateWebhookRow>;
+
 export type WebhookPagination = {
   page: number;
   limit: number;
@@ -77,12 +79,54 @@ export class WebhookRepository {
     return rows[0];
   }
 
+  async getWebhookById(id: string): Promise<WebhookRow | undefined> {
+    return this.db<WebhookRow>('webhooks').where({ id }).first();
+  }
+
+  async updateWebhook(
+    id: string,
+    data: UpdateWebhookRow,
+  ): Promise<WebhookRow | undefined> {
+    const rows = await this.db<WebhookRow>('webhooks')
+      .where({ id })
+      .update(data)
+      .returning('*');
+
+    return rows[0];
+  }
+
+  async deleteWebhook(id: string): Promise<boolean> {
+    const deletedCount = await this.db<WebhookRow>('webhooks')
+      .where({ id })
+      .del();
+
+    return deletedCount > 0;
+  }
+
   async getWebhookTriggerEvent(
     name: string,
   ): Promise<WebhookTriggerEventRow | undefined> {
     return this.db<WebhookTriggerEventRow>('webhook_trigger_events')
       .where({ name })
       .first();
+  }
+
+  async getWebhooksByEventNames(eventNames: string[]): Promise<WebhookRow[]> {
+    const names = [
+      ...new Set(eventNames.map(name => name.trim()).filter(Boolean)),
+    ];
+
+    if (names.length === 0) {
+      return [];
+    }
+
+    return this.db<WebhookRow>('webhooks')
+      .whereIn('trigger_event_name', names)
+      .orderBy([
+        { column: 'created_at', order: 'asc' },
+        { column: 'id', order: 'asc' },
+      ])
+      .select('*');
   }
 
   async getScheduledWebhooks(): Promise<ScheduledWebhookRow[]> {
