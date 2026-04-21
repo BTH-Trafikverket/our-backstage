@@ -21,6 +21,7 @@ spec:
       - name: XP
       - name: Quests
       - name: Badges
+      - name: Reminders
       - name: Webhooks
     paths:
       /leaderboard:
@@ -563,6 +564,65 @@ spec:
           responses:
             '204':
               description: Badge archived
+            '401':
+              $ref: '#/components/responses/Unauthorized'
+            '403':
+              $ref: '#/components/responses/Forbidden'
+            '404':
+              $ref: '#/components/responses/NotFound'
+      /reminders:
+        get:
+          operationId: listMyReminders
+          tags:
+            - Reminders
+          summary: List reminders for the authenticated user and their ownership groups
+          responses:
+            '200':
+              description: Visible reminders
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ReminderListResponse'
+            '401':
+              $ref: '#/components/responses/Unauthorized'
+      /reminders/{id}/dismiss:
+        post:
+          operationId: dismissReminder
+          tags:
+            - Reminders
+          summary: Dismiss a reminder for the authenticated user
+          parameters:
+            - in: path
+              name: id
+              required: true
+              schema:
+                type: string
+                format: uuid
+          responses:
+            '204':
+              description: Reminder dismissed
+            '401':
+              $ref: '#/components/responses/Unauthorized'
+            '403':
+              $ref: '#/components/responses/Forbidden'
+            '404':
+              $ref: '#/components/responses/NotFound'
+      /reminders/{id}/disable:
+        post:
+          operationId: disableReminder
+          tags:
+            - Reminders
+          summary: Disable a reminder for the authenticated user
+          parameters:
+            - in: path
+              name: id
+              required: true
+              schema:
+                type: string
+                format: uuid
+          responses:
+            '204':
+              description: Reminder disabled
             '401':
               $ref: '#/components/responses/Unauthorized'
             '403':
@@ -1202,6 +1262,76 @@ spec:
                 $ref: '#/components/schemas/BadgeProgress'
             pagination:
               $ref: '#/components/schemas/Pagination'
+        ReminderStatus:
+          type: string
+          enum:
+            - active
+            - disabled
+        ReminderViewerState:
+          type: string
+          enum:
+            - active
+            - dismissed
+            - disabled
+        ReminderReasonPayload:
+          type: object
+          additionalProperties: true
+        Reminder:
+          type: object
+          required:
+            - id
+            - quest_id
+            - quest_title
+            - target_subject_ref
+            - target_subject_type
+            - rule_key
+            - rule_kind
+            - reason_payload
+            - viewer_state
+            - status
+            - created_at
+            - updated_at
+            - last_generated_at
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              format: uuid
+            quest_id:
+              type: string
+              format: uuid
+            quest_title:
+              type: string
+            target_subject_ref:
+              type: string
+            target_subject_type:
+              $ref: '#/components/schemas/QuestSubjectType'
+            rule_key:
+              type: string
+            rule_kind:
+              type: string
+            reason_payload:
+              $ref: '#/components/schemas/ReminderReasonPayload'
+            viewer_state:
+              $ref: '#/components/schemas/ReminderViewerState'
+            status:
+              $ref: '#/components/schemas/ReminderStatus'
+            created_at:
+              $ref: '#/components/schemas/Timestamp'
+            updated_at:
+              $ref: '#/components/schemas/Timestamp'
+            last_generated_at:
+              $ref: '#/components/schemas/Timestamp'
+        ReminderListResponse:
+          type: object
+          required:
+            - reminders
+          additionalProperties: false
+          properties:
+            reminders:
+              type: array
+              items:
+                $ref: '#/components/schemas/Reminder'
         CreateBadgeRequest:
           type: object
           required:

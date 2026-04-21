@@ -139,10 +139,31 @@ export const gamificationBackendPlugin = createBackendPlugin({
             ) ?? 60_000,
         });
 
-        domainEventWorker.start();
-        logger.info('gamification domain event worker started');
-        scheduledWebhooksWorker.start();
-        logger.info('gamification scheduled webhook worker started');
+        const deliveryWorkerEnabled =
+          config.getOptionalBoolean('gamification.webhooks.delivery.enabled') ??
+          true;
+        const schedulingWorkerEnabled =
+          config.getOptionalBoolean(
+            'gamification.webhooks.scheduling.enabled',
+          ) ?? true;
+
+        if (deliveryWorkerEnabled) {
+          domainEventWorker.start();
+          logger.info('gamification domain event worker started');
+        } else {
+          logger.info(
+            'gamification domain event worker disabled by config (gamification.webhooks.delivery.enabled=false)',
+          );
+        }
+
+        if (schedulingWorkerEnabled) {
+          scheduledWebhooksWorker.start();
+          logger.info('gamification scheduled webhook worker started');
+        } else {
+          logger.info(
+            'gamification scheduled webhook worker disabled by config (gamification.webhooks.scheduling.enabled=false)',
+          );
+        }
       },
     });
   },
