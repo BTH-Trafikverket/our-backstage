@@ -238,6 +238,80 @@ describePostgres18('ReminderRepository integration', () => {
     expect(bobView[0].id).toBe(reminder.id);
   });
 
+  it('looks up reminders by their durable identity', async () => {
+    const knex = await initDb();
+    const repository = new ReminderRepository(knex);
+    const quest = await createQuest(knex, 'Identity Reminder Quest', 'user');
+    const reminder = await repository.createOrRefreshReminder({
+      questId: quest.id,
+      targetSubjectRef: 'user:default/alice',
+      targetSubjectType: 'user',
+      ruleKey: 'inactive-identity',
+      ruleKind: 'activity',
+      reasonPayload: { inactiveDays: 14 },
+    });
+
+    await expect(
+      repository.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-identity',
+      ),
+    ).resolves.toMatchObject({
+      id: reminder.id,
+      quest_id: quest.id,
+      target_subject_ref: 'user:default/alice',
+      rule_key: 'inactive-identity',
+    });
+    await expect(
+      repository.getReminderByIdentity(
+        quest.id,
+        'user:default/bob',
+        'inactive-identity',
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('returns the per-viewer state used by evaluation suppression', async () => {
+    const knex = await initDb();
+    const repository = new ReminderRepository(knex);
+    const quest = await createQuest(
+      knex,
+      'Viewer State Reminder Quest',
+      'user',
+    );
+    const reminder = await repository.createOrRefreshReminder({
+      questId: quest.id,
+      targetSubjectRef: 'user:default/alice',
+      targetSubjectType: 'user',
+      ruleKey: 'inactive-viewer-state',
+      ruleKind: 'activity',
+      reasonPayload: { inactiveDays: 21 },
+    });
+
+    await expect(
+      repository.getViewerState(reminder.id, 'user:default/alice'),
+    ).resolves.toBeUndefined();
+
+    await repository.dismissReminderForViewer(
+      reminder.id,
+      'user:default/alice',
+    );
+
+    await expect(
+      repository.getViewerState(reminder.id, 'user:default/alice'),
+    ).resolves.toBe('dismissed');
+
+    await repository.disableReminderForViewer(
+      reminder.id,
+      'user:default/alice',
+    );
+
+    await expect(
+      repository.getViewerState(reminder.id, 'user:default/alice'),
+    ).resolves.toBe('disabled');
+  });
+
   it('blocks invalid reminder state values with database constraints', async () => {
     const knex = await initDb();
     const quest = await createQuest(

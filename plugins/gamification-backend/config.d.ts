@@ -32,6 +32,54 @@ export interface Config {
        */
       allowedCallers?: string[];
     };
+    reminders?: {
+      /**
+       * Whether the reminder evaluation worker starts on backend boot.
+       * Defaults to true.
+       * @visibility backend
+       */
+      enabled?: boolean;
+      /**
+       * Interval in milliseconds between reminder evaluation runs.
+       * Defaults to 3600000 (1 hour).
+       * @visibility backend
+       */
+      evaluationIntervalMs?: number;
+      /**
+       * Reminder rules to evaluate against existing gamification history.
+       * @visibility backend
+       */
+      rules?: Array<{
+        /**
+         * Stable rule identity used for reminder upserts.
+         * Example: "inactive-pr-review-14d"
+         * @visibility backend
+         */
+        key: string;
+        /**
+         * Quest ID the reminder points to.
+         * @visibility backend
+         */
+        questId: string;
+        /**
+         * Inactivity threshold in whole days.
+         * @visibility backend
+         */
+        inactivityDays: number;
+        /**
+         * Human-readable activity text used in reminder messages.
+         * Example: "reviewed a PR"
+         * @visibility backend
+         */
+        activityDescription: string;
+        /**
+         * Existing history source used to determine activity.
+         * Defaults to "quest_event_receipts".
+         * @visibility backend
+         */
+        activitySource?: 'quest_event_receipts';
+      }>;
+    };
     leaderboard?: {
       /**
        * IANA timezone used when calculating weekly and monthly leaderboard windows.
