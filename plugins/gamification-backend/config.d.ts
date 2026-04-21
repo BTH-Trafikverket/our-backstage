@@ -55,6 +55,12 @@ export interface Config {
       scheduleScanIntervalMs?: number;
       delivery?: {
         /**
+         * Whether the domain-event webhook delivery worker starts on backend boot.
+         * Defaults to true.
+         * @visibility backend
+         */
+        enabled?: boolean;
+        /**
          * Fallback polling interval for the domain-event webhook worker in
          * milliseconds. LISTEN/NOTIFY is used for fast wakeups, while polling
          * remains the recovery path. Defaults to 600000.
@@ -103,6 +109,14 @@ export interface Config {
          * @visibility backend
          */
         allowPrivateTargets?: boolean;
+      };
+      scheduling?: {
+        /**
+         * Whether the scheduled webhook scan worker starts on backend boot.
+         * Defaults to true.
+         * @visibility backend
+         */
+        enabled?: boolean;
       };
     };
     actorResolution?: {

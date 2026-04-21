@@ -13,14 +13,17 @@ import Router from 'express-promise-router';
 import { BadgesRouter } from './routes/badgesRouter';
 import { LeaderboardRouter } from './routes/leaderboardRouter';
 import { QuestsRouter } from './routes/questsRouter';
+import { ReminderRouter } from './routes/reminderRouter';
 import { WebhookRouter } from './routes/webhookRouter';
 import { BadgesRepository } from './repositories/badgesRepository';
 import { LeaderboardRepository } from './repositories/leaderboardRepository';
 import { QuestsRepository } from './repositories/questsRepository';
+import { ReminderRepository } from './repositories/reminderRepository';
 import { WebhookRepository } from './repositories/webhookRepository';
 import { BadgesService } from './services/badgesService';
 import { LeaderboardService } from './services/leaderboardService';
 import { QuestsService } from './services/questsService';
+import { ReminderService } from './services/reminderService';
 import { WebhookService } from './services/webhookService';
 
 import { XpRouter } from './routes/xpRouter';
@@ -84,6 +87,7 @@ export function createRouter({
 
   const questsRepo = new QuestsRepository(knex);
   const badgesRepo = new BadgesRepository(knex);
+  const reminderRepo = new ReminderRepository(knex);
   const webhookRepo = new WebhookRepository(knex);
 
   const catalogClient = new CatalogClient({ discoveryApi: discovery });
@@ -97,6 +101,7 @@ export function createRouter({
     actorResolutionProviders,
   });
   const badgesService = new BadgesService({ badgesRepo, questsRepo });
+  const reminderService = new ReminderService({ reminderRepo });
 
   const xpRepo = new XpRepository(knex);
   const xpService = new XpService(xpRepo);
@@ -146,6 +151,15 @@ export function createRouter({
     LeaderboardRouter({
       httpAuth,
       leaderboardService,
+    }),
+  );
+
+  router.use(
+    '/reminders',
+    ReminderRouter({
+      httpAuth,
+      userInfo,
+      reminderService,
     }),
   );
 
