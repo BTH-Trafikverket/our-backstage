@@ -40,6 +40,18 @@ export function QuestsRouter({
     userInfo,
     config,
   });
+  const requireQuestAdminAccess: express.RequestHandler = (req, res, next) => {
+    requireAdminCredentials(req)
+      .then(credentials => {
+        res.locals.credentials = credentials;
+        next();
+      })
+      .catch(next);
+  };
+  const getAdminCredentials = (res: express.Response) =>
+    res.locals.credentials as Awaited<
+      ReturnType<typeof requireAdminCredentials>
+    >;
 
   router.get('/admin-status', async (req, res) => {
     const { isAdmin } = await readAdminAccess(req);
@@ -47,20 +59,20 @@ export function QuestsRouter({
   });
 
   if (process.env.NODE_ENV !== 'production') {
-    router.get('/test/users', async (req, res) => {
-      const credentials = await requireAdminCredentials(req);
+    router.get('/test/users', requireQuestAdminAccess, async (_req, res) => {
+      const credentials = getAdminCredentials(res);
       const users = await questsService.listGithubUsers({ credentials });
 
       res.status(200).json({ users });
     });
 
-    router.post('/test/events', async (req, res) => {
+    router.post('/test/events', requireQuestAdminAccess, async (req, res) => {
       const parsed = questEventSchema.safeParse(req.body);
       if (!parsed.success) {
         throw new InputError(parsed.error.toString());
       }
 
-      const credentials = await requireAdminCredentials(req);
+      const credentials = getAdminCredentials(res);
 
       const result = await questsService.handleQuestEvent({
         eventId: parsed.data.eventId,
@@ -75,13 +87,13 @@ export function QuestsRouter({
     });
   }
 
-  router.post('/', async (req, res) => {
+  router.post('/', requireQuestAdminAccess, async (req, res) => {
     const parsed = questCreationSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new InputError(parsed.error.toString());
     }
 
-    const credentials = await requireAdminCredentials(req);
+    const credentials = getAdminCredentials(res);
 
     const result = await questsService.createQuest(parsed.data, {
       credentials,
@@ -90,7 +102,7 @@ export function QuestsRouter({
     res.status(201).json(result);
   });
 
-  router.patch('/:id', async (req, res) => {
+  router.patch('/:id', requireQuestAdminAccess, async (req, res) => {
     const { id } = req.params;
     if (!id) {
       throw new InputError('Missing quest id');
@@ -101,7 +113,7 @@ export function QuestsRouter({
       throw new InputError(parsed.error.toString());
     }
 
-    const credentials = await requireAdminCredentials(req);
+    const credentials = getAdminCredentials(res);
 
     const updated = await questsService.editQuest(id, parsed.data, {
       credentials,
@@ -114,13 +126,13 @@ export function QuestsRouter({
     res.status(200).json(updated);
   });
 
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', requireQuestAdminAccess, async (req, res) => {
     const { id } = req.params;
     if (!id) {
       throw new InputError('Missing quest id');
     }
 
-    const credentials = await requireAdminCredentials(req);
+    const credentials = getAdminCredentials(res);
 
     const deleted = await questsService.deleteQuest(id, { credentials });
     if (!deleted) {
@@ -162,8 +174,8 @@ export function QuestsRouter({
     res.status(200).json(result);
   });
 
-  router.get('/', async (req, res) => {
-    const credentials = await requireAdminCredentials(req);
+  router.get('/', requireQuestAdminAccess, async (req, res) => {
+    const credentials = getAdminCredentials(res);
 
     const search =
       typeof req.query.search === 'string' ? req.query.search : undefined;

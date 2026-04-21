@@ -46,7 +46,7 @@ is_relevant_file() {
 }
 
 resolve_default_base() {
-  if git rev-parse --verify --quiet "@{upstream}" >/dev/null; then
+  if git rev-parse --verify --quiet "@{upstream}" >/dev/null 2>&1; then
     git merge-base HEAD "@{upstream}"
     return
   fi

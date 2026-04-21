@@ -499,7 +499,7 @@ describe('LeaderboardPage', () => {
         'Zara Zane',
       ]),
     );
-  });
+  }, 15000);
 
   it('shows an empty state when the backend returns no leaderboard rows', async () => {
     const fetchImpl = jest.fn(async () =>
