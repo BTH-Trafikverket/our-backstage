@@ -105,7 +105,7 @@ export const WebhookTable = ({
       align="center"
       justify="center"
       gap="2"
-      style={{ minHeight: '12rem' }}
+      style={{ minHeight: '20rem', width: '100%' }}
     >
       <Text weight="bold">No webhooks to show.</Text>
       <Text color="secondary">Created webhooks will appear here.</Text>

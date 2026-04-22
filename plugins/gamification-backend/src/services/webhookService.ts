@@ -1,5 +1,6 @@
+import { isIP } from 'node:net';
 import type { LoggerService } from '@backstage/backend-plugin-api';
-import { InputError } from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 import Handlebars from 'handlebars';
 import type {
   DomainEventDeliveryTarget,
@@ -12,6 +13,10 @@ import type {
 } from '../repositories/webhookRepository';
 import type { WebhookCreationInput } from '../schemas/webhooks/webhookCreationSchema';
 import type { WebhookEditInput } from '../schemas/webhooks/webhookEditSchema';
+import {
+  getStaticWebhookEventMetadata,
+  type WebhookEventMetadata,
+} from './webhookEventMetadata';
 
 type WebhookServiceOpts = {
   credentials: any;
@@ -33,19 +38,56 @@ export type WebhookEventName =
   | 'weekly'
   | 'monthly';
 
+function isPrivateIpv4Address(hostname: string): boolean {
+  const octets = hostname.split('.').map(part => Number(part));
+  if (octets.length !== 4 || octets.some(octet => Number.isNaN(octet))) {
+    return false;
+  }
+
+  const [first, second] = octets;
+  return (
+    first === 10 ||
+    first === 127 ||
+    first === 0 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function isPrivateIpv6Address(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return (
+    normalized === '::1' ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('fe80:') ||
+    normalized.startsWith('::ffff:127.')
+  );
+}
+
 export class WebhookService {
   private readonly webhookRepo: WebhookRepository;
-  private readonly logger?: LoggerService;
   private readonly requestTimeoutMs: number;
+  private readonly allowedHosts: Set<string>;
+  private readonly allowHttp: boolean;
+  private readonly allowPrivateTargets: boolean;
 
   constructor(options: {
     webhookRepo: WebhookRepository;
     logger?: LoggerService;
     requestTimeoutMs?: number;
+    allowedHosts?: string[];
+    allowHttp?: boolean;
+    allowPrivateTargets?: boolean;
   }) {
     this.webhookRepo = options.webhookRepo;
-    this.logger = options.logger;
     this.requestTimeoutMs = options.requestTimeoutMs ?? 10_000;
+    this.allowedHosts = new Set(
+      (options.allowedHosts ?? []).map(host => host.toLocaleLowerCase('en-US')),
+    );
+    this.allowHttp = options.allowHttp ?? false;
+    this.allowPrivateTargets = options.allowPrivateTargets ?? false;
   }
 
   private buildWebhook(row: WebhookRow): WebhookResponse {
@@ -136,6 +178,19 @@ export class WebhookService {
       data: result.data.map(row => this.buildWebhook(row)),
       pagination: result.pagination,
     };
+  }
+
+  async getWebhookEventMetadata(
+    event: string,
+    _opts?: WebhookServiceOpts,
+  ): Promise<WebhookEventMetadata> {
+    const metadata = getStaticWebhookEventMetadata(event);
+
+    if (!metadata) {
+      throw new NotFoundError(`Webhook trigger event '${event}' not found`);
+    }
+
+    return metadata;
   }
 
   async deliverDomainEvent(event: DomainEventRow): Promise<void> {
@@ -239,6 +294,49 @@ export class WebhookService {
     };
   }
 
+  private validateTarget(
+    target: DomainEventDeliveryTarget,
+    eventName: WebhookEventName,
+  ): URL {
+    const url = new URL(target.url);
+    const hostname = url.hostname.toLocaleLowerCase('en-US');
+
+    if (url.username || url.password) {
+      throw new Error(
+        `Webhook '${target.title}' (${target.url}) for event '${eventName}' uses embedded credentials`,
+      );
+    }
+
+    if (
+      url.protocol !== 'https:' &&
+      !(this.allowHttp && url.protocol === 'http:')
+    ) {
+      throw new Error(
+        `Webhook '${target.title}' (${target.url}) for event '${eventName}' must use HTTPS`,
+      );
+    }
+
+    if (this.allowedHosts.size > 0 && !this.allowedHosts.has(hostname)) {
+      throw new Error(
+        `Webhook '${target.title}' (${target.url}) for event '${eventName}' targets a host that is not allowed`,
+      );
+    }
+
+    if (
+      !this.allowPrivateTargets &&
+      (hostname === 'localhost' ||
+        hostname.endsWith('.localhost') ||
+        (isIP(hostname) === 4 && isPrivateIpv4Address(hostname)) ||
+        (isIP(hostname) === 6 && isPrivateIpv6Address(hostname)))
+    ) {
+      throw new Error(
+        `Webhook '${target.title}' (${target.url}) for event '${eventName}' targets a private host that is not allowed`,
+      );
+    }
+
+    return url;
+  }
+
   private async deliverWebhook(
     target: DomainEventDeliveryTarget,
     eventName: WebhookEventName,
@@ -246,7 +344,8 @@ export class WebhookService {
     context: Record<string, unknown>,
   ): Promise<void> {
     const payload = this.renderPayloadTemplate(target.payload, context);
-    const response = await fetch(target.url, {
+    const url = this.validateTarget(target, eventName);
+    const response = await fetch(url.toString(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

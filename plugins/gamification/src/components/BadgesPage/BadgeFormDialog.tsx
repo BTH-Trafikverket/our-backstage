@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
 import {
   Alert,
   Box,
@@ -15,6 +15,7 @@ import {
 import {
   discoveryApiRef,
   fetchApiRef,
+  identityApiRef,
   useApi,
 } from '@backstage/core-plugin-api';
 import type { BadgeFormData, BadgeSubjectType, QuestLite } from './types';
@@ -22,6 +23,7 @@ import {
   getBadgeSubjectTypeLabel,
   getCompatibleQuests,
   getQuestById,
+  readErrorMessage,
 } from './utils';
 
 const QUEST_SELECT_BODY_CLASS = 'gamification-badge-quest-select-open';
@@ -146,9 +148,12 @@ export const BadgeFormDialog = ({
   const compatibleQuests = getCompatibleQuests(quests, formData.subject_type);
   const fetchApi = useApi(fetchApiRef);
   const discoveryApi = useApi(discoveryApiRef);
+  const identityApi = useApi(identityApiRef);
   const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [images, setImages] = useState<{ id: number; image: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const buildGamificationUrl = useCallback(
     async (path: string) => {
@@ -159,10 +164,20 @@ export const BadgeFormDialog = ({
   );
 
   useEffect(() => {
+    if (!isOpen) {
+      setUploading(false);
+      setUploadError(null);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     const fetchImages = async () => {
       try {
         const url = await buildGamificationUrl('/badges/badge-images');
-        const res = await fetchApi.fetch(url);
+        const { token } = await identityApi.getCredentials();
+        const res = await fetchApi.fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
 
         if (!res.ok) {
           throw new Error('Failed to fetch badge images');
@@ -177,7 +192,7 @@ export const BadgeFormDialog = ({
     };
 
     fetchImages();
-  }, [buildGamificationUrl, discoveryApi, fetchApi]);
+  }, [buildGamificationUrl, discoveryApi, fetchApi, identityApi]);
 
   useEffect(() => {
     if (!formData.image_id.trim()) {
@@ -199,17 +214,22 @@ export const BadgeFormDialog = ({
   }, [formData.image_id, images]);
 
   const handleFileUpload = async (file: File) => {
+    setUploading(true);
+    setUploadError(null);
+
     const formDataUpload = new FormData();
     formDataUpload.append('image', file);
 
     const url = await buildGamificationUrl('/badges/badge-images');
+    const { token } = await identityApi.getCredentials();
     const res = await fetchApi.fetch(url, {
       method: 'POST',
       body: formDataUpload,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
 
     if (!res.ok) {
-      throw new Error('Failed to upload badge image');
+      throw new Error(await readErrorMessage(res));
     }
 
     const data = await res.json();
@@ -218,6 +238,31 @@ export const BadgeFormDialog = ({
     setImagePreview(data.image);
     setImages(prev => [data, ...prev]);
     onChange('image_id', String(data.id));
+    setUploading(false);
+  };
+
+  const handleFileInputChange = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      await handleFileUpload(file);
+    } catch (uploadFailure) {
+      const message =
+        uploadFailure instanceof Error
+          ? uploadFailure.message
+          : String(uploadFailure);
+      setUploadError(message);
+    } finally {
+      setUploading(false);
+    }
   };
   return (
     <Dialog
@@ -240,6 +285,14 @@ export const BadgeFormDialog = ({
               description={error}
             />
           ) : null}
+          {uploadError ? (
+            <Alert
+              status="danger"
+              icon
+              title="Could not upload badge image"
+              description={uploadError}
+            />
+          ) : null}
 
           <Box p="4">
             <Flex direction="column" gap="4">
@@ -249,7 +302,7 @@ export const BadgeFormDialog = ({
                 label="Title"
                 value={formData.title}
                 onChange={value => onChange('title', value)}
-                isDisabled={loading}
+                isDisabled={loading || uploading}
                 isRequired
                 size="medium"
                 placeholder="Name the badge"
@@ -259,7 +312,7 @@ export const BadgeFormDialog = ({
                 label="Description"
                 value={formData.description}
                 onChange={value => onChange('description', value)}
-                isDisabled={loading}
+                isDisabled={loading || uploading}
                 isRequired
                 size="medium"
                 placeholder="What does this badge represent?"
@@ -291,7 +344,7 @@ export const BadgeFormDialog = ({
                             ? 'primary'
                             : 'secondary'
                         }
-                        isDisabled={loading}
+                        isDisabled={loading || uploading}
                         onPress={() => onSubjectTypeChange(value)}
                       >
                         {getBadgeSubjectTypeLabel(value)}
@@ -305,7 +358,7 @@ export const BadgeFormDialog = ({
                     label="XP reward"
                     value={formData.xp_reward}
                     onChange={value => onChange('xp_reward', value)}
-                    isDisabled={loading}
+                    isDisabled={loading || uploading}
                     isRequired
                     size="medium"
                     inputMode="numeric"
@@ -323,9 +376,9 @@ export const BadgeFormDialog = ({
               <input
                 type="file"
                 accept="image/*"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload(file);
+                disabled={loading || uploading}
+                onChange={event => {
+                  void handleFileInputChange(event);
                 }}
               />
 
@@ -347,6 +400,7 @@ export const BadgeFormDialog = ({
                     aria-label="Select badge image"
                     aria-pressed={selectedImageId === img.id}
                     onClick={() => {
+                      setUploadError(null);
                       setSelectedImageId(img.id);
                       setImagePreview(img.image);
                       onChange('image_id', String(img.id));
@@ -386,7 +440,7 @@ export const BadgeFormDialog = ({
                   size="small"
                   variant="secondary"
                   onPress={onAddCriteria}
-                  isDisabled={loading}
+                  isDisabled={loading || uploading}
                 >
                   Add criterion
                 </Button>
@@ -416,7 +470,7 @@ export const BadgeFormDialog = ({
                             subjectType={formData.subject_type}
                             selectedQuestId={criteria.quest_id}
                             quests={compatibleQuests}
-                            loading={loading}
+                            loading={loading || uploading}
                             onSelectionChange={value =>
                               onCriteriaChange(index, 'quest_id', value)
                             }
@@ -432,7 +486,7 @@ export const BadgeFormDialog = ({
                             onChange={value =>
                               onCriteriaChange(index, 'target_count', value)
                             }
-                            isDisabled={loading || isOneTime}
+                            isDisabled={loading || uploading || isOneTime}
                             size="medium"
                             inputMode="numeric"
                             placeholder="1"
@@ -446,7 +500,9 @@ export const BadgeFormDialog = ({
                             destructive
                             onPress={() => onRemoveCriteria(index)}
                             isDisabled={
-                              loading || formData.criterias.length <= 1
+                              loading ||
+                              uploading ||
+                              formData.criterias.length <= 1
                             }
                           >
                             Remove
@@ -467,10 +523,19 @@ export const BadgeFormDialog = ({
       </DialogBody>
       <DialogFooter>
         <Flex justify="end" gap="2">
-          <Button variant="secondary" onPress={onClose} isDisabled={loading}>
+          <Button
+            variant="secondary"
+            onPress={onClose}
+            isDisabled={loading || uploading}
+          >
             Cancel
           </Button>
-          <Button variant="primary" onPress={onSubmit} loading={loading}>
+          <Button
+            variant="primary"
+            onPress={onSubmit}
+            loading={loading || uploading}
+            isDisabled={uploading}
+          >
             {submitLabel}
           </Button>
         </Flex>

@@ -12,8 +12,19 @@ import {
 } from '@backstage/ui';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-dark.css';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { WEBHOOK_EVENTS, type WebhookFormData } from './types';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import {
+  WEBHOOK_EVENTS,
+  type WebhookEventMetadata,
+  type WebhookFormData,
+} from './types';
 
 type WebhookFormDialogProps = {
   isOpen: boolean;
@@ -21,6 +32,9 @@ type WebhookFormDialogProps = {
   formData: WebhookFormData;
   error: string | null;
   loading: boolean;
+  eventMetadata?: WebhookEventMetadata | null;
+  eventMetadataError?: string | null;
+  eventMetadataLoading?: boolean;
   webhookTitle?: string;
   onClose: () => void;
   onSubmit: () => void;
@@ -33,6 +47,9 @@ export const WebhookFormDialog = ({
   formData,
   error,
   loading,
+  eventMetadata = null,
+  eventMetadataError = null,
+  eventMetadataLoading = false,
   webhookTitle,
   onClose,
   onSubmit,
@@ -58,6 +75,11 @@ export const WebhookFormDialog = ({
     }).value;
   }, [formData.payload, showPayloadPlaceholder]);
 
+  const eventTemplatePreview = useMemo(
+    () => JSON.stringify(eventMetadata?.template ?? {}, null, 2),
+    [eventMetadata],
+  );
+
   const syncPayloadScroll = useCallback(() => {
     if (!payloadTextareaRef.current || !payloadPreviewRef.current) {
       return;
@@ -82,67 +104,84 @@ export const WebhookFormDialog = ({
 
   const eventsLabel =
     WEBHOOK_EVENTS.find(e => e.id === formData.event)?.label ?? 'Select event';
-  const templateVariablesByEvent: Record<string, string[]> = {
-    'quest.completed': [
-      'username',
-      'quest_title',
-      'xp_reward',
-      'completion_count',
-      'total_xp',
-    ],
-    'badge.earned': [
-      'username',
-      'badge_title',
-      'badge_xp_reward',
-      'earned_at',
-      'total_xp',
-    ],
-    daily: [
-      'webhook_title',
-      'period_key',
-      'time_zone',
-      'period_start',
-      'period_end_exclusive',
-      'total_quests_completed',
-      'total_badges_earned',
-      'total_xp_awarded',
-      'top_user_name',
-      'top_user_xp',
-      'top_team_name',
-      'top_team_xp',
-    ],
-    weekly: [
-      'webhook_title',
-      'period_key',
-      'time_zone',
-      'period_start',
-      'period_end_exclusive',
-      'total_quests_completed',
-      'total_badges_earned',
-      'total_xp_awarded',
-      'top_user_name',
-      'top_user_xp',
-      'top_team_name',
-      'top_team_xp',
-    ],
-    monthly: [
-      'webhook_title',
-      'period_key',
-      'time_zone',
-      'period_start',
-      'period_end_exclusive',
-      'total_quests_completed',
-      'total_badges_earned',
-      'total_xp_awarded',
-      'top_user_name',
-      'top_user_xp',
-      'top_team_name',
-      'top_team_xp',
-    ],
-  };
-  const templateVariables =
-    templateVariablesByEvent[formData.event] ??
-    templateVariablesByEvent['quest.completed'];
+
+  let eventMetadataContent: ReactNode = null;
+
+  if (eventMetadataLoading) {
+    eventMetadataContent = (
+      <Text variant="body-small" color="secondary">
+        Loading available placeholders...
+      </Text>
+    );
+  } else if (eventMetadataError) {
+    eventMetadataContent = (
+      <Text
+        variant="body-small"
+        style={{ color: 'var(--bui-fg-danger, #b42318)' }}
+      >
+        Unable to load placeholders: {eventMetadataError}
+      </Text>
+    );
+  } else if (eventMetadata) {
+    eventMetadataContent = (
+      <Flex direction="column" gap="3">
+        {eventMetadata.labels.length ? (
+          <Flex gap="2" style={{ flexWrap: 'wrap' }}>
+            {eventMetadata.labels.map(label => (
+              <Box
+                key={label}
+                as="span"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '2px 8px',
+                  borderRadius: 999,
+                  background: 'var(--bui-bg-solid, rgba(127, 127, 127, 0.12))',
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                {label}
+              </Box>
+            ))}
+          </Flex>
+        ) : (
+          <Text variant="body-small" color="secondary">
+            No placeholders available for this event.
+          </Text>
+        )}
+
+        <Box>
+          <Text variant="body-small" weight="bold">
+            Template example
+          </Text>
+          <pre
+            style={{
+              margin: '8px 0 0 0',
+              padding: 12,
+              borderRadius: 8,
+              background: '#1f2329',
+              color: '#f6f8fa',
+              overflow: 'auto',
+              fontSize: 12,
+              lineHeight: 1.5,
+              whiteSpace: 'pre',
+            }}
+          >
+            <code>{eventTemplatePreview}</code>
+          </pre>
+        </Box>
+      </Flex>
+    );
+  } else {
+    eventMetadataContent = (
+      <Text variant="body-small" color="secondary">
+        No metadata available for this event.
+      </Text>
+    );
+  }
 
   return (
     <Dialog
@@ -207,6 +246,8 @@ export const WebhookFormDialog = ({
               >
                 <button
                   type="button"
+                  aria-expanded={eventsOpen}
+                  aria-haspopup="listbox"
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -224,7 +265,7 @@ export const WebhookFormDialog = ({
                   onClick={() => setEventsOpen(o => !o)}
                 >
                   <span>{eventsLabel}</span>
-                  <span>{eventsOpen ? '▲' : '▼'}</span>
+                  <span aria-hidden="true">{eventsOpen ? '▲' : '▼'}</span>
                 </button>
                 {eventsOpen && (
                   <Flex
@@ -263,6 +304,27 @@ export const WebhookFormDialog = ({
                   </Flex>
                 )}
               </Box>
+
+              {mode === 'create' && formData.event ? (
+                <Box
+                  style={{
+                    marginTop: 10,
+                    padding: 12,
+                    border:
+                      '1px solid var(--bui-border, rgba(127, 127, 127, 0.3))',
+                    borderRadius: 8,
+                    background:
+                      'var(--bui-bg-surface-2, rgba(127, 127, 127, 0.06))',
+                  }}
+                >
+                  <Flex direction="column" gap="2">
+                    <Text variant="body-small" weight="bold">
+                      Event metadata
+                    </Text>
+                    {eventMetadataContent}
+                  </Flex>
+                </Box>
+              ) : null}
             </Box>
 
             <Flex direction="column" gap="1">

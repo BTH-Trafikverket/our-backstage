@@ -1,10 +1,12 @@
 import type { SortDescriptor } from '@backstage/ui';
 import type {
+  CatalogConditionType,
   Quest,
   QuestAudienceFilter,
   QuestCompletionPolicy,
   QuestFilterState,
   QuestFormData,
+  QuestMode,
   QuestOption,
   QuestSortField,
   QuestSortOrder,
@@ -37,6 +39,20 @@ export const completionPolicyOptions: Array<
   { value: 'ONE_TIME', label: 'One-time' },
 ];
 
+export const questModeOptions: Array<QuestOption<QuestMode>> = [
+  { value: 'event_driven', label: 'Event-driven' },
+  { value: 'catalog', label: 'Catalog-linked' },
+];
+
+export const catalogConditionOptions: Array<QuestOption<CatalogConditionType>> =
+  [
+    { value: 'missing_techdocs', label: 'Missing TechDocs' },
+    { value: 'missing_api_definition', label: 'Missing API definition' },
+    { value: 'missing_readme', label: 'Missing README' },
+    { value: 'missing_codeowners', label: 'Missing CODEOWNERS' },
+    { value: 'missing_lifecycle', label: 'Missing lifecycle' },
+  ];
+
 export const createEmptyQuestForm = (): QuestFormData => ({
   title: '',
   description: '',
@@ -45,6 +61,10 @@ export const createEmptyQuestForm = (): QuestFormData => ({
   subject_type: 'user',
   completion_policy: 'REPEATABLE',
   cooldown_days: '',
+  quest_mode: 'event_driven',
+  catalog_condition: 'missing_techdocs',
+  reminder_day: '',
+  reminder_description: '',
 });
 
 export const createDefaultQuestFilter = (
@@ -72,6 +92,8 @@ export const normalizeQuest = (quest: any): Quest => ({
   completion_count: quest.completion_count ?? 0,
   progress_toward_target: quest.progress_toward_target ?? 0,
   next_milestone: quest.next_milestone ?? quest.target_count ?? 0,
+  quest_mode: quest.quest_mode === 'catalog' ? 'catalog' : 'event_driven',
+  linked_config: quest.linked_config,
 });
 
 export const createQuestTableRow = (quest: Quest): QuestTableRow => ({
@@ -79,19 +101,45 @@ export const createQuestTableRow = (quest: Quest): QuestTableRow => ({
   quest,
 });
 
-export const buildQuestPayload = (formData: QuestFormData) => ({
-  title: formData.title.trim(),
-  description: formData.description.trim(),
-  xp_reward: parseInt(formData.xp_reward, 10),
-  subject_type: formData.subject_type,
-  completion_policy: formData.completion_policy,
-  target_count: parseInt(formData.target_count, 10),
-  ...(formData.completion_policy === 'REPEATABLE' && {
-    cooldown_days: formData.cooldown_days
+export const buildQuestPayload = (formData: QuestFormData) => {
+  const payload: Record<string, unknown> = {
+    title: formData.title.trim(),
+    description: formData.description.trim(),
+    xp_reward: parseInt(formData.xp_reward, 10),
+    subject_type: formData.subject_type,
+    completion_policy: formData.completion_policy,
+    target_count: parseInt(formData.target_count, 10),
+  };
+
+  if (formData.completion_policy === 'REPEATABLE') {
+    payload.cooldown_days = formData.cooldown_days
       ? parseInt(formData.cooldown_days, 10)
-      : null,
-  }),
-});
+      : null;
+  }
+
+  const hasReminder =
+    Boolean(formData.reminder_description.trim()) ||
+    Boolean(formData.reminder_day.trim());
+
+  if (formData.quest_mode === 'catalog' || hasReminder) {
+    payload.quest_mode = formData.quest_mode;
+
+    const linkedConfig: Record<string, unknown> = {};
+    if (formData.quest_mode === 'catalog') {
+      linkedConfig.catalog_condition = formData.catalog_condition;
+    }
+    if (hasReminder) {
+      linkedConfig.reminder = {
+        description: formData.reminder_description.trim(),
+        day: parseInt(formData.reminder_day, 10),
+      };
+    }
+
+    payload.linked_config = linkedConfig;
+  }
+
+  return payload;
+};
 
 export const validateQuestForm = (formData: QuestFormData): string | null => {
   if (!formData.title.trim()) {
@@ -115,6 +163,22 @@ export const validateQuestForm = (formData: QuestFormData): string | null => {
     parseInt(formData.cooldown_days, 10) < 1
   ) {
     return 'Cooldown must be at least 1 day';
+  }
+
+  if (formData.quest_mode === 'catalog' && !formData.catalog_condition) {
+    return 'Catalog condition is required for catalog-linked quests';
+  }
+
+  const hasReminderDescription = Boolean(formData.reminder_description.trim());
+  const hasReminderDay = Boolean(formData.reminder_day.trim());
+
+  if (hasReminderDescription || hasReminderDay) {
+    if (!hasReminderDescription) {
+      return 'Reminder description is required';
+    }
+    if (!hasReminderDay || parseInt(formData.reminder_day, 10) < 1) {
+      return 'Reminder day must be at least 1';
+    }
   }
 
   return null;
@@ -163,6 +227,10 @@ export const getQuestAudienceLabel = (quest: Quest) => {
 };
 
 export const getQuestTypeLabel = (quest: Quest) => {
+  if (quest.quest_mode === 'catalog') {
+    return 'Catalog-linked';
+  }
+
   if (quest.completion_policy === 'ONE_TIME') {
     return 'One-time';
   }

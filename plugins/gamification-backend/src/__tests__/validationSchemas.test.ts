@@ -4,6 +4,7 @@ import { questCreationSchema } from '../schemas/quests/questCreationSchema';
 import { questEditSchema } from '../schemas/quests/questEditSchema';
 import { questEventSchema } from '../schemas/quests/questEventSchema';
 import { webhookCreationSchema } from '../schemas/webhooks/webhookCreationSchema';
+import { webhookEventMetadataParamsSchema } from '../schemas/webhooks/webhookEventMetadataSchema';
 import { webhookEditSchema } from '../schemas/webhooks/webhookEditSchema';
 
 describe('validation schemas', () => {
@@ -310,6 +311,29 @@ describe('validation schemas', () => {
       expect(result.error?.issues.map(issue => issue.path)).toEqual([
         ['title'],
         ['url'],
+      ]);
+    });
+  });
+
+  describe('webhookEventMetadataParamsSchema', () => {
+    it('accepts known-looking webhook event path params', () => {
+      expect(
+        webhookEventMetadataParamsSchema.parse({
+          event: 'quest.completed',
+        }),
+      ).toEqual({
+        event: 'quest.completed',
+      });
+    });
+
+    it('rejects whitespace-only event params', () => {
+      const result = webhookEventMetadataParamsSchema.safeParse({
+        event: '   ',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map(issue => issue.path)).toEqual([
+        ['event'],
       ]);
     });
   });

@@ -14,7 +14,7 @@ backend:
     port: ${BACKEND_PORT}
 
   csp:
-    connect-src: ["'self'", "http:", "https:"]
+    connect-src: ["'self'", 'http:', 'https:']
   cors:
     origin: ${CORS_ORIGIN}
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
@@ -39,9 +39,9 @@ auth:
     provider: database
   providers:
     guest:
-      userEntityRef: "user:default/linusandersson02"
+      userEntityRef: 'user:default/linusandersson02'
       ownershipEntityRefs:
-        - "group:default/admin"
+        - 'group:default/admin'
       dangerouslyAllowOutsideDevelopment: true
 
 proxy:
@@ -84,6 +84,12 @@ gamification:
   seed:
     enabled: true
     reset: true
+
+  webhooks:
+    delivery:
+      enabled: false
+    scheduling:
+      enabled: false
 
   admin:
     groups:

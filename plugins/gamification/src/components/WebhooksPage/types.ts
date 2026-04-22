@@ -16,6 +16,12 @@ export type WebhookFormData = {
   payload: string;
 };
 
+export type WebhookEventMetadata = {
+  event: string;
+  labels: string[];
+  template: Record<string, unknown>;
+};
+
 export type Webhook = {
   id: string;
   title: string;

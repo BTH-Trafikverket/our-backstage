@@ -8,6 +8,22 @@ export interface Config {
        */
       groups?: string[];
     };
+    badges?: {
+      imageUpload?: {
+        /**
+         * Maximum allowed badge image upload size in bytes.
+         * Defaults to 1048576 (1 MiB).
+         * @visibility backend
+         */
+        maxBytes?: number;
+        /**
+         * Maximum allowed source image pixel count before sharp rejects it.
+         * Defaults to 16777216.
+         * @visibility backend
+         */
+        maxPixels?: number;
+      };
+    };
     quests?: {
       /**
        * Service principal subjects that are allowed to post quest events.
@@ -15,6 +31,54 @@ export interface Config {
        * @visibility backend
        */
       allowedCallers?: string[];
+    };
+    reminders?: {
+      /**
+       * Whether the reminder evaluation worker starts on backend boot.
+       * Defaults to true.
+       * @visibility backend
+       */
+      enabled?: boolean;
+      /**
+       * Interval in milliseconds between reminder evaluation runs.
+       * Defaults to 3600000 (1 hour).
+       * @visibility backend
+       */
+      evaluationIntervalMs?: number;
+      /**
+       * Reminder rules to evaluate against existing gamification history.
+       * @visibility backend
+       */
+      rules?: Array<{
+        /**
+         * Stable rule identity used for reminder upserts.
+         * Example: "inactive-pr-review-14d"
+         * @visibility backend
+         */
+        key: string;
+        /**
+         * Quest ID the reminder points to.
+         * @visibility backend
+         */
+        questId: string;
+        /**
+         * Inactivity threshold in whole days.
+         * @visibility backend
+         */
+        inactivityDays: number;
+        /**
+         * Human-readable activity text used in reminder messages.
+         * Example: "reviewed a PR"
+         * @visibility backend
+         */
+        activityDescription: string;
+        /**
+         * Existing history source used to determine activity.
+         * Defaults to "quest_event_receipts".
+         * @visibility backend
+         */
+        activitySource?: 'quest_event_receipts';
+      }>;
     };
     leaderboard?: {
       /**
@@ -38,6 +102,12 @@ export interface Config {
        */
       scheduleScanIntervalMs?: number;
       delivery?: {
+        /**
+         * Whether the domain-event webhook delivery worker starts on backend boot.
+         * Defaults to true.
+         * @visibility backend
+         */
+        enabled?: boolean;
         /**
          * Fallback polling interval for the domain-event webhook worker in
          * milliseconds. LISTEN/NOTIFY is used for fast wakeups, while polling
@@ -69,6 +139,32 @@ export interface Config {
          * @visibility backend
          */
         requestTimeoutMs?: number;
+        /**
+         * Optional outbound host allowlist for webhook delivery.
+         * When provided, only these hosts may be called.
+         * @visibility backend
+         */
+        allowedHosts?: string[];
+        /**
+         * Whether plain HTTP webhook targets are allowed.
+         * Defaults to false.
+         * @visibility backend
+         */
+        allowHttp?: boolean;
+        /**
+         * Whether localhost and private literal IP targets are allowed.
+         * Defaults to false.
+         * @visibility backend
+         */
+        allowPrivateTargets?: boolean;
+      };
+      scheduling?: {
+        /**
+         * Whether the scheduled webhook scan worker starts on backend boot.
+         * Defaults to true.
+         * @visibility backend
+         */
+        enabled?: boolean;
       };
     };
     actorResolution?: {

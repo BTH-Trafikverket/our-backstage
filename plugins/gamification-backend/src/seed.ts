@@ -6,16 +6,24 @@ import { seed004Badges } from '../seeds/004_badges';
 export async function runSeeds(knex: Knex, opts: { reset?: boolean } = {}) {
   await knex.transaction(async trx => {
     if (opts.reset) {
-      const hasQuestEventReceiptsTable = await trx.schema.hasTable(
+      const tablesToClear = [
+        'domain_events',
+        'events_ran',
         'quest_event_receipts',
-      );
+        'earned_badges',
+        'badge_criteria_completion',
+        'xp_awards',
+        'subject_xp_state',
+        'quest_progress',
+      ];
       const hasBadgesTable = await trx.schema.hasTable('badges');
 
-      if (hasQuestEventReceiptsTable) {
-        await trx('quest_event_receipts').del();
+      for (const tableName of tablesToClear) {
+        if (await trx.schema.hasTable(tableName)) {
+          await trx(tableName).del();
+        }
       }
-      await trx('xp_awards').del();
-      await trx('quest_progress').del();
+
       if (hasBadgesTable) {
         await trx('badges').del();
       }

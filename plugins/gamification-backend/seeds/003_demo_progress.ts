@@ -7,6 +7,178 @@ type DemoEvent = {
   caller_subject: string;
 };
 
+type LocalDateParts = {
+  year: number;
+  month: number;
+  day: number;
+};
+
+type HistoricalAwardSeed = {
+  subject_ref: string;
+  questTitle: string;
+  awarded_on_completion_count: number;
+  xp_amount: number;
+  created_at: Date;
+  source: string;
+};
+
+const LEADERBOARD_TIME_ZONE = 'Europe/Stockholm';
+
+function getLocalDateParts(date: Date, timeZone: string): LocalDateParts {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const year = Number(parts.find(part => part.type === 'year')?.value);
+  const month = Number(parts.find(part => part.type === 'month')?.value);
+  const day = Number(parts.find(part => part.type === 'day')?.value);
+
+  return { year, month, day };
+}
+
+function getLocalWeekday(date: Date, timeZone: string): number {
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'short',
+  }).format(date);
+
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+
+  const dayOfWeek = weekdayMap[weekday];
+  if (dayOfWeek === undefined) {
+    throw new Error(`Unsupported weekday '${weekday}' for ${timeZone}`);
+  }
+
+  return dayOfWeek;
+}
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    timeZoneName: 'longOffset',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(date);
+  const timeZoneName = parts.find(part => part.type === 'timeZoneName')?.value;
+
+  if (!timeZoneName) {
+    throw new Error(`Unable to read timezone offset for ${timeZone}`);
+  }
+
+  if (timeZoneName === 'GMT') {
+    return 0;
+  }
+
+  const match = /^GMT([+-])(\d{2}):(\d{2})$/.exec(timeZoneName);
+  if (!match) {
+    throw new Error(
+      `Unsupported timezone offset '${timeZoneName}' for ${timeZone}`,
+    );
+  }
+
+  const sign = match[1] === '+' ? 1 : -1;
+  const hours = Number(match[2]);
+  const minutes = Number(match[3]);
+
+  return sign * (hours * 60 + minutes) * 60 * 1000;
+}
+
+function getUtcDateForLocalHour(
+  parts: LocalDateParts,
+  timeZone: string,
+  hour: number,
+): Date {
+  let utcMs = Date.UTC(parts.year, parts.month - 1, parts.day, hour, 0, 0, 0);
+
+  for (let i = 0; i < 2; i += 1) {
+    const offsetMs = getTimeZoneOffsetMs(new Date(utcMs), timeZone);
+    utcMs =
+      Date.UTC(parts.year, parts.month - 1, parts.day, hour, 0, 0, 0) -
+      offsetMs;
+  }
+
+  return new Date(utcMs);
+}
+
+function shiftLocalDate(parts: LocalDateParts, days: number): LocalDateParts {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+function getStartOfWeek(parts: LocalDateParts, dayOfWeek: number) {
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  return shiftLocalDate(parts, -daysSinceMonday);
+}
+
+function getPreviousMonth(parts: Pick<LocalDateParts, 'year' | 'month'>) {
+  if (parts.month === 1) {
+    return { year: parts.year - 1, month: 12 };
+  }
+
+  return { year: parts.year, month: parts.month - 1 };
+}
+
+function getDaysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function buildHistoricalPeriodInstants(now: Date) {
+  const localToday = getLocalDateParts(now, LEADERBOARD_TIME_ZONE);
+  const dayOfWeek = getLocalWeekday(now, LEADERBOARD_TIME_ZONE);
+  const currentWeekStart = getStartOfWeek(localToday, dayOfWeek);
+  const previousMonth = getPreviousMonth(localToday);
+  const twoMonthsAgo = getPreviousMonth(previousMonth);
+
+  return {
+    lastWeek: getUtcDateForLocalHour(
+      shiftLocalDate(currentWeekStart, -5),
+      LEADERBOARD_TIME_ZONE,
+      12,
+    ),
+    lastMonth: getUtcDateForLocalHour(
+      {
+        year: previousMonth.year,
+        month: previousMonth.month,
+        day: Math.min(
+          15,
+          getDaysInMonth(previousMonth.year, previousMonth.month),
+        ),
+      },
+      LEADERBOARD_TIME_ZONE,
+      12,
+    ),
+    twoMonthsAgo: getUtcDateForLocalHour(
+      {
+        year: twoMonthsAgo.year,
+        month: twoMonthsAgo.month,
+        day: Math.min(
+          15,
+          getDaysInMonth(twoMonthsAgo.year, twoMonthsAgo.month),
+        ),
+      },
+      LEADERBOARD_TIME_ZONE,
+      12,
+    ),
+  };
+}
+
 export const seed003DemoEvents: Seed = {
   id: '003_demo_events',
   description:
@@ -554,5 +726,120 @@ export const seed003DemoEvents: Seed = {
       .merge({
         completion_count: knex.raw('EXCLUDED.completion_count'),
       });
+
+    const historicalQuestTitles = [
+      'Merge a PR',
+      'Review PRs',
+      'Fix a failing build',
+      'Shared Release Readiness',
+      'Accessibility Audit',
+      'Dependency Hygiene Sprint',
+    ];
+    const historicalQuests = await knex('quests')
+      .select(['id', 'title'])
+      .whereIn('title', historicalQuestTitles);
+    const historicalQuestIdByTitle = new Map(
+      historicalQuests.map((quest: any) => [
+        quest.title as string,
+        quest.id as string,
+      ]),
+    );
+
+    for (const questTitle of historicalQuestTitles) {
+      if (!historicalQuestIdByTitle.has(questTitle)) {
+        throw new Error(
+          `Missing quest '${questTitle}' required for historical leaderboard seed data`,
+        );
+      }
+    }
+
+    const periodInstants = buildHistoricalPeriodInstants(new Date());
+    const historicalAwards: HistoricalAwardSeed[] = [
+      {
+        subject_ref: linus,
+        questTitle: 'Merge a PR',
+        awarded_on_completion_count: 101,
+        xp_amount: 20,
+        created_at: periodInstants.lastWeek,
+        source: 'seed_historical:last_week',
+      },
+      {
+        subject_ref: zoe,
+        questTitle: 'Review PRs',
+        awarded_on_completion_count: 101,
+        xp_amount: 30,
+        created_at: periodInstants.lastWeek,
+        source: 'seed_historical:last_week',
+      },
+      {
+        subject_ref: adminGroup,
+        questTitle: 'Shared Release Readiness',
+        awarded_on_completion_count: 101,
+        xp_amount: 90,
+        created_at: periodInstants.lastWeek,
+        source: 'seed_historical:last_week',
+      },
+      {
+        subject_ref: skz,
+        questTitle: 'Fix a failing build',
+        awarded_on_completion_count: 201,
+        xp_amount: 60,
+        created_at: periodInstants.lastMonth,
+        source: 'seed_historical:last_month',
+      },
+      {
+        subject_ref: mara,
+        questTitle: 'Merge a PR',
+        awarded_on_completion_count: 201,
+        xp_amount: 20,
+        created_at: periodInstants.lastMonth,
+        source: 'seed_historical:last_month',
+      },
+      {
+        subject_ref: adminGroup,
+        questTitle: 'Accessibility Audit',
+        awarded_on_completion_count: 201,
+        xp_amount: 50,
+        created_at: periodInstants.lastMonth,
+        source: 'seed_historical:last_month',
+      },
+      {
+        subject_ref: hahh,
+        questTitle: 'Review PRs',
+        awarded_on_completion_count: 301,
+        xp_amount: 45,
+        created_at: periodInstants.twoMonthsAgo,
+        source: 'seed_historical:two_months_ago',
+      },
+      {
+        subject_ref: bob,
+        questTitle: 'Fix a failing build',
+        awarded_on_completion_count: 301,
+        xp_amount: 30,
+        created_at: periodInstants.twoMonthsAgo,
+        source: 'seed_historical:two_months_ago',
+      },
+      {
+        subject_ref: adminGroup,
+        questTitle: 'Dependency Hygiene Sprint',
+        awarded_on_completion_count: 301,
+        xp_amount: 60,
+        created_at: periodInstants.twoMonthsAgo,
+        source: 'seed_historical:two_months_ago',
+      },
+    ];
+
+    await knex('xp_awards').where('source', 'like', 'seed_historical:%').del();
+
+    await knex('xp_awards').insert(
+      historicalAwards.map(award => ({
+        subject_ref: award.subject_ref,
+        quest_id: historicalQuestIdByTitle.get(award.questTitle)!,
+        awarded_on_completion_count: award.awarded_on_completion_count,
+        xp_amount: award.xp_amount,
+        source: award.source,
+        created_at: award.created_at,
+      })),
+    );
   },
 };

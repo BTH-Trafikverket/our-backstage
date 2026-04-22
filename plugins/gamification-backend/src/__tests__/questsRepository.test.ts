@@ -31,6 +31,105 @@ describePostgres18('QuestsRepository integration', () => {
     });
   });
 
+  describe('quest activity helpers', () => {
+    it('lists distinct user subjects with quest activity receipts', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+      const quest = await repository.createQuest({
+        title: 'Reminder Activity Quest',
+        description: 'Tracks reminder activity',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+      });
+
+      await knex('quest_event_receipts').insert([
+        {
+          event_id: 'evt-user-1',
+          event_key: `quest:${quest.id}`,
+          subject_ref: 'user:default/alice',
+          caller_subject: 'external:default/github',
+          received_at: new Date('2026-03-01T10:00:00.000Z'),
+        },
+        {
+          event_id: 'evt-user-2',
+          event_key: `quest:${quest.id}`,
+          subject_ref: 'user:default/alice',
+          caller_subject: 'external:default/github',
+          received_at: new Date('2026-03-05T10:00:00.000Z'),
+        },
+        {
+          event_id: 'evt-user-3',
+          event_key: `quest:${quest.id}`,
+          subject_ref: 'user:default/bob',
+          caller_subject: 'external:default/github',
+          received_at: new Date('2026-03-06T10:00:00.000Z'),
+        },
+        {
+          event_id: 'evt-team-1',
+          event_key: `quest:${quest.id}`,
+          subject_ref: 'group:default/platform',
+          caller_subject: 'external:default/github',
+          received_at: new Date('2026-03-07T10:00:00.000Z'),
+        },
+        {
+          event_id: 'evt-other-quest',
+          event_key: 'quest:00000000-0000-0000-0000-000000000000',
+          subject_ref: 'user:default/charlie',
+          caller_subject: 'external:default/github',
+          received_at: new Date('2026-03-08T10:00:00.000Z'),
+        },
+      ]);
+
+      await expect(
+        repository.listSubjectsWithQuestActivity(quest.id, 'user'),
+      ).resolves.toEqual(['user:default/alice', 'user:default/bob']);
+    });
+
+    it('returns the latest quest activity timestamp for a subject', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+      const quest = await repository.createQuest({
+        title: 'Latest Activity Quest',
+        description: 'Tracks the latest accepted activity',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+      });
+
+      await knex('quest_event_receipts').insert([
+        {
+          event_id: 'evt-latest-1',
+          event_key: `quest:${quest.id}`,
+          subject_ref: 'user:default/alice',
+          caller_subject: 'external:default/github',
+          received_at: new Date('2026-03-01T10:00:00.000Z'),
+        },
+        {
+          event_id: 'evt-latest-2',
+          event_key: `quest:${quest.id}`,
+          subject_ref: 'user:default/alice',
+          caller_subject: 'external:default/github',
+          received_at: new Date('2026-03-15T12:30:00.000Z'),
+        },
+        {
+          event_id: 'evt-latest-3',
+          event_key: `quest:${quest.id}`,
+          subject_ref: 'user:default/bob',
+          caller_subject: 'external:default/github',
+          received_at: new Date('2026-03-20T09:00:00.000Z'),
+        },
+      ]);
+
+      await expect(
+        repository.getLatestQuestActivityAt(quest.id, 'user:default/alice'),
+      ).resolves.toEqual(new Date('2026-03-15T12:30:00.000Z'));
+      await expect(
+        repository.getLatestQuestActivityAt(quest.id, 'user:default/charlie'),
+      ).resolves.toBeNull();
+    });
+  });
+
   describe('createQuest', () => {
     it('should create a quest in the database and return it', async () => {
       const knex = await initDb();
