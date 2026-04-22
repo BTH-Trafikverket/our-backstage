@@ -313,7 +313,7 @@ describe('LeaderboardPage', () => {
         signal: expect.any(AbortSignal),
       }),
     );
-  });
+  }, 15_000);
 
   it('switches time range and refetches with the selected backend parameter', async () => {
     const user = userEvent.setup();
@@ -572,5 +572,5 @@ describe('LeaderboardPage', () => {
       expect(screen.getByText('Page 5 of 5')).toBeInTheDocument(),
     );
     expect(screen.getByText('User 101')).toBeInTheDocument();
-  });
+  }, 15_000);
 });

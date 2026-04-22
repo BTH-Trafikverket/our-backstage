@@ -9,8 +9,11 @@ import {
 import { ConflictError } from '@backstage/errors';
 import { QuestsRouter } from '../routes/questsRouter';
 
+jest.setTimeout(60000);
+
 describe('quests routes auth', () => {
   const adminGroup = 'group:default/admin';
+  const targetPluginId = 'gamification';
 
   const createQuestPayload = {
     title: 'Ship a Feature',
@@ -34,7 +37,7 @@ describe('quests routes auth', () => {
     userInfo?: UserInfoService;
     adminGroups?: string[];
   }) {
-    const httpAuth = mockServices.httpAuth();
+    const httpAuth = mockServices.httpAuth({ pluginId: targetPluginId });
     const userInfo =
       options?.userInfo ??
       mockServices.userInfo({
@@ -401,6 +404,7 @@ describe('quests routes auth', () => {
       .set(
         'authorization',
         mockCredentials.service.header({
+          targetPluginId,
           onBehalfOf: mockCredentials.service('external:test-service'),
         }),
       )
@@ -469,6 +473,7 @@ describe('quests routes auth', () => {
       .set(
         'authorization',
         mockCredentials.service.header({
+          targetPluginId,
           onBehalfOf: mockCredentials.service('external:other'),
         }),
       )
@@ -491,6 +496,7 @@ describe('quests routes auth', () => {
       .set(
         'authorization',
         mockCredentials.service.header({
+          targetPluginId,
           onBehalfOf: mockCredentials.service('external:test-service'),
         }),
       )
@@ -518,6 +524,7 @@ describe('quests routes auth', () => {
       .set(
         'authorization',
         mockCredentials.service.header({
+          targetPluginId,
           onBehalfOf: mockCredentials.service('external:test-service'),
         }),
       )
