@@ -92,6 +92,36 @@ export class ReminderRepository {
     return this.db<ReminderRow>('quest_reminders').where({ id }).first();
   }
 
+  async getReminderByIdentity(
+    questId: string,
+    targetSubjectRef: string,
+    ruleKey: string,
+  ): Promise<ReminderRow | undefined> {
+    return this.db<ReminderRow>('quest_reminders')
+      .where({
+        quest_id: questId,
+        target_subject_ref: targetSubjectRef,
+        rule_key: ruleKey,
+      })
+      .first();
+  }
+
+  async getViewerState(
+    reminderId: string,
+    viewerSubjectRef: string,
+  ): Promise<ReminderViewerStoredState | undefined> {
+    const row = await this.db<ReminderViewerStateRow>(
+      'quest_reminder_viewer_state',
+    )
+      .where({
+        reminder_id: reminderId,
+        viewer_subject_ref: viewerSubjectRef,
+      })
+      .first();
+
+    return row?.state;
+  }
+
   async updateReminderStatus(
     id: string,
     status: ReminderStatus,
