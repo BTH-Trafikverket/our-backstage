@@ -8,6 +8,10 @@ jest.mock('../repositories/questsRepository');
 describe('QuestsService', () => {
   let service: QuestsService;
   let mockRepo: jest.Mocked<QuestsRepository>;
+  let mockReminderRepo: {
+    createOrRefreshReminder: jest.Mock;
+    updateReminderStatusForQuest: jest.Mock;
+  };
   let mockCatalogClient: { getEntities: jest.Mock };
   let mockAuthService: { getPluginRequestToken: jest.Mock };
 
@@ -31,11 +35,16 @@ describe('QuestsService', () => {
     mockCatalogClient = {
       getEntities: jest.fn(),
     };
+    mockReminderRepo = {
+      createOrRefreshReminder: jest.fn(),
+      updateReminderStatusForQuest: jest.fn(),
+    };
     mockAuthService = {
       getPluginRequestToken: jest.fn(async () => ({ token: 'catalog-token' })),
     };
     service = new QuestsService({
       questsRepo: mockRepo,
+      reminderRepo: mockReminderRepo as any,
       catalogClient: mockCatalogClient as any,
       auth: mockAuthService as any,
     });
@@ -238,6 +247,62 @@ describe('QuestsService', () => {
       const callArgs = mockRepo.createQuest.mock.calls[0][0];
       expect(callArgs.subject_type).toBe('team');
       expect(callArgs).not.toHaveProperty('subject_ref');
+    });
+
+    it('fans out reminder creation to all users when reminder config exists', async () => {
+      const questInput: QuestCreationInput = {
+        title: 'Daily Commit Reminder',
+        description: 'Keep commits flowing',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user',
+        completion_policy: 'REPEATABLE',
+        quest_mode: 'event_driven',
+        linked_config: {
+          reminder: {
+            description: 'Please complete your quest today',
+            day: 2,
+          },
+        },
+      };
+
+      mockRepo.createQuest.mockResolvedValue({
+        id: 'quest-rem-fanout',
+        ...questInput,
+        cooldown_days: null,
+        linked_config: questInput.linked_config,
+        created_at: new Date(),
+        updated_at: new Date(),
+        archived_at: null,
+      } as any);
+
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: [
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'User',
+            metadata: { name: 'alice', namespace: 'default' },
+          },
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'User',
+            metadata: { name: 'bob', namespace: 'default' },
+          },
+        ],
+      });
+
+      await service.createQuest(questInput, {
+        credentials: {} as any,
+      });
+
+      expect(
+        mockReminderRepo.updateReminderStatusForQuest,
+      ).toHaveBeenCalledWith({
+        questId: 'quest-rem-fanout',
+        status: 'disabled',
+        ruleKind: 'event_driven',
+      });
+      expect(mockReminderRepo.createOrRefreshReminder).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -915,6 +980,60 @@ describe('QuestsService', () => {
       expect(result.duplicate).toBe(false);
       expect(result.blocked).toBe(false);
       expect((result as any).completionCount).toBe(1);
+    });
+
+    it('creates or refreshes a reminder when quest has reminder config', async () => {
+      const repeatableQuest = {
+        id: 'quest-reminder',
+        title: 'Daily Commit',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'user' as const,
+        completion_policy: 'REPEATABLE' as const,
+        cooldown_days: null,
+        quest_mode: 'event_driven' as const,
+        linked_config: {
+          reminder: {
+            description: 'You have not completed your daily commit quest yet',
+            day: 3,
+          },
+        },
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      mockRepo.getQuestById.mockResolvedValue(repeatableQuest as any);
+      mockRepo.incrementQuestProgress.mockResolvedValue({
+        subject_ref: 'user:default/carol',
+        quest_id: 'quest-reminder',
+        completion_count: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      await service.handleQuestEvent({
+        eventId: 'evt-success-reminder',
+        questId: 'quest-reminder',
+        subjectRef: 'user:default/carol',
+        callerSubject: 'external:test-service',
+        opts: { credentials: {} as any },
+      });
+
+      expect(mockReminderRepo.createOrRefreshReminder).toHaveBeenCalledWith({
+        questId: 'quest-reminder',
+        targetSubjectRef: 'user:default/carol',
+        targetSubjectType: 'user',
+        ruleKey: 'event-reminder-3d',
+        ruleKind: 'event_driven',
+        reasonPayload: {
+          description: 'You have not completed your daily commit quest yet',
+          day: 3,
+          source: 'quest_event',
+          questId: 'quest-reminder',
+          questTitle: 'Daily Commit',
+        },
+      });
     });
 
     it('returns duplicate=true when the event receipt already exists', async () => {

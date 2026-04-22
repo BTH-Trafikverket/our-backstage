@@ -96,6 +96,7 @@ export function createRouter({
 
   const questsService = new QuestsService({
     questsRepo,
+    reminderRepo,
     catalogClient,
     auth,
     actorResolutionProviders,

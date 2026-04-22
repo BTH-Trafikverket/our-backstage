@@ -4,7 +4,9 @@ import {
 } from '../schemas/quests/questCreationSchema';
 import { QuestEditSchema } from '../schemas/quests/questEditSchema';
 import { QuestsRepository } from '../repositories/questsRepository';
+import { ReminderRepository } from '../repositories/reminderRepository';
 import type {
+  LinkedQuestConfig,
   QuestRow,
   QuestAudienceFilter,
   QuestStatusFilter,
@@ -49,17 +51,20 @@ const DEFAULT_ACTOR_RESOLUTION_PROVIDERS: ActorResolutionProviders = {
 
 export class QuestsService {
   private readonly questsRepo: QuestsRepository;
+  private readonly reminderRepo?: ReminderRepository;
   private readonly catalogClient: CatalogClient;
   private readonly auth: AuthService;
   private readonly actorResolutionProviders: ActorResolutionProviders;
 
   constructor(opts: {
     questsRepo: QuestsRepository;
+    reminderRepo?: ReminderRepository;
     catalogClient: CatalogClient;
     auth: AuthService;
     actorResolutionProviders?: ActorResolutionProviders;
   }) {
     this.questsRepo = opts.questsRepo;
+    this.reminderRepo = opts.reminderRepo;
     this.catalogClient = opts.catalogClient;
     this.auth = opts.auth;
     this.actorResolutionProviders = this.mergeActorResolutionProviders(
@@ -72,6 +77,28 @@ export class QuestsService {
     return subjectType ?? ('user' as const);
   }
 
+  private getReminderConfig(quest: QuestRow) {
+    const linkedConfig = (quest.linked_config ?? {}) as LinkedQuestConfig;
+    const reminder = linkedConfig.reminder;
+
+    if (!reminder) {
+      return undefined;
+    }
+
+    if (!reminder.description?.trim()) {
+      return undefined;
+    }
+
+    if (!Number.isFinite(reminder.day) || reminder.day < 1) {
+      return undefined;
+    }
+
+    return {
+      description: reminder.description.trim(),
+      day: Math.floor(reminder.day),
+    };
+  }
+
   private async getCatalogToken(credentials: QuestServiceOpts['credentials']) {
     return this.auth.getPluginRequestToken({
       onBehalfOf: credentials,
@@ -79,12 +106,75 @@ export class QuestsService {
     });
   }
 
-  async createQuest(data: QuestCreationInput, _opts: QuestServiceOpts) {
+  private async listAudienceSubjectRefs(params: {
+    subjectType: QuestSubjectType;
+    credentials: QuestServiceOpts['credentials'];
+  }): Promise<string[]> {
+    const { token } = await this.getCatalogToken(params.credentials);
+    const kind = params.subjectType === 'team' ? 'Group' : 'User';
+    const res = await this.catalogClient.getEntities(
+      {
+        filter: [{ kind }],
+      },
+      { token },
+    );
+
+    const refs = (res.items ?? [])
+      .map(entity => stringifyEntityRef(entity))
+      .filter(Boolean);
+
+    return [...new Set(refs)];
+  }
+
+  private async syncQuestRemindersForAudience(params: {
+    quest: QuestRow;
+    credentials: QuestServiceOpts['credentials'];
+  }): Promise<void> {
+    if (!this.reminderRepo) {
+      return;
+    }
+
+    const reminderConfig = this.getReminderConfig(params.quest);
+
+    await this.reminderRepo.updateReminderStatusForQuest({
+      questId: params.quest.id,
+      status: 'disabled',
+      ruleKind: 'event_driven',
+    });
+
+    if (!reminderConfig) {
+      return;
+    }
+
+    const subjectRefs = await this.listAudienceSubjectRefs({
+      subjectType: params.quest.subject_type,
+      credentials: params.credentials,
+    });
+
+    for (const subjectRef of subjectRefs) {
+      await this.reminderRepo.createOrRefreshReminder({
+        questId: params.quest.id,
+        targetSubjectRef: subjectRef,
+        targetSubjectType: params.quest.subject_type,
+        ruleKey: `event-reminder-${reminderConfig.day}d`,
+        ruleKind: 'event_driven',
+        reasonPayload: {
+          description: reminderConfig.description,
+          day: reminderConfig.day,
+          source: 'quest_definition',
+          questId: params.quest.id,
+          questTitle: params.quest.title,
+        },
+      });
+    }
+  }
+
+  async createQuest(data: QuestCreationInput, opts: QuestServiceOpts) {
     const policy = data.completion_policy ?? 'REPEATABLE';
     const target_count = data.target_count;
     const cooldown = policy === 'ONE_TIME' ? null : data.cooldown_days ?? null;
 
-    return this.questsRepo.createQuest({
+    const quest = await this.questsRepo.createQuest({
       title: data.title,
       description: data.description,
       target_count,
@@ -92,7 +182,16 @@ export class QuestsService {
       subject_type: this.normalizeQuestSubjectType(data.subject_type),
       completion_policy: policy,
       cooldown_days: cooldown,
+      quest_mode: data.quest_mode,
+      linked_config: data.linked_config,
     });
+
+    await this.syncQuestRemindersForAudience({
+      quest,
+      credentials: opts.credentials,
+    });
+
+    return quest;
   }
 
   async getQuests(
@@ -122,7 +221,7 @@ export class QuestsService {
     return this.questsRepo.getQuestById(id);
   }
 
-  async editQuest(id: string, data: QuestEditSchema, _opts: QuestServiceOpts) {
+  async editQuest(id: string, data: QuestEditSchema, opts: QuestServiceOpts) {
     const current = await this.questsRepo.getQuestById(id);
     if (!current) {
       return undefined;
@@ -138,7 +237,7 @@ export class QuestsService {
       cooldown = data.cooldown_days;
     }
 
-    return this.questsRepo.editQuest(id, {
+    const updated = await this.questsRepo.editQuest(id, {
       ...data,
       subject_type: this.normalizeQuestSubjectType(
         data.subject_type ?? current.subject_type,
@@ -146,7 +245,18 @@ export class QuestsService {
       completion_policy: completionPolicy,
       target_count,
       cooldown_days: cooldown,
+      quest_mode: data.quest_mode ?? current.quest_mode,
+      linked_config: data.linked_config ?? current.linked_config,
     });
+
+    if (updated) {
+      await this.syncQuestRemindersForAudience({
+        quest: updated,
+        credentials: opts.credentials,
+      });
+    }
+
+    return updated;
   }
 
   async deleteQuest(id: string, _opts: QuestServiceOpts) {
@@ -550,6 +660,24 @@ export class QuestsService {
         quest_id: questId,
         by: 1,
       });
+
+      const reminderConfig = this.getReminderConfig(quest);
+      if (reminderConfig && this.reminderRepo) {
+        await this.reminderRepo.createOrRefreshReminder({
+          questId,
+          targetSubjectRef: resolvedSubjectRef,
+          targetSubjectType: quest.subject_type,
+          ruleKey: `event-reminder-${reminderConfig.day}d`,
+          ruleKind: 'event_driven',
+          reasonPayload: {
+            description: reminderConfig.description,
+            day: reminderConfig.day,
+            source: 'quest_event',
+            questId,
+            questTitle: quest.title,
+          },
+        });
+      }
 
       return {
         duplicate: false,

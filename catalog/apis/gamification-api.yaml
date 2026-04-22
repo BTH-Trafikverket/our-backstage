@@ -866,6 +866,40 @@ spec:
           enum:
             - user
             - team
+        QuestMode:
+          type: string
+          enum:
+            - event_driven
+            - catalog
+        CatalogCondition:
+          type: string
+          enum:
+            - missing_techdocs
+            - missing_api_definition
+            - missing_readme
+            - missing_codeowners
+            - missing_lifecycle
+        QuestReminderConfig:
+          type: object
+          required:
+            - description
+            - day
+          additionalProperties: false
+          properties:
+            description:
+              type: string
+              minLength: 1
+            day:
+              type: integer
+              minimum: 1
+        LinkedQuestConfig:
+          type: object
+          additionalProperties: false
+          properties:
+            catalog_condition:
+              $ref: '#/components/schemas/CatalogCondition'
+            reminder:
+              $ref: '#/components/schemas/QuestReminderConfig'
         Quest:
           type: object
           required:
@@ -875,6 +909,8 @@ spec:
             - target_count
             - xp_reward
             - subject_type
+            - quest_mode
+            - linked_config
             - completion_policy
             - cooldown_days
             - created_at
@@ -897,6 +933,10 @@ spec:
               minimum: 0
             subject_type:
               $ref: '#/components/schemas/QuestSubjectType'
+            quest_mode:
+              $ref: '#/components/schemas/QuestMode'
+            linked_config:
+              $ref: '#/components/schemas/LinkedQuestConfig'
             completion_policy:
               $ref: '#/components/schemas/CompletionPolicy'
             cooldown_days:
@@ -979,6 +1019,10 @@ spec:
               minimum: 0
             subject_type:
               $ref: '#/components/schemas/QuestSubjectType'
+            quest_mode:
+              $ref: '#/components/schemas/QuestMode'
+            linked_config:
+              $ref: '#/components/schemas/LinkedQuestConfig'
             completion_policy:
               $ref: '#/components/schemas/CompletionPolicy'
             cooldown_days:
@@ -1004,6 +1048,10 @@ spec:
               minimum: 0
             subject_type:
               $ref: '#/components/schemas/QuestSubjectType'
+            quest_mode:
+              $ref: '#/components/schemas/QuestMode'
+            linked_config:
+              $ref: '#/components/schemas/LinkedQuestConfig'
             completion_policy:
               $ref: '#/components/schemas/CompletionPolicy'
             cooldown_days:

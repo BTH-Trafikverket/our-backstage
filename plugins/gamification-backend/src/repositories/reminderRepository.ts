@@ -104,6 +104,22 @@ export class ReminderRepository {
     return rows[0];
   }
 
+  async updateReminderStatusForQuest(params: {
+    questId: string;
+    status: ReminderStatus;
+    ruleKind?: string;
+  }): Promise<number> {
+    const query = this.db<ReminderRow>('quest_reminders')
+      .where({ quest_id: params.questId })
+      .update({ status: params.status });
+
+    if (params.ruleKind) {
+      query.andWhere({ rule_kind: params.ruleKind });
+    }
+
+    return query;
+  }
+
   async listVisibleRemindersForViewer(params: {
     viewerSubjectRef: string;
     teamRefs: string[];
@@ -141,6 +157,7 @@ export class ReminderRepository {
         this.db.raw("COALESCE(viewer_state.state, 'active') as viewer_state"),
       )
       .where('reminders.status', 'active')
+      .whereNull('quests.archived_at')
       .andWhere(scope => {
         scope.where(userScope => {
           userScope
