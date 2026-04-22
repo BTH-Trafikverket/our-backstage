@@ -7,11 +7,17 @@ import {
   DialogFooter,
   DialogHeader,
   Flex,
+  Select,
   Text,
   TextField,
 } from '@backstage/ui';
 import type { QuestFormData } from './types';
-import { completionPolicyOptions, subjectTypeOptions } from './utils';
+import {
+  catalogConditionOptions,
+  completionPolicyOptions,
+  questModeOptions,
+  subjectTypeOptions,
+} from './utils';
 
 type QuestFormDialogProps = {
   isOpen: boolean;
@@ -41,6 +47,9 @@ export const QuestFormDialog = ({
       ? 'Create quest'
       : `Edit quest${questTitle ? `: ${questTitle}` : ''}`;
   const submitLabel = mode === 'create' ? 'Create quest' : 'Save changes';
+  const hasReminder =
+    Boolean(formData.reminder_description.trim()) ||
+    Boolean(formData.reminder_day.trim());
 
   return (
     <Dialog
@@ -87,6 +96,120 @@ export const QuestFormDialog = ({
                 size="medium"
                 placeholder="Explain what should be done"
               />
+            </Flex>
+          </Box>
+
+          <Box p="4">
+            <Flex direction="column" gap="4">
+              <Text weight="bold">Quest mode</Text>
+
+              <Flex gap="2" style={{ flexWrap: 'wrap' }}>
+                {questModeOptions.map(option => (
+                  <Button
+                    key={option.value}
+                    size="small"
+                    variant={
+                      formData.quest_mode === option.value
+                        ? 'primary'
+                        : 'secondary'
+                    }
+                    isDisabled={loading}
+                    onPress={() => onChange('quest_mode', option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </Flex>
+
+              {formData.quest_mode === 'catalog' ? (
+                <Box>
+                  <Flex direction="column" gap="4">
+                    <Text weight="bold">Catalog configuration</Text>
+
+                    <Box>
+                      <Text
+                        as="label"
+                        variant="body-small"
+                        color="secondary"
+                        weight="bold"
+                      >
+                        Catalog condition
+                      </Text>
+                      <Select
+                        label="Select a catalog condition"
+                        selectedKey={formData.catalog_condition}
+                        onSelectionChange={key =>
+                          onChange('catalog_condition', key ? String(key) : '')
+                        }
+                        isDisabled={loading}
+                        options={catalogConditionOptions}
+                      />
+                    </Box>
+                  </Flex>
+                </Box>
+              ) : null}
+
+              <Box>
+                <Flex direction="column" gap="3">
+                  <Text weight="bold">Reminder (optional)</Text>
+
+                  {!hasReminder ? (
+                    <Flex>
+                      <Button
+                        size="small"
+                        variant="secondary"
+                        isDisabled={loading}
+                        onPress={() => onChange('reminder_day', '7')}
+                      >
+                        + Add a reminder
+                      </Button>
+                    </Flex>
+                  ) : (
+                    <Flex direction="column" gap="3">
+                      <TextField
+                        label="Reminder description"
+                        description="Example: Du verkar ha missat veckans dokumentation, gor klart <quest-link> sa far du 50xp"
+                        value={formData.reminder_description}
+                        onChange={value =>
+                          onChange('reminder_description', value)
+                        }
+                        isDisabled={loading}
+                        isRequired
+                        size="medium"
+                        placeholder="Write reminder text"
+                      />
+
+                      <Box style={{ maxWidth: '14rem' }}>
+                        <TextField
+                          label="Reminder day"
+                          description="How often to send (days)"
+                          value={formData.reminder_day}
+                          onChange={value => onChange('reminder_day', value)}
+                          isDisabled={loading}
+                          isRequired
+                          size="medium"
+                          inputMode="numeric"
+                          placeholder="7"
+                        />
+                      </Box>
+
+                      <Flex>
+                        <Button
+                          size="small"
+                          variant="tertiary"
+                          isDisabled={loading}
+                          onPress={() => {
+                            onChange('reminder_description', '');
+                            onChange('reminder_day', '');
+                          }}
+                        >
+                          Remove reminder
+                        </Button>
+                      </Flex>
+                    </Flex>
+                  )}
+                </Flex>
+              </Box>
             </Flex>
           </Box>
 

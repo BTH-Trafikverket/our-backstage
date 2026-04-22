@@ -10,6 +10,24 @@ export type QuestSortField =
   | 'progress_toward_target';
 export type QuestSortOrder = 'asc' | 'desc';
 
+export type QuestMode = 'event_driven' | 'catalog';
+export type CatalogConditionType =
+  | 'missing_techdocs'
+  | 'missing_api_definition'
+  | 'missing_readme'
+  | 'missing_codeowners'
+  | 'missing_lifecycle';
+
+export type QuestReminderConfig = {
+  description: string;
+  day: number;
+};
+
+export type LinkedQuestConfig = {
+  catalog_condition?: CatalogConditionType;
+  reminder?: QuestReminderConfig;
+};
+
 export type Quest = {
   id: string;
   title: string;
@@ -26,6 +44,8 @@ export type Quest = {
   completion_count: number;
   progress_toward_target: number;
   next_milestone: number;
+  quest_mode?: QuestMode;
+  linked_config?: LinkedQuestConfig;
 };
 
 export type QuestTableRow = {
@@ -47,6 +67,10 @@ export type QuestFormData = {
   subject_type: QuestSubjectType;
   completion_policy: QuestCompletionPolicy;
   cooldown_days: string;
+  quest_mode: QuestMode;
+  catalog_condition: CatalogConditionType;
+  reminder_day: string;
+  reminder_description: string;
 };
 
 export type QuestsPageProps = {
