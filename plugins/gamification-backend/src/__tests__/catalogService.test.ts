@@ -1,6 +1,6 @@
 import type { AuthService, LoggerService } from '@backstage/backend-plugin-api';
-import type { Entity } from '@backstage/catalog-model';
 import type { CatalogClient } from '@backstage/catalog-client';
+import type { Entity } from '@backstage/catalog-model';
 import { CatalogService, type CatalogRule } from '../services/catalogService';
 import { missingTechDocsRule } from '../services/catalogRules';
 
@@ -45,7 +45,7 @@ describe('CatalogService', () => {
     const logger = createLogger();
 
     return {
-      service: new CatalogService(catalogClient as CatalogClient, auth, logger),
+      service: new CatalogService(catalogClient, auth, logger),
       auth,
       catalogClient,
       logger,

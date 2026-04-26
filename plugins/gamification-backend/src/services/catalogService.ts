@@ -1,7 +1,6 @@
-import { CatalogClient } from '@backstage/catalog-client';
+import type { CatalogClient } from '@backstage/catalog-client';
 import { stringifyEntityRef, type Entity } from '@backstage/catalog-model';
-import type { LoggerService } from '@backstage/backend-plugin-api';
-import { AuthService } from '@backstage/backend-plugin-api';
+import type { AuthService, LoggerService } from '@backstage/backend-plugin-api';
 import type { CatalogRule } from './catalogRules';
 
 export type { CatalogRule } from './catalogRules';
@@ -10,12 +9,28 @@ type CatalogServiceOpts = {
   credentials: any;
 };
 
+type TeamOwnedEntitiesCatalogClient = Pick<CatalogClient, 'getEntities'>;
+
 export class CatalogService {
   constructor(
-    private readonly catalogClient: CatalogClient,
+    private readonly catalogClient: Pick<CatalogClient, 'getEntityByRef'>,
     private readonly auth: AuthService,
     private readonly logger?: LoggerService,
   ) {}
+
+  private getTeamOwnedEntitiesCatalogClient(): TeamOwnedEntitiesCatalogClient {
+    const catalogClient = this.catalogClient as Pick<
+      CatalogClient,
+      'getEntityByRef'
+    > &
+      Partial<TeamOwnedEntitiesCatalogClient>;
+
+    if (!catalogClient.getEntities) {
+      throw new Error('Catalog client does not support getEntities');
+    }
+
+    return catalogClient as TeamOwnedEntitiesCatalogClient;
+  }
 
   private async getCatalogToken(
     credentials: CatalogServiceOpts['credentials'],
@@ -33,7 +48,7 @@ export class CatalogService {
     // Keep catalog access in one place so route/service code can stay focused.
     // TODO: Tighten this query once the exact owned entity scope is defined.
     const { token } = await this.getCatalogToken(credentials);
-    const response = await this.catalogClient.getEntities(
+    const response = await this.getTeamOwnedEntitiesCatalogClient().getEntities(
       {
         filter: [{ 'relations.ownedBy': teamRef }],
       },
