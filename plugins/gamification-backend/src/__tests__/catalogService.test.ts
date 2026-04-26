@@ -2,6 +2,7 @@ import type { AuthService, LoggerService } from '@backstage/backend-plugin-api';
 import type { Entity } from '@backstage/catalog-model';
 import type { CatalogClient } from '@backstage/catalog-client';
 import { CatalogService, type CatalogRule } from '../services/catalogService';
+import { missingTechDocsRule } from '../services/catalogRules';
 
 function createLogger(): jest.Mocked<LoggerService> {
   return {
@@ -110,5 +111,20 @@ describe('CatalogService', () => {
     expect(logger.error).toHaveBeenCalledWith(
       `Failed to evaluate catalog rule '${rule.id}' for entity '${entityRef}': ${fetchError}`,
     );
+  });
+
+  it('supports catalog rules defined outside catalogService', async () => {
+    const entityMissingTechDocs: Entity = {
+      ...entity,
+      metadata: {
+        ...entity.metadata,
+        annotations: {},
+      },
+    };
+    const { service } = createService({ entity: entityMissingTechDocs });
+
+    await expect(
+      service.checkCondition(entityRef, missingTechDocsRule, credentials),
+    ).resolves.toBe(true);
   });
 });

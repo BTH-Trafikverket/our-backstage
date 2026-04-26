@@ -2,16 +2,13 @@ import { CatalogClient } from '@backstage/catalog-client';
 import { stringifyEntityRef, type Entity } from '@backstage/catalog-model';
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import { AuthService } from '@backstage/backend-plugin-api';
+import type { CatalogRule } from './catalogRules';
+
+export type { CatalogRule } from './catalogRules';
 
 type CatalogServiceOpts = {
   credentials: any;
 };
-
-export interface CatalogRule {
-  id: string;
-  description: string;
-  evaluate(entity: Entity): boolean;
-}
 
 export class CatalogService {
   constructor(
