@@ -1,15 +1,23 @@
 import { CatalogClient } from '@backstage/catalog-client';
 import { stringifyEntityRef, type Entity } from '@backstage/catalog-model';
+import type { LoggerService } from '@backstage/backend-plugin-api';
 import { AuthService } from '@backstage/backend-plugin-api';
 
 type CatalogServiceOpts = {
   credentials: any;
 };
 
+export interface CatalogRule {
+  id: string;
+  description: string;
+  evaluate(entity: Entity): boolean;
+}
+
 export class CatalogService {
   constructor(
     private readonly catalogClient: CatalogClient,
     private readonly auth: AuthService,
+    private readonly logger?: LoggerService,
   ) {}
 
   private async getCatalogToken(
@@ -38,25 +46,44 @@ export class CatalogService {
     return response.items;
   }
 
-  checkCondition(
-    entity: Entity,
-    condition: (entity: Entity) => boolean,
-  ): boolean {
-    // Allows callers to run a simple entity check through this service.
-    return condition(entity);
+  async checkCondition(
+    entityRef: string,
+    rule: CatalogRule,
+    credentials: CatalogServiceOpts['credentials'],
+  ): Promise<boolean> {
+    let entity: Entity | undefined;
+
+    try {
+      const { token } = await this.getCatalogToken(credentials);
+      entity = await this.catalogClient.getEntityByRef(entityRef, { token });
+    } catch (error) {
+      const message = `Failed to evaluate catalog rule '${rule.id}' for entity '${entityRef}': ${error}`;
+      if (this.logger) {
+        this.logger.error(message);
+      } else {
+        console.error(message);
+      }
+      return false;
+    }
+
+    if (!entity) {
+      return false;
+    }
+
+    return rule.evaluate(entity);
   }
 
   async evaluateTeamOwnedEntities(
     teamRef: string,
-    condition: (entity: Entity) => boolean,
+    rule: CatalogRule,
     credentials: CatalogServiceOpts['credentials'],
   ): Promise<Array<{ entityRef: string; passed: boolean }>> {
-    // Evaluates each team-owned entity against a caller-provided condition.
+    // Evaluates each team-owned entity against a caller-provided rule.
     const entities = await this.getTeamOwnedEntities(teamRef, credentials);
 
     return entities.map(entity => ({
       entityRef: stringifyEntityRef(entity),
-      passed: this.checkCondition(entity, condition),
+      passed: rule.evaluate(entity),
     }));
   }
 }
