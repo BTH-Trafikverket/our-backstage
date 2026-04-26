@@ -52,7 +52,7 @@ describe('CatalogService', () => {
     };
   }
 
-  it('fetches the entity and delegates evaluation to the rule', async () => {
+  it('returns true when the rule condition is met', async () => {
     const evaluate = jest.fn().mockReturnValue(true);
     const rule: CatalogRule = {
       id: 'is-component',
@@ -76,7 +76,7 @@ describe('CatalogService', () => {
     expect(logger.error).not.toHaveBeenCalled();
   });
 
-  it('returns false when the entity is not found', async () => {
+  it('returns false when the entity does not exist', async () => {
     const evaluate = jest.fn().mockReturnValue(true);
     const rule: CatalogRule = {
       id: 'is-component',
@@ -93,7 +93,7 @@ describe('CatalogService', () => {
     expect(logger.error).not.toHaveBeenCalled();
   });
 
-  it('logs and returns false when the catalog lookup fails', async () => {
+  it('returns false when the Catalog API throws an error', async () => {
     const evaluate = jest.fn().mockReturnValue(true);
     const rule: CatalogRule = {
       id: 'is-component',
@@ -111,6 +111,28 @@ describe('CatalogService', () => {
     expect(logger.error).toHaveBeenCalledWith(
       `Failed to evaluate catalog rule '${rule.id}' for entity '${entityRef}': ${fetchError}`,
     );
+  });
+
+  it('returns the same result when called multiple times with the same input', async () => {
+    const evaluate = jest.fn().mockReturnValue(true);
+    const rule: CatalogRule = {
+      id: 'is-component',
+      description: 'Matches components',
+      evaluate,
+    };
+    const { service, auth, catalogClient, logger } = createService({ entity });
+
+    const first = await service.checkCondition(entityRef, rule, credentials);
+    const second = await service.checkCondition(entityRef, rule, credentials);
+    const third = await service.checkCondition(entityRef, rule, credentials);
+
+    expect(first).toBe(true);
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+    expect(auth.getPluginRequestToken).toHaveBeenCalledTimes(3);
+    expect(catalogClient.getEntityByRef).toHaveBeenCalledTimes(3);
+    expect(evaluate).toHaveBeenCalledTimes(3);
+    expect(logger.error).not.toHaveBeenCalled();
   });
 
   it('supports catalog rules defined outside catalogService', async () => {
