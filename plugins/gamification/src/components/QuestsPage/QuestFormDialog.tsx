@@ -50,6 +50,9 @@ export const QuestFormDialog = ({
   const hasReminder =
     Boolean(formData.reminder_description.trim()) ||
     Boolean(formData.reminder_day.trim());
+  const selectedCatalogOption = catalogConditionOptions.find(
+    option => option.value === formData.catalog_condition,
+  );
 
   return (
     <Dialog
@@ -135,15 +138,39 @@ export const QuestFormDialog = ({
                       >
                         Catalog condition
                       </Text>
-                      <Select
-                        label="Select a catalog condition"
-                        selectedKey={formData.catalog_condition}
-                        onSelectionChange={key =>
-                          onChange('catalog_condition', key ? String(key) : '')
-                        }
-                        isDisabled={loading}
-                        options={catalogConditionOptions}
-                      />
+                      {selectedCatalogOption ? (
+                        <Flex
+                          gap="2"
+                          mt="3"
+                          align="center"
+                          style={{ flexWrap: 'wrap' }}
+                        >
+                          <Button size="small" variant="secondary">
+                            {selectedCatalogOption.label}
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="tertiary"
+                            isDisabled={loading}
+                            onPress={() => onChange('catalog_condition', '')}
+                          >
+                            change
+                          </Button>
+                        </Flex>
+                      ) : (
+                        <Select
+                          label="Select a catalog condition"
+                          selectedKey={formData.catalog_condition || undefined}
+                          onSelectionChange={key =>
+                            onChange(
+                              'catalog_condition',
+                              key ? String(key) : '',
+                            )
+                          }
+                          isDisabled={loading}
+                          options={catalogConditionOptions}
+                        />
+                      )}
                     </Box>
                   </Flex>
                 </Box>
