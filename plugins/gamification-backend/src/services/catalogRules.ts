@@ -23,8 +23,8 @@ export const missingOwnerRule: CatalogRule = {
   id: 'missing_owner',
   description: 'Entity is missing spec.owner',
   evaluate(entity) {
-    const owner = entity.spec?.owner?.trim();
-
+    const owner =
+      typeof entity.spec?.owner === 'string' ? entity.spec.owner.trim() : '';
     return !owner;
   },
 };
