@@ -86,6 +86,10 @@ export type BadgeCriteriaUsageRow = {
   badge_title: string;
 };
 
+export type QuestActivitySubjectRow = {
+  subject_ref: string;
+};
+
 export class QuestsRepository {
   private readonly db: Knex | Knex.Transaction;
 
@@ -522,6 +526,48 @@ export class QuestsRepository {
       .max('created_at as last_awarded_at')
       .first();
     return row?.last_awarded_at ? new Date(row.last_awarded_at) : null;
+  }
+
+  /**
+   * Returns distinct subjects with accepted quest activity receipts for the
+   * given quest. Reminder evaluation uses `quest_event_receipts` on purpose:
+   * receipts are the existing per-activity history source, while
+   * `quest_progress` and `xp_awards` only expose aggregated milestones.
+   */
+  async listSubjectsWithQuestActivity(
+    questId: string,
+    subjectType: QuestSubjectType,
+  ): Promise<string[]> {
+    const subjectPrefix = subjectType === 'team' ? 'group:%' : 'user:%';
+    const rows = await this.db<QuestActivitySubjectRow>('quest_event_receipts')
+      .distinct('subject_ref')
+      .where({
+        event_key: `quest:${questId}`,
+      })
+      .andWhere('subject_ref', 'like', subjectPrefix)
+      .orderBy('subject_ref', 'asc');
+
+    return rows.map(row => row.subject_ref);
+  }
+
+  /**
+   * Returns the most recent accepted quest activity receipt timestamp for the
+   * subject on the given quest. This is the v1 source of truth for inactivity
+   * reminders; it intentionally does not depend on any external GitHub log.
+   */
+  async getLatestQuestActivityAt(
+    questId: string,
+    subjectRef: string,
+  ): Promise<Date | null> {
+    const row = await this.db('quest_event_receipts')
+      .where({
+        event_key: `quest:${questId}`,
+        subject_ref: subjectRef,
+      })
+      .max('received_at as latest_activity_at')
+      .first();
+
+    return row?.latest_activity_at ? new Date(row.latest_activity_at) : null;
   }
 
   async incrementQuestProgress(params: {
