@@ -166,14 +166,20 @@ describe('quests routes auth', () => {
       .send(createQuestPayload);
 
     expect(res.status).toBe(201);
-    expect(questsService.createQuest).toHaveBeenCalledWith(createQuestPayload, {
-      credentials: expect.objectContaining({
-        principal: expect.objectContaining({
-          type: 'user',
-          userEntityRef: userRef,
+    expect(questsService.createQuest).toHaveBeenCalledWith(
+      {
+        ...createQuestPayload,
+        quest_mode: 'event_driven',
+      },
+      {
+        credentials: expect.objectContaining({
+          principal: expect.objectContaining({
+            type: 'user',
+            userEntityRef: userRef,
+          }),
         }),
-      }),
-    });
+      },
+    );
   });
 
   it('returns 400 for invalid quest creation payloads', async () => {

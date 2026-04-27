@@ -109,6 +109,7 @@ export const buildQuestPayload = (formData: QuestFormData) => {
     subject_type: formData.subject_type,
     completion_policy: formData.completion_policy,
     target_count: parseInt(formData.target_count, 10),
+    quest_mode: formData.quest_mode,
   };
 
   if (formData.completion_policy === 'REPEATABLE') {
@@ -121,22 +122,18 @@ export const buildQuestPayload = (formData: QuestFormData) => {
     Boolean(formData.reminder_description.trim()) ||
     Boolean(formData.reminder_day.trim());
 
-  if (formData.quest_mode === 'catalog' || hasReminder) {
-    payload.quest_mode = formData.quest_mode;
-
-    const linkedConfig: Record<string, unknown> = {};
-    if (formData.quest_mode === 'catalog') {
-      linkedConfig.catalog_condition = formData.catalog_condition;
-    }
-    if (hasReminder) {
-      linkedConfig.reminder = {
-        description: formData.reminder_description.trim(),
-        day: parseInt(formData.reminder_day, 10),
-      };
-    }
-
-    payload.linked_config = linkedConfig;
+  const linkedConfig: Record<string, unknown> = {};
+  if (formData.quest_mode === 'catalog') {
+    linkedConfig.catalog_condition = formData.catalog_condition;
   }
+  if (hasReminder) {
+    linkedConfig.reminder = {
+      description: formData.reminder_description.trim(),
+      day: parseInt(formData.reminder_day, 10),
+    };
+  }
+
+  payload.linked_config = linkedConfig;
 
   return payload;
 };

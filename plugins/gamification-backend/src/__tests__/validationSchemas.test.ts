@@ -22,6 +22,7 @@ describe('validation schemas', () => {
         target_count: 1,
         xp_reward: 25,
         subject_type: 'user',
+        quest_mode: 'event_driven',
         completion_policy: 'REPEATABLE',
       });
     });

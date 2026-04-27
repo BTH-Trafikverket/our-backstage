@@ -1,9 +1,21 @@
 import type { Knex } from 'knex';
 import type { QuestEditSchema } from '../schemas/quests/questEditSchema';
 import type {
+  CatalogCondition,
   CompletionPolicy,
+  QuestMode,
   QuestSubjectType,
 } from '../schemas/quests/questCreationSchema';
+
+export type QuestReminderConfig = {
+  description: string;
+  day: number;
+};
+
+export type LinkedQuestConfig = {
+  catalog_condition?: CatalogCondition;
+  reminder?: QuestReminderConfig;
+};
 
 export type QuestRow = {
   id: string;
@@ -14,6 +26,8 @@ export type QuestRow = {
   subject_type: QuestSubjectType;
   completion_policy: CompletionPolicy;
   cooldown_days: number | null;
+  quest_mode: QuestMode;
+  linked_config: LinkedQuestConfig;
   created_at: Date;
   updated_at: Date;
   archived_at: Date | null;
@@ -29,6 +43,10 @@ export type CreateQuestRow = {
   completion_policy?: CompletionPolicy;
   /** Defaults to null (no cooldown) if not provided */
   cooldown_days?: number | null;
+  /** Defaults to event_driven if not provided */
+  quest_mode?: QuestMode;
+  /** Defaults to empty object if not provided */
+  linked_config?: LinkedQuestConfig;
 };
 
 export type QuestProgressRow = {
@@ -97,6 +115,10 @@ export class QuestsRepository {
     this.db = db;
   }
 
+  private toJsonb(value: Record<string, unknown> | undefined) {
+    return this.db.raw('?::jsonb', [JSON.stringify(value ?? {})]);
+  }
+
   async withTransaction<T>(
     fn: (repo: QuestsRepository) => Promise<T>,
   ): Promise<T> {
@@ -113,6 +135,8 @@ export class QuestsRepository {
   }
 
   async createQuest(data: CreateQuestRow): Promise<QuestRow> {
+    const linkedConfig = this.toJsonb(data.linked_config);
+
     const rows = await this.db<QuestRow>('quests')
       .insert({
         title: data.title,
@@ -122,6 +146,8 @@ export class QuestsRepository {
         subject_type: data.subject_type ?? 'user',
         completion_policy: data.completion_policy ?? 'REPEATABLE',
         cooldown_days: data.cooldown_days ?? null,
+        quest_mode: data.quest_mode ?? 'event_driven',
+        linked_config: linkedConfig,
       })
       .returning('*');
 
@@ -286,6 +312,8 @@ export class QuestsRepository {
       'quests.target_count',
       'quests.xp_reward',
       'quests.subject_type',
+      'quests.quest_mode',
+      'quests.linked_config',
       subjectRefSelection,
       'quests.completion_policy',
       'quests.cooldown_days',
@@ -484,6 +512,12 @@ export class QuestsRepository {
       updateData.completion_policy = data.completion_policy;
     if (data.cooldown_days !== undefined)
       updateData.cooldown_days = data.cooldown_days ?? null;
+    if (data.quest_mode !== undefined) updateData.quest_mode = data.quest_mode;
+    if (data.linked_config !== undefined) {
+      (updateData as Record<string, unknown>).linked_config = this.toJsonb(
+        data.linked_config as Record<string, unknown>,
+      );
+    }
 
     const rows = await this.db<QuestRow>('quests')
       .where({ id })

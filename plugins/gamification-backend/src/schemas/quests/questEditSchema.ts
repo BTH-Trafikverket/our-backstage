@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
+  linkedQuestConfigSchema,
   COMPLETION_POLICIES,
+  QUEST_MODES,
   QUEST_SUBJECT_TYPES,
 } from './questCreationSchema';
 
@@ -15,6 +17,8 @@ export const questEditSchema = z
     subject_type: z.enum(QUEST_SUBJECT_TYPES).optional(),
     completion_policy: z.enum(COMPLETION_POLICIES).optional(),
     cooldown_days: z.number().int().positive().nullable().optional(),
+    quest_mode: z.enum(QUEST_MODES).optional(),
+    linked_config: linkedQuestConfigSchema,
   })
   .strict()
   .refine(
@@ -25,7 +29,9 @@ export const questEditSchema = z
       data.xp_reward !== undefined ||
       data.subject_type !== undefined ||
       data.completion_policy !== undefined ||
-      data.cooldown_days !== undefined,
+      data.cooldown_days !== undefined ||
+      data.quest_mode !== undefined ||
+      data.linked_config !== undefined,
     { message: 'No fields provided to update' },
   );
 
