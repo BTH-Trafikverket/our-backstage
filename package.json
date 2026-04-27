@@ -34,7 +34,7 @@
     "gamification:lint": "node ./scripts/run-gamification-eslint.mjs",
     "gamification:openapi:sync": "node ./scripts/sync-gamification-openapi.mjs",
     "gamification:openapi:check": "node ./scripts/sync-gamification-openapi.mjs --check",
-    "gamification:test:frontend": "yarn workspace @internal/gamification test --watch=false",
+    "gamification:test:frontend": "yarn workspace @internal/gamification test --watch=false --maxWorkers=50%",
     "gamification:test:backend": "dotenvx run --env-file=.env.local -- node ./scripts/run-gamification-backend-tests.mjs",
     "gamification:test": "yarn gamification:test:frontend && yarn gamification:test:backend",
     "gamification:verify": "bash scripts/gamification-verify.sh",

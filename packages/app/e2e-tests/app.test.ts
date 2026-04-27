@@ -14,21 +14,13 @@
  * limitations under the License.
  */
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { guestStorageStatePath } from '../../../plugins/gamification/e2e-tests/guestAuth';
 
-async function signInAsGuest(page: Page) {
-  await page.goto('/');
-
-  await expect(page.getByText('Guest', { exact: true })).toBeVisible();
-
-  const enterButton = page.getByRole('button', { name: 'Enter' });
-  await expect(enterButton).toBeVisible();
-  await enterButton.click();
-
-  await expect(page).toHaveURL(/\/catalog$/);
-  await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
-}
+test.use({ storageState: guestStorageStatePath });
 
 test('Guest sign-in reaches the app shell', async ({ page }) => {
-  await signInAsGuest(page);
+  await page.goto('/catalog');
+  await expect(page).toHaveURL(/\/catalog$/);
+  await expect(page.getByRole('link', { name: 'Quests' })).toBeVisible();
 });

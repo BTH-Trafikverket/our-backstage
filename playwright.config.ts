@@ -26,9 +26,7 @@ const maxWorkers = 2;
 const workers =
   Number.isFinite(configuredWorkers) && configuredWorkers > 0
     ? Math.min(configuredWorkers, maxWorkers)
-    : process.env.CI
-    ? maxWorkers
-    : undefined;
+    : maxWorkers;
 
 if (!baseURL) {
   throw new Error(
