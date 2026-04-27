@@ -62,7 +62,7 @@ export const createEmptyQuestForm = (): QuestFormData => ({
   completion_policy: 'REPEATABLE',
   cooldown_days: '',
   quest_mode: 'event_driven',
-  catalog_condition: 'missing_techdocs',
+  catalog_condition: '',
   reminder_day: '',
   reminder_description: '',
 });
@@ -123,7 +123,7 @@ export const buildQuestPayload = (formData: QuestFormData) => {
     Boolean(formData.reminder_day.trim());
 
   const linkedConfig: Record<string, unknown> = {};
-  if (formData.quest_mode === 'catalog') {
+  if (formData.quest_mode === 'catalog' && formData.catalog_condition) {
     linkedConfig.catalog_condition = formData.catalog_condition;
   }
   if (hasReminder) {

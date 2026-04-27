@@ -353,6 +353,33 @@ spec:
               $ref: '#/components/responses/Unauthorized'
             '404':
               $ref: '#/components/responses/NotFound'
+      /quests/catalog/run:
+        post:
+          operationId: runCatalogLinkedQuests
+          tags:
+            - Quests
+          summary: Run catalog-linked quests for a team subject
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/CatalogRunnerRequest'
+          responses:
+            '200':
+              description: Catalog runner result
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/CatalogRunnerResult'
+            '400':
+              $ref: '#/components/responses/BadRequest'
+            '401':
+              $ref: '#/components/responses/Unauthorized'
+            '403':
+              $ref: '#/components/responses/Forbidden'
+            '404':
+              $ref: '#/components/responses/NotFound'
       /badges:
         get:
           operationId: listBadges
@@ -1135,6 +1162,47 @@ spec:
               minimum: 1
             reason:
               type: string
+        CatalogRunnerRequest:
+          type: object
+          required:
+            - teamRef
+          additionalProperties: false
+          properties:
+            teamRef:
+              type: string
+              minLength: 1
+        CatalogRunnerResult:
+          type: object
+          required:
+            - teamRef
+            - evaluatedQuests
+            - skippedQuests
+            - matchedEntities
+            - triggeredEvents
+            - duplicateEvents
+            - blockedEvents
+          additionalProperties: false
+          properties:
+            teamRef:
+              type: string
+            evaluatedQuests:
+              type: integer
+              minimum: 0
+            skippedQuests:
+              type: integer
+              minimum: 0
+            matchedEntities:
+              type: integer
+              minimum: 0
+            triggeredEvents:
+              type: integer
+              minimum: 0
+            duplicateEvents:
+              type: integer
+              minimum: 0
+            blockedEvents:
+              type: integer
+              minimum: 0
         BadgeCriteria:
           type: object
           required:

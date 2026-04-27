@@ -342,8 +342,7 @@ export const QuestsPage = ({
       completion_policy: quest.completion_policy ?? 'REPEATABLE',
       cooldown_days: quest.cooldown_days?.toString() ?? '',
       quest_mode: quest.quest_mode === 'catalog' ? 'catalog' : 'event_driven',
-      catalog_condition:
-        quest.linked_config?.catalog_condition ?? 'missing_techdocs',
+      catalog_condition: quest.linked_config?.catalog_condition ?? '',
       reminder_day: quest.linked_config?.reminder?.day?.toString() ?? '',
       reminder_description: quest.linked_config?.reminder?.description ?? '',
     });

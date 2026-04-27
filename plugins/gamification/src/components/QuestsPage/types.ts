@@ -68,7 +68,7 @@ export type QuestFormData = {
   completion_policy: QuestCompletionPolicy;
   cooldown_days: string;
   quest_mode: QuestMode;
-  catalog_condition: CatalogConditionType;
+  catalog_condition: CatalogConditionType | '';
   reminder_day: string;
   reminder_description: string;
 };
