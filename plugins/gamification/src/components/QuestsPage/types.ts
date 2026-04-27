@@ -13,10 +13,9 @@ export type QuestSortOrder = 'asc' | 'desc';
 export type QuestMode = 'event_driven' | 'catalog';
 export type CatalogConditionType =
   | 'missing_techdocs'
-  | 'missing_api_definition'
-  | 'missing_readme'
-  | 'missing_codeowners'
-  | 'missing_lifecycle';
+  | 'missing_owner'
+  | 'missing_description'
+  | 'missing_tags';
 
 export type QuestReminderConfig = {
   description: string;

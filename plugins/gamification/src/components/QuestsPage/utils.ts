@@ -47,10 +47,9 @@ export const questModeOptions: Array<QuestOption<QuestMode>> = [
 export const catalogConditionOptions: Array<QuestOption<CatalogConditionType>> =
   [
     { value: 'missing_techdocs', label: 'Missing TechDocs' },
-    { value: 'missing_api_definition', label: 'Missing API definition' },
-    { value: 'missing_readme', label: 'Missing README' },
-    { value: 'missing_codeowners', label: 'Missing CODEOWNERS' },
-    { value: 'missing_lifecycle', label: 'Missing lifecycle' },
+    { value: 'missing_owner', label: 'Missing owner' },
+    { value: 'missing_description', label: 'Missing description' },
+    { value: 'missing_tags', label: 'Missing tags' },
   ];
 
 export const createEmptyQuestForm = (): QuestFormData => ({

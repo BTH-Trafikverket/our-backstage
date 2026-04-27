@@ -902,10 +902,9 @@ spec:
           type: string
           enum:
             - missing_techdocs
-            - missing_api_definition
-            - missing_readme
-            - missing_codeowners
-            - missing_lifecycle
+            - missing_owner
+            - missing_description
+            - missing_tags
         QuestReminderConfig:
           type: object
           required:
