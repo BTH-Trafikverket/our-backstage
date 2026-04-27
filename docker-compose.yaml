@@ -53,23 +53,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
 
-  postgres-e2e-local:
-    image: postgres:18-trixie
-    environment:
-      PGDATA: /var/lib/postgresql/data
-      POSTGRES_USER: backstage
-      POSTGRES_PASSWORD: backstage
-      POSTGRES_DB: backstage_e2e
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U backstage -d backstage_e2e"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    ports:
-      - 5431:5432
-    tmpfs:
-      - /var/lib/postgresql/data
-
   pgadmin:
     image: dpage/pgadmin4
     depends_on:

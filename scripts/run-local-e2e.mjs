@@ -74,12 +74,17 @@ async function waitForLocalApp() {
 
 function runPlaywright() {
   process.env.PLAYWRIGHT_URL = appUrl;
+  process.env.PLAYWRIGHT_BACKEND_URL = backendBaseUrl;
 
-  const child = spawn(process.execPath, [yarnPath, 'test:e2e:run'], {
-    cwd: repoRoot,
-    env: process.env,
-    stdio: 'inherit',
-  });
+  const child = spawn(
+    process.execPath,
+    [yarnPath, 'test:e2e:run', ...process.argv.slice(2)],
+    {
+      cwd: repoRoot,
+      env: process.env,
+      stdio: 'inherit',
+    },
+  );
 
   child.on('exit', code => {
     process.exit(code ?? 1);
