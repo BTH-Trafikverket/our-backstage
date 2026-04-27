@@ -17,7 +17,11 @@ function createLogger(): jest.Mocked<LoggerService> {
   } as unknown as jest.Mocked<LoggerService>;
 }
 
-async function createUserQuest(knex: Knex, title: string) {
+async function createUserQuest(
+  knex: Knex,
+  title: string,
+  options?: { cooldownDays?: number | null },
+) {
   const questsRepo = new QuestsRepository(knex);
 
   return questsRepo.createQuest({
@@ -26,6 +30,7 @@ async function createUserQuest(knex: Knex, title: string) {
     target_count: 1,
     xp_reward: 10,
     subject_type: 'user',
+    cooldown_days: options?.cooldownDays ?? null,
   });
 }
 
@@ -42,6 +47,23 @@ async function insertQuestReceipt(params: {
     subject_ref: params.subjectRef,
     caller_subject: 'external:default/github',
     received_at: params.receivedAt,
+  });
+}
+
+async function insertQuestAward(params: {
+  knex: Knex;
+  questId: string;
+  subjectRef: string;
+  createdAt: Date;
+  awardedOnCompletionCount?: number;
+}) {
+  await params.knex('xp_awards').insert({
+    subject_ref: params.subjectRef,
+    quest_id: params.questId,
+    awarded_on_completion_count: params.awardedOnCompletionCount ?? 1,
+    xp_amount: 10,
+    source: 'test',
+    created_at: params.createdAt,
   });
 }
 
@@ -103,6 +125,209 @@ describePostgres18('ReminderEvaluationService integration', () => {
         latestActivityAt: '2026-04-01T09:00:00.000Z',
         inactivityDays: 14,
       },
+    });
+  });
+
+  it('skips reminder generation while the quest is still in cooldown', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Cooldown Reminder Quest', {
+      cooldownDays: 7,
+    });
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-cooldown-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-01T09:00:00.000Z'),
+    });
+    await insertQuestAward({
+      knex,
+      questId: quest.id,
+      subjectRef: 'user:default/alice',
+      createdAt: new Date('2026-04-20T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-23T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-cooldown-7d',
+          questId: quest.id,
+          inactivityDays: 7,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 0,
+      suppressedCount: 0,
+    });
+    await expect(
+      reminderRepo.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-cooldown-7d',
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('skips reminder generation during the inactivity interval after cooldown', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Cooldown Inactivity Quest', {
+      cooldownDays: 7,
+    });
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-cooldown-inactivity-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-01T09:00:00.000Z'),
+    });
+    await insertQuestAward({
+      knex,
+      questId: quest.id,
+      subjectRef: 'user:default/alice',
+      createdAt: new Date('2026-04-20T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-30T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-after-cooldown-7d',
+          questId: quest.id,
+          inactivityDays: 7,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 0,
+      suppressedCount: 0,
+    });
+    await expect(
+      reminderRepo.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-after-cooldown-7d',
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('creates a reminder after cooldown and inactivity interval have both passed', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Cooldown Eligible Quest', {
+      cooldownDays: 7,
+    });
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-cooldown-eligible-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-01T09:00:00.000Z'),
+    });
+    await insertQuestAward({
+      knex,
+      questId: quest.id,
+      subjectRef: 'user:default/alice',
+      createdAt: new Date('2026-04-20T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-05-04T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-cooldown-eligible-7d',
+          questId: quest.id,
+          inactivityDays: 7,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 1,
+      refreshedCount: 0,
+      suppressedCount: 0,
+    });
+    await expect(
+      reminderRepo.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-cooldown-eligible-7d',
+      ),
+    ).resolves.toMatchObject({
+      quest_id: quest.id,
+      target_subject_ref: 'user:default/alice',
+      status: 'active',
+    });
+  });
+
+  it('keeps existing behavior for quests without cooldowns', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'No Cooldown Reminder Quest');
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-no-cooldown-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-20T09:00:00.000Z'),
+    });
+    await insertQuestAward({
+      knex,
+      questId: quest.id,
+      subjectRef: 'user:default/alice',
+      createdAt: new Date('2026-04-26T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-27T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-no-cooldown-7d',
+          questId: quest.id,
+          inactivityDays: 7,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 1,
+      refreshedCount: 0,
+      suppressedCount: 0,
     });
   });
 

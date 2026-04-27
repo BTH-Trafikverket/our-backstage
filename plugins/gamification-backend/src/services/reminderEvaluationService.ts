@@ -1,6 +1,7 @@
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { ReminderReasonPayload } from '../repositories/reminderRepository';
 import { ReminderRepository } from '../repositories/reminderRepository';
+import type { QuestRow } from '../repositories/questsRepository';
 import { QuestsRepository } from '../repositories/questsRepository';
 
 export type ReminderActivitySource = 'quest_event_receipts';
@@ -125,6 +126,34 @@ export class ReminderEvaluationService {
     };
   }
 
+  private async getCooldownReminderEligibleAt(params: {
+    quest: QuestRow;
+    subjectRef: string;
+    inactivityDays: number;
+  }): Promise<Date | undefined> {
+    const { quest, subjectRef, inactivityDays } = params;
+
+    if (
+      quest.completion_policy !== 'REPEATABLE' ||
+      quest.cooldown_days === null
+    ) {
+      return undefined;
+    }
+
+    const lastAwardedAt = await this.questsRepo.getLastAwardedAt(
+      subjectRef,
+      quest.id,
+    );
+    if (!lastAwardedAt) {
+      return undefined;
+    }
+
+    return new Date(
+      lastAwardedAt.getTime() +
+        (quest.cooldown_days + inactivityDays) * DAY_IN_MS,
+    );
+  }
+
   private async evaluateRule(
     rule: ReminderEvaluationRule,
   ): Promise<ReminderRuleEvaluationResult> {
@@ -183,8 +212,20 @@ export class ReminderEvaluationService {
         continue;
       }
 
-      const inactiveForMs = now.getTime() - latestActivityAt.getTime();
-      if (inactiveForMs < rule.inactivityDays * DAY_IN_MS) {
+      const cooldownReminderEligibleAt =
+        await this.getCooldownReminderEligibleAt({
+          quest,
+          subjectRef,
+          inactivityDays: rule.inactivityDays,
+        });
+      if (cooldownReminderEligibleAt) {
+        if (now.getTime() < cooldownReminderEligibleAt.getTime()) {
+          continue;
+        }
+      } else if (
+        now.getTime() - latestActivityAt.getTime() <
+        rule.inactivityDays * DAY_IN_MS
+      ) {
         continue;
       }
 
