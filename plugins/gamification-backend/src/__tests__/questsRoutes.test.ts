@@ -87,6 +87,17 @@ describe('quests routes auth', () => {
         completionCount: 1,
       })),
     };
+    const reminderEvaluationService = {
+      evaluateConfiguredRules: jest.fn(async () => ({
+        createdCount: 1,
+        refreshedCount: 2,
+        suppressedCount: 3,
+        notificationCount: 3,
+        notificationFailureCount: 0,
+        skippedRuleCount: 0,
+        ruleResults: [],
+      })),
+    };
 
     const app = express();
     app.use(express.json());
@@ -97,11 +108,12 @@ describe('quests routes auth', () => {
         userInfo,
         questsService: questsService as any,
         config,
+        reminderEvaluationService: reminderEvaluationService as any,
       }),
     );
     app.use(mockErrorHandler());
 
-    return { app, questsService };
+    return { app, questsService, reminderEvaluationService };
   }
 
   test.each([
@@ -109,6 +121,7 @@ describe('quests routes auth', () => {
     ['get', '/quests/test/users', undefined],
     ['post', '/quests', createQuestPayload],
     ['post', '/quests/test/events', testEventPayload],
+    ['post', '/quests/test/reminders/force', undefined],
     ['patch', '/quests/quest-1', { title: 'Updated Quest' }],
     ['delete', '/quests/quest-1', undefined],
   ] as const)(
@@ -118,7 +131,9 @@ describe('quests routes auth', () => {
       const userInfo = mockServices.userInfo({
         ownershipEntityRefs: [userRef, 'group:default/engineering'],
       });
-      const { app, questsService } = makeApp({ userInfo });
+      const { app, questsService, reminderEvaluationService } = makeApp({
+        userInfo,
+      });
 
       const req = request(app)
         [method](path)
@@ -137,6 +152,9 @@ describe('quests routes auth', () => {
       expect(questsService.getQuests).not.toHaveBeenCalled();
       expect(questsService.listGithubUsers).not.toHaveBeenCalled();
       expect(questsService.handleQuestEvent).not.toHaveBeenCalled();
+      expect(
+        reminderEvaluationService.evaluateConfiguredRules,
+      ).not.toHaveBeenCalled();
     },
   );
 
@@ -462,6 +480,33 @@ describe('quests routes auth', () => {
           }),
         }),
       },
+    });
+  });
+
+  it('allows admin users to force reminder evaluation from the test UI', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, reminderEvaluationService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .post('/quests/test/reminders/force')
+      .set('authorization', mockCredentials.user.header(userRef));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      createdCount: 1,
+      refreshedCount: 2,
+      suppressedCount: 3,
+      notificationCount: 3,
+      notificationFailureCount: 0,
+      skippedRuleCount: 0,
+    });
+    expect(
+      reminderEvaluationService.evaluateConfiguredRules,
+    ).toHaveBeenCalledWith({
+      force: true,
     });
   });
 

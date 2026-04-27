@@ -52,6 +52,26 @@ type QuestEventResponse = {
   completionCount?: number;
 };
 
+type ReminderForceResponse = {
+  createdCount: number;
+  refreshedCount: number;
+  suppressedCount: number;
+  notificationCount?: number;
+  notificationFailureCount?: number;
+  skippedRuleCount: number;
+  ruleResults?: Array<{
+    ruleKey: string;
+    questId?: string;
+    questTitle?: string;
+    createdCount: number;
+    refreshedCount: number;
+    suppressedCount: number;
+    notificationCount?: number;
+    notificationFailureCount?: number;
+    skippedReason?: string;
+  }>;
+};
+
 type TestPageProps = {
   isAdmin: boolean;
 };
@@ -218,6 +238,10 @@ export const TestPage = ({ isAdmin }: TestPageProps) => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [response, setResponse] = useState<QuestEventResponse | null>(null);
+  const [forceLoading, setForceLoading] = useState(false);
+  const [forceError, setForceError] = useState<string | null>(null);
+  const [forceResponse, setForceResponse] =
+    useState<ReminderForceResponse | null>(null);
 
   const buildGamificationUrl = useCallback(
     async (path: string) => {
@@ -381,6 +405,35 @@ export const TestPage = ({ isAdmin }: TestPageProps) => {
     }
   };
 
+  const handleForceReminders = async () => {
+    setForceLoading(true);
+    setForceError(null);
+    setForceResponse(null);
+
+    try {
+      const url = await buildGamificationUrl('/quests/test/reminders/force');
+      const forceReminderResponse = await fetchApi.fetch(url, {
+        method: 'POST',
+      });
+
+      if (!forceReminderResponse.ok) {
+        throw new Error(await readErrorMessage(forceReminderResponse));
+      }
+
+      setForceResponse(
+        (await forceReminderResponse.json()) as ReminderForceResponse,
+      );
+    } catch (error) {
+      setForceError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to force reminder generation',
+      );
+    } finally {
+      setForceLoading(false);
+    }
+  };
+
   return (
     <Flex direction="column" gap="4">
       <HeaderPage
@@ -388,6 +441,15 @@ export const TestPage = ({ isAdmin }: TestPageProps) => {
         customActions={
           isAdmin ? (
             <Flex gap="2" style={{ flexWrap: 'wrap' }}>
+              <Button
+                size="small"
+                variant="secondary"
+                onPress={handleForceReminders}
+                loading={forceLoading}
+                isDisabled={loading || forceLoading}
+              >
+                Force reminders
+              </Button>
               <Button
                 size="small"
                 variant="secondary"
@@ -424,6 +486,39 @@ export const TestPage = ({ isAdmin }: TestPageProps) => {
           title="Unable to load demo data"
           description={loadError}
         />
+      ) : null}
+
+      {forceError ? (
+        <Alert
+          status="danger"
+          icon
+          title="Could not force reminders"
+          description={forceError}
+        />
+      ) : null}
+
+      {forceResponse ? (
+        <Box
+          style={{
+            maxWidth: '56rem',
+          }}
+        >
+          <Box p="4" style={sectionStyle}>
+            <Flex direction="column" gap="3">
+              <Text weight="bold">Force reminders completed</Text>
+              <Text color="secondary">
+                {`Created ${forceResponse.createdCount}, refreshed ${
+                  forceResponse.refreshedCount
+                }, suppressed ${forceResponse.suppressedCount}, notified ${
+                  forceResponse.notificationCount ?? 0
+                }, notification failures ${
+                  forceResponse.notificationFailureCount ?? 0
+                }, skipped rules ${forceResponse.skippedRuleCount}.`}
+              </Text>
+              <pre style={mutedCodeStyle}>{formatJson(forceResponse)}</pre>
+            </Flex>
+          </Box>
+        </Box>
       ) : null}
 
       <Box
