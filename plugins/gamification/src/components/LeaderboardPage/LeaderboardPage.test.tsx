@@ -101,8 +101,29 @@ describe('LeaderboardPage', () => {
   const getVisibleNames = () =>
     screen.getAllByRole('rowheader').map(cell => cell.textContent);
 
+  const setupUser = () =>
+    userEvent.setup({
+      pointerEventsCheck: 0,
+    });
+
+  const waitForLeaderboardToSettle = () =>
+    waitFor(() =>
+      expect(
+        screen.queryByText('Loading leaderboard...'),
+      ).not.toBeInTheDocument(),
+    );
+
   it('shows a loading state while the leaderboard request is in flight', async () => {
-    const fetchImpl = jest.fn(() => new Promise<Response>(() => {}));
+    const fetchImpl = jest.fn(
+      (_input: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('Aborted', 'AbortError')),
+            { once: true },
+          );
+        }),
+    );
 
     const { fetchApi } = renderPage(fetchImpl);
 
@@ -140,7 +161,8 @@ describe('LeaderboardPage', () => {
 
     const { fetchApi } = renderPage(fetchImpl);
 
-    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('Alice Andersson')).toBeInTheDocument();
     expect(
       screen.getByRole('columnheader', { name: 'Rank' }),
     ).toBeInTheDocument();
@@ -187,7 +209,7 @@ describe('LeaderboardPage', () => {
   });
 
   it('filters the full leaderboard, resets to page one, and removes empty pages', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const rows = [
       {
         rank: 1,
@@ -229,7 +251,8 @@ describe('LeaderboardPage', () => {
 
     const { fetchApi } = renderPage(fetchImpl);
 
-    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('Alice Andersson')).toBeInTheDocument();
 
     const pageSizeInput = screen.getByRole('textbox', { name: 'Page size' });
     await user.clear(pageSizeInput);
@@ -261,7 +284,7 @@ describe('LeaderboardPage', () => {
   });
 
   it('switches to team rankings and refetches with the group subject type', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const fetchImpl = jest.fn(async (input: string) => {
       const subjectType =
         new URL(input).searchParams.get('subjectType') === 'group'
@@ -298,11 +321,13 @@ describe('LeaderboardPage', () => {
 
     const { fetchApi } = renderPage(fetchImpl);
 
-    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('Alice Andersson')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Teams' }));
 
-    expect(await screen.findByText('Platform')).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('Platform')).toBeInTheDocument();
     expect(
       screen.getByText('All time rankings for teams, ordered by total XP.'),
     ).toBeInTheDocument();
@@ -313,10 +338,10 @@ describe('LeaderboardPage', () => {
         signal: expect.any(AbortSignal),
       }),
     );
-  }, 15_000);
+  });
 
   it('switches time range and refetches with the selected backend parameter', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const fetchImpl = jest.fn(async (input: string) => {
       const timeRange =
         (new URL(input).searchParams.get('timeRange') as
@@ -352,11 +377,13 @@ describe('LeaderboardPage', () => {
 
     const { fetchApi } = renderPage(fetchImpl);
 
-    expect(await screen.findByText('Alice Andersson')).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('Alice Andersson')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Weekly' }));
 
-    expect(await screen.findByText('Bob Berg')).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('Bob Berg')).toBeInTheDocument();
     expect(
       screen.getByText('Weekly rankings for individuals, ordered by total XP.'),
     ).toBeInTheDocument();
@@ -370,7 +397,7 @@ describe('LeaderboardPage', () => {
   });
 
   it('updates local pagination when page size changes and resets to page one', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const rows = Array.from({ length: 30 }, (_, index) => ({
       rank: index + 1,
       subjectRef: `user:default/user-${String(index + 1).padStart(2, '0')}`,
@@ -380,7 +407,8 @@ describe('LeaderboardPage', () => {
 
     const { fetchApi } = renderPage(fetchImpl);
 
-    expect(await screen.findByText('User 01')).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('User 01')).toBeInTheDocument();
     expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Next' }));
@@ -404,7 +432,7 @@ describe('LeaderboardPage', () => {
   });
 
   it('clamps invalid page sizes back into the supported range on blur', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const rows = Array.from({ length: 9 }, (_, index) => ({
       rank: index + 1,
       subjectRef: `user:default/user-${String(index + 1).padStart(2, '0')}`,
@@ -414,7 +442,8 @@ describe('LeaderboardPage', () => {
 
     const { fetchApi } = renderPage(fetchImpl);
 
-    expect(await screen.findByText('User 01')).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('User 01')).toBeInTheDocument();
 
     const pageSizeInput = screen.getByRole('textbox', { name: 'Page size' });
     await user.clear(pageSizeInput);
@@ -430,7 +459,7 @@ describe('LeaderboardPage', () => {
   });
 
   it('sorts the full leaderboard before paginating', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const rows = [
       {
         rank: 1,
@@ -466,7 +495,8 @@ describe('LeaderboardPage', () => {
     const fetchImpl = createPaginatedFetchImpl(rows);
 
     renderPage(fetchImpl);
-    expect(await screen.findByText('Zara Zane')).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('Zara Zane')).toBeInTheDocument();
 
     const pageSizeInput = screen.getByRole('textbox', { name: 'Page size' });
     await user.clear(pageSizeInput);
@@ -508,8 +538,9 @@ describe('LeaderboardPage', () => {
 
     renderPage(fetchImpl);
 
+    await waitForLeaderboardToSettle();
     expect(
-      await screen.findByText('No leaderboard entries to show.'),
+      screen.getByText('No leaderboard entries to show.'),
     ).toBeInTheDocument();
     expect(
       screen.getByText('No one has earned any points yet.'),
@@ -529,14 +560,13 @@ describe('LeaderboardPage', () => {
 
     renderPage(fetchImpl);
 
-    expect(
-      await screen.findByText('Unable to load leaderboard'),
-    ).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('Unable to load leaderboard')).toBeInTheDocument();
     expect(screen.getByText('Leaderboard request failed')).toBeInTheDocument();
   });
 
   it('loads additional backend pages before paginating locally', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const rows = Array.from({ length: 101 }, (_, index) => ({
       rank: index + 1,
       subjectRef: `user:default/user-${String(index + 1).padStart(3, '0')}`,
@@ -546,7 +576,8 @@ describe('LeaderboardPage', () => {
 
     const { fetchApi } = renderPage(fetchImpl);
 
-    expect(await screen.findByText('User 001')).toBeInTheDocument();
+    await waitForLeaderboardToSettle();
+    expect(screen.getByText('User 001')).toBeInTheDocument();
     await waitFor(() => expect(fetchApi.fetch).toHaveBeenCalledTimes(2));
     expect(screen.getByText('Page 1 of 5')).toBeInTheDocument();
     expect(fetchApi.fetch).toHaveBeenNthCalledWith(
@@ -572,5 +603,5 @@ describe('LeaderboardPage', () => {
       expect(screen.getByText('Page 5 of 5')).toBeInTheDocument(),
     );
     expect(screen.getByText('User 101')).toBeInTheDocument();
-  }, 15_000);
+  });
 });

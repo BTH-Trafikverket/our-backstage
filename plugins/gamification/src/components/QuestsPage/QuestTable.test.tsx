@@ -6,6 +6,11 @@ import type { Quest, QuestTableRow } from './types';
 import { createQuestTableRow } from './utils';
 
 describe('QuestTable', () => {
+  const routerFuture = {
+    v7_relativeSplatPath: true,
+    v7_startTransition: true,
+  } as const;
+
   const baseQuest: Quest = {
     id: 'quest-1',
     title: 'Review pull requests',
@@ -47,7 +52,7 @@ describe('QuestTable', () => {
 
   const renderTable = (isAdmin: boolean) =>
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <QuestTable
           isAdmin={isAdmin}
           search=""
@@ -76,7 +81,7 @@ describe('QuestTable', () => {
 
   it('hides admin action buttons for archived quests', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <QuestTable
           isAdmin
           search=""
