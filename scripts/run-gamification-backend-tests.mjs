@@ -67,15 +67,25 @@ function runBackendTests(connectionString) {
   process.env.BACKSTAGE_TEST_DATABASE_POSTGRES18_CONNECTION_STRING =
     connectionString;
 
+  const testArgs = [
+    'workspace',
+    '@internal/gamification-backend',
+    'test',
+    '--watch=false',
+    ...process.argv.slice(2),
+  ];
+
+  if (
+    !testArgs.some(
+      arg => arg === '-w' || arg.startsWith('--maxWorkers'),
+    )
+  ) {
+    testArgs.push('--maxWorkers=4');
+  }
+
   const child = spawn(
     process.execPath,
-    [
-      yarnPath,
-      'workspace',
-      '@internal/gamification-backend',
-      'test',
-      '--watch=false',
-    ],
+    [yarnPath, ...testArgs],
     {
       cwd: repoRoot,
       env: process.env,
