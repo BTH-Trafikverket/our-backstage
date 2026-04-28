@@ -2,6 +2,7 @@ import type { Knex } from 'knex';
 import type { QuestEditSchema } from '../schemas/quests/questEditSchema';
 import type {
   CatalogCondition,
+  CatalogRule,
   CompletionPolicy,
   QuestMode,
   QuestSubjectType,
@@ -14,6 +15,7 @@ export type QuestReminderConfig = {
 
 export type LinkedQuestConfig = {
   catalog_condition?: CatalogCondition;
+  catalog_rule?: CatalogRule;
   reminder?: QuestReminderConfig;
 };
 

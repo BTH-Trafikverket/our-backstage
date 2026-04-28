@@ -40,6 +40,76 @@ describe('validation schemas', () => {
         ['description'],
       ]);
     });
+
+    it('accepts catalog quests with versioned catalog_rule', () => {
+      expect(
+        questCreationSchema.parse({
+          title: 'Catalog quality',
+          description: 'Track catalog quality',
+          xp_reward: 25,
+          subject_type: 'team',
+          quest_mode: 'catalog',
+          linked_config: {
+            catalog_rule: {
+              version: 'v1',
+              check: {
+                type: 'required_annotation',
+                annotation: 'backstage.io/techdocs-ref',
+              },
+            },
+          },
+        }),
+      ).toEqual(
+        expect.objectContaining({
+          quest_mode: 'catalog',
+          linked_config: {
+            catalog_rule: {
+              version: 'v1',
+              check: {
+                type: 'required_annotation',
+                annotation: 'backstage.io/techdocs-ref',
+              },
+            },
+          },
+        }),
+      );
+    });
+
+    it('rejects catalog quests without catalog_condition or catalog_rule', () => {
+      const result = questCreationSchema.safeParse({
+        title: 'Catalog quality',
+        description: 'Track catalog quality',
+        xp_reward: 25,
+        subject_type: 'team',
+        quest_mode: 'catalog',
+        linked_config: {},
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.message).toBe(
+        'linked_config.catalog_condition or linked_config.catalog_rule is required for catalog quests',
+      );
+    });
+
+    it('rejects catalog rules with missing required parameters', () => {
+      const result = questCreationSchema.safeParse({
+        title: 'Catalog quality',
+        description: 'Track catalog quality',
+        xp_reward: 25,
+        subject_type: 'team',
+        quest_mode: 'catalog',
+        linked_config: {
+          catalog_rule: {
+            version: 'v1',
+            check: {
+              type: 'required_annotation',
+            },
+          },
+        },
+      });
+
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('questEditSchema', () => {

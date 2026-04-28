@@ -13,6 +13,8 @@ export const CATALOG_CONDITIONS = [
   'missing_tags',
 ] as const;
 export type CatalogCondition = (typeof CATALOG_CONDITIONS)[number];
+export const CATALOG_RULE_VERSIONS = ['v1'] as const;
+export type CatalogRuleVersion = (typeof CATALOG_RULE_VERSIONS)[number];
 export const questSubjectTypeSchema = z.enum(QUEST_SUBJECT_TYPES);
 const nonEmptyTrimmedString = z.string().trim().min(1);
 
@@ -23,9 +25,48 @@ const questReminderSchema = z
   })
   .strict();
 
+const catalogRuleV1Schema = z
+  .object({
+    version: z.literal('v1'),
+    check: z.discriminatedUnion('type', [
+      z.object({
+        type: z.literal('missing_techdocs'),
+      }),
+      z.object({
+        type: z.literal('missing_owner'),
+      }),
+      z.object({
+        type: z.literal('missing_description'),
+      }),
+      z.object({
+        type: z.literal('missing_tags'),
+      }),
+      z.object({
+        type: z.literal('missing_lifecycle'),
+      }),
+      z.object({
+        type: z.literal('required_annotation'),
+        annotation: nonEmptyTrimmedString,
+      }),
+      z.object({
+        type: z.literal('missing_relation'),
+        relationType: nonEmptyTrimmedString,
+      }),
+      z.object({
+        type: z.literal('missing_dependency_metadata'),
+        field: nonEmptyTrimmedString,
+      }),
+    ]),
+  })
+  .strict();
+
+export const catalogRuleSchema = z.union([catalogRuleV1Schema]);
+export type CatalogRule = z.infer<typeof catalogRuleSchema>;
+
 export const linkedQuestConfigSchema = z
   .object({
     catalog_condition: z.enum(CATALOG_CONDITIONS).optional(),
+    catalog_rule: catalogRuleSchema.optional(),
     reminder: questReminderSchema.optional(),
   })
   .strict()
@@ -46,13 +87,14 @@ export const questCreationSchema = z
   .superRefine((data, ctx) => {
     if (
       data.quest_mode === 'catalog' &&
-      !data.linked_config?.catalog_condition
+      !data.linked_config?.catalog_condition &&
+      !data.linked_config?.catalog_rule
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          'linked_config.catalog_condition is required for catalog quests',
-        path: ['linked_config', 'catalog_condition'],
+          'linked_config.catalog_condition or linked_config.catalog_rule is required for catalog quests',
+        path: ['linked_config'],
       });
     }
   });
