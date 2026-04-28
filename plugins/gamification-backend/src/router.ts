@@ -24,6 +24,7 @@ import { BadgesService } from './services/badgesService';
 import { LeaderboardService } from './services/leaderboardService';
 import { QuestsService } from './services/questsService';
 import { ReminderService } from './services/reminderService';
+import type { ReminderEvaluationService } from './services/reminderEvaluationService';
 import { WebhookService } from './services/webhookService';
 import { CatalogService } from './services/catalogService';
 
@@ -74,6 +75,7 @@ export function createRouter({
   auth,
   discovery,
   logger,
+  reminderEvaluationService,
 }: {
   httpAuth: HttpAuthService;
   userInfo: UserInfoService;
@@ -82,6 +84,7 @@ export function createRouter({
   auth: AuthService;
   discovery: DiscoveryService;
   logger: LoggerService;
+  reminderEvaluationService?: ReminderEvaluationService;
 }): express.Router {
   const router = Router();
   router.use(express.json());
@@ -138,6 +141,7 @@ export function createRouter({
       userInfo,
       questsService,
       config,
+      reminderEvaluationService,
     }),
   );
 

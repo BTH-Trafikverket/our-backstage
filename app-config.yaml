@@ -153,3 +153,10 @@ gamification:
       - postman
       - github-actions
       - azure-devops
+
+  reminders:
+    rules:
+      - key: inactive-merge-pr-7d
+        questTitle: Merge a PR
+        inactivityDays: 7
+        activityDescription: merged a PR

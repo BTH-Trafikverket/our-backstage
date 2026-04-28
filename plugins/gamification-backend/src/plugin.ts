@@ -18,6 +18,7 @@ import {
   type ReminderEvaluationRule,
 } from './services/reminderEvaluationService';
 import { ReminderEvaluationWorker } from './services/reminderEvaluationWorker';
+import { ReminderNotificationService } from './services/reminderNotificationService';
 import { WebhookService } from './services/webhookService';
 import { ScheduledWebhooksService } from './services/scheduledWebhooksService';
 import { DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE } from './services/scheduledWebhookPeriod';
@@ -34,6 +35,7 @@ function readReminderEvaluationRules(
   for (const ruleConfig of ruleConfigs) {
     const key = ruleConfig.getOptionalString('key')?.trim();
     const questId = ruleConfig.getOptionalString('questId')?.trim();
+    const questTitle = ruleConfig.getOptionalString('questTitle')?.trim();
     const inactivityDays = ruleConfig.getOptionalNumber('inactivityDays');
     const activityDescription = ruleConfig
       .getOptionalString('activityDescription')
@@ -43,12 +45,12 @@ function readReminderEvaluationRules(
 
     if (
       !key ||
-      !questId ||
+      (!questId && !questTitle) ||
       !activityDescription ||
       inactivityDays === undefined
     ) {
       logger.warn(
-        'Skipping gamification reminder rule because key, questId, inactivityDays, or activityDescription is missing',
+        'Skipping gamification reminder rule because key, questId/questTitle, inactivityDays, or activityDescription is missing',
       );
       continue;
     }
@@ -63,6 +65,7 @@ function readReminderEvaluationRules(
     rules.push({
       key,
       questId,
+      questTitle,
       inactivityDays,
       activityDescription,
       activitySource,
@@ -140,13 +143,20 @@ export const gamificationBackendPlugin = createBackendPlugin({
             ) ?? 60_000,
         });
         const reminderRules = readReminderEvaluationRules(config, logger);
+        const reminderNotificationService = new ReminderNotificationService({
+          auth,
+          discovery,
+          logger,
+        });
+        const reminderEvaluationService = new ReminderEvaluationService({
+          questsRepo: new QuestsRepository(knex),
+          reminderRepo: new ReminderRepository(knex),
+          rules: reminderRules,
+          logger,
+          notificationSender: reminderNotificationService,
+        });
         const reminderEvaluationWorker = new ReminderEvaluationWorker({
-          reminderEvaluationService: new ReminderEvaluationService({
-            questsRepo: new QuestsRepository(knex),
-            reminderRepo: new ReminderRepository(knex),
-            rules: reminderRules,
-            logger,
-          }),
+          reminderEvaluationService,
           logger,
           evaluationIntervalMs:
             config.getOptionalNumber(
@@ -163,6 +173,7 @@ export const gamificationBackendPlugin = createBackendPlugin({
             auth,
             discovery,
             logger,
+            reminderEvaluationService,
           }),
         );
 

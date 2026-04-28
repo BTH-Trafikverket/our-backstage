@@ -60,7 +60,8 @@ export interface Config {
          * Quest ID the reminder points to.
          * @visibility backend
          */
-        questId: string;
+        questId?: string;
+        questTitle?: string;
         /**
          * Inactivity threshold in whole days.
          * @visibility backend

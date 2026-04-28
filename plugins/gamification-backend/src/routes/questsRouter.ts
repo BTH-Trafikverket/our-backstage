@@ -10,6 +10,7 @@ import { questCreationSchema } from '../schemas/quests/questCreationSchema';
 import { QuestsService } from '../services/questsService';
 import { questEditSchema } from '../schemas/quests/questEditSchema';
 import { questEventSchema } from '../schemas/quests/questEventSchema';
+import type { ReminderEvaluationService } from '../services/reminderEvaluationService';
 import {
   createReadAdminAccess,
   createRequireAdminCredentials,
@@ -28,11 +29,13 @@ export function QuestsRouter({
   userInfo,
   questsService,
   config,
+  reminderEvaluationService,
 }: {
   httpAuth: HttpAuthService;
   userInfo: UserInfoService;
   questsService: QuestsService;
   config: RootConfigService;
+  reminderEvaluationService?: ReminderEvaluationService;
 }): express.Router {
   const router = Router();
   const requireAdminCredentials = createRequireAdminCredentials({
@@ -79,6 +82,18 @@ export function QuestsRouter({
 
       res.status(200).json(result);
     });
+
+    if (reminderEvaluationService) {
+      router.post('/test/reminders/force', async (req, res) => {
+        await requireAdminCredentials(req);
+
+        const result = await reminderEvaluationService.evaluateConfiguredRules({
+          force: true,
+        });
+
+        res.status(200).json(result);
+      });
+    }
   }
 
   router.post('/', async (req, res) => {
