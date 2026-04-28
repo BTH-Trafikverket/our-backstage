@@ -14,6 +14,7 @@ describe('QuestsService', () => {
   };
   let mockCatalogClient: { getEntities: jest.Mock };
   let mockAuthService: { getPluginRequestToken: jest.Mock };
+  let mockCatalogService: { evaluateTeamOwnedEntities: jest.Mock };
 
   beforeEach(() => {
     mockRepo = {
@@ -35,6 +36,9 @@ describe('QuestsService', () => {
     mockCatalogClient = {
       getEntities: jest.fn(),
     };
+    mockCatalogService = {
+      evaluateTeamOwnedEntities: jest.fn(),
+    };
     mockReminderRepo = {
       createOrRefreshReminder: jest.fn(),
       updateReminderStatusForQuest: jest.fn(),
@@ -45,6 +49,7 @@ describe('QuestsService', () => {
     service = new QuestsService({
       questsRepo: mockRepo,
       reminderRepo: mockReminderRepo as any,
+      catalogService: mockCatalogService as any,
       catalogClient: mockCatalogClient as any,
       auth: mockAuthService as any,
     });
@@ -505,6 +510,83 @@ describe('QuestsService', () => {
         status: undefined,
         team_ref: undefined,
       });
+    });
+  });
+
+  describe('runCatalogLinkedQuestsForTeam', () => {
+    it('evaluates catalog-linked team quests and triggers events for matching entities', async () => {
+      mockRepo.getQuests
+        .mockResolvedValueOnce({
+          data: [
+            {
+              id: 'quest-catalog-1',
+              title: 'Missing techdocs',
+              description: '',
+              target_count: 1,
+              xp_reward: 10,
+              subject_type: 'team',
+              completion_policy: 'REPEATABLE',
+              cooldown_days: null,
+              quest_mode: 'catalog',
+              linked_config: { catalog_condition: 'missing_techdocs' },
+              created_at: new Date(),
+              updated_at: new Date(),
+              archived_at: null,
+            },
+          ] as any,
+          pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+        })
+        .mockResolvedValueOnce({
+          data: [],
+          pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
+        } as any);
+
+      mockCatalogService.evaluateTeamOwnedEntities.mockResolvedValue([
+        {
+          entityRef: 'component:default/service-a',
+          passed: true,
+        },
+        {
+          entityRef: 'component:default/service-b',
+          passed: false,
+        },
+      ]);
+
+      mockRepo.getQuestById.mockResolvedValue({
+        id: 'quest-catalog-1',
+        title: 'Missing techdocs',
+        description: '',
+        target_count: 1,
+        xp_reward: 10,
+        subject_type: 'team',
+        completion_policy: 'REPEATABLE',
+        cooldown_days: null,
+        quest_mode: 'catalog',
+        linked_config: { catalog_condition: 'missing_techdocs' },
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+      mockRepo.tryInsertReceipt.mockResolvedValue(true);
+      mockRepo.incrementQuestProgress.mockResolvedValue({
+        subject_ref: 'group:default/platform',
+        quest_id: 'quest-catalog-1',
+        completion_count: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      const result = await service.runCatalogLinkedQuestsForTeam(
+        'group:default/platform',
+        {
+          credentials: {} as any,
+        },
+      );
+
+      expect(result.evaluatedQuests).toBe(1);
+      expect(result.matchedEntities).toBe(1);
+      expect(result.triggeredEvents).toBe(1);
+      expect(result.duplicateEvents).toBe(0);
+      expect(mockCatalogService.evaluateTeamOwnedEntities).toHaveBeenCalled();
     });
   });
 

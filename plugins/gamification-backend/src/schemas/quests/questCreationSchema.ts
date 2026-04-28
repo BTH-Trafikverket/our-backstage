@@ -8,10 +8,9 @@ export const QUEST_MODES = ['event_driven', 'catalog'] as const;
 export type QuestMode = (typeof QUEST_MODES)[number];
 export const CATALOG_CONDITIONS = [
   'missing_techdocs',
-  'missing_api_definition',
-  'missing_readme',
-  'missing_codeowners',
-  'missing_lifecycle',
+  'missing_owner',
+  'missing_description',
+  'missing_tags',
 ] as const;
 export type CatalogCondition = (typeof CATALOG_CONDITIONS)[number];
 export const questSubjectTypeSchema = z.enum(QUEST_SUBJECT_TYPES);

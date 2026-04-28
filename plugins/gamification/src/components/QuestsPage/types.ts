@@ -13,10 +13,9 @@ export type QuestSortOrder = 'asc' | 'desc';
 export type QuestMode = 'event_driven' | 'catalog';
 export type CatalogConditionType =
   | 'missing_techdocs'
-  | 'missing_api_definition'
-  | 'missing_readme'
-  | 'missing_codeowners'
-  | 'missing_lifecycle';
+  | 'missing_owner'
+  | 'missing_description'
+  | 'missing_tags';
 
 export type QuestReminderConfig = {
   description: string;
@@ -68,7 +67,7 @@ export type QuestFormData = {
   completion_policy: QuestCompletionPolicy;
   cooldown_days: string;
   quest_mode: QuestMode;
-  catalog_condition: CatalogConditionType;
+  catalog_condition: CatalogConditionType | '';
   reminder_day: string;
   reminder_description: string;
 };

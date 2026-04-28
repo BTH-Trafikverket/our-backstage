@@ -47,10 +47,9 @@ export const questModeOptions: Array<QuestOption<QuestMode>> = [
 export const catalogConditionOptions: Array<QuestOption<CatalogConditionType>> =
   [
     { value: 'missing_techdocs', label: 'Missing TechDocs' },
-    { value: 'missing_api_definition', label: 'Missing API definition' },
-    { value: 'missing_readme', label: 'Missing README' },
-    { value: 'missing_codeowners', label: 'Missing CODEOWNERS' },
-    { value: 'missing_lifecycle', label: 'Missing lifecycle' },
+    { value: 'missing_owner', label: 'Missing owner' },
+    { value: 'missing_description', label: 'Missing description' },
+    { value: 'missing_tags', label: 'Missing tags' },
   ];
 
 export const createEmptyQuestForm = (): QuestFormData => ({
@@ -62,7 +61,7 @@ export const createEmptyQuestForm = (): QuestFormData => ({
   completion_policy: 'REPEATABLE',
   cooldown_days: '',
   quest_mode: 'event_driven',
-  catalog_condition: 'missing_techdocs',
+  catalog_condition: '',
   reminder_day: '',
   reminder_description: '',
 });
@@ -123,7 +122,7 @@ export const buildQuestPayload = (formData: QuestFormData) => {
     Boolean(formData.reminder_day.trim());
 
   const linkedConfig: Record<string, unknown> = {};
-  if (formData.quest_mode === 'catalog') {
+  if (formData.quest_mode === 'catalog' && formData.catalog_condition) {
     linkedConfig.catalog_condition = formData.catalog_condition;
   }
   if (hasReminder) {

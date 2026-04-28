@@ -18,6 +18,8 @@ import { AuthService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import type { QuestEventActor } from '../schemas/quests/questEventSchema';
+import { getCatalogRule } from './catalogRules';
+import { CatalogService } from './catalogService';
 
 type QuestServiceOpts = {
   credentials: any;
@@ -52,6 +54,7 @@ const DEFAULT_ACTOR_RESOLUTION_PROVIDERS: ActorResolutionProviders = {
 export class QuestsService {
   private readonly questsRepo: QuestsRepository;
   private readonly reminderRepo?: ReminderRepository;
+  private readonly catalogService?: CatalogService;
   private readonly catalogClient: CatalogClient;
   private readonly auth: AuthService;
   private readonly actorResolutionProviders: ActorResolutionProviders;
@@ -59,12 +62,14 @@ export class QuestsService {
   constructor(opts: {
     questsRepo: QuestsRepository;
     reminderRepo?: ReminderRepository;
+    catalogService?: CatalogService;
     catalogClient: CatalogClient;
     auth: AuthService;
     actorResolutionProviders?: ActorResolutionProviders;
   }) {
     this.questsRepo = opts.questsRepo;
     this.reminderRepo = opts.reminderRepo;
+    this.catalogService = opts.catalogService;
     this.catalogClient = opts.catalogClient;
     this.auth = opts.auth;
     this.actorResolutionProviders = this.mergeActorResolutionProviders(
@@ -586,6 +591,114 @@ export class QuestsService {
       page: filters?.page,
       limit: filters?.limit,
     });
+  }
+
+  async runCatalogLinkedQuestsForTeam(
+    teamRef: string,
+    opts: QuestServiceOpts,
+  ): Promise<{
+    teamRef: string;
+    evaluatedQuests: number;
+    skippedQuests: number;
+    matchedEntities: number;
+    triggeredEvents: number;
+    duplicateEvents: number;
+    blockedEvents: number;
+  }> {
+    if (!teamRef.startsWith('group:')) {
+      throw new InputError('teamRef must be a group entity ref');
+    }
+
+    if (!this.catalogService) {
+      throw new InputError('Catalog runner is not configured');
+    }
+
+    const catalogQuests: QuestRow[] = [];
+    let page = 1;
+    let hasMorePages = true;
+
+    while (hasMorePages) {
+      const pageResult = await this.questsRepo.getQuests({
+        audience: 'team',
+        includeArchived: false,
+        page,
+        limit: 100,
+      });
+
+      catalogQuests.push(
+        ...pageResult.data.filter(
+          quest =>
+            quest.quest_mode === 'catalog' &&
+            Boolean(quest.linked_config?.catalog_condition),
+        ),
+      );
+
+      hasMorePages =
+        pageResult.pagination.totalPages > 0 &&
+        page < pageResult.pagination.totalPages;
+
+      if (hasMorePages) {
+        page += 1;
+      }
+    }
+
+    let skippedQuests = 0;
+    let matchedEntities = 0;
+    let triggeredEvents = 0;
+    let duplicateEvents = 0;
+    let blockedEvents = 0;
+
+    for (const quest of catalogQuests) {
+      const condition = quest.linked_config?.catalog_condition;
+      if (!condition) {
+        skippedQuests += 1;
+        continue;
+      }
+
+      const rule = getCatalogRule(condition);
+      if (!rule) {
+        skippedQuests += 1;
+        continue;
+      }
+
+      const evaluations = await this.catalogService.evaluateTeamOwnedEntities(
+        teamRef,
+        rule,
+        opts.credentials,
+      );
+      const passingEntities = evaluations.filter(result => result.passed);
+
+      matchedEntities += passingEntities.length;
+
+      for (const match of passingEntities) {
+        const result = await this.handleQuestEvent({
+          eventId: `catalog:${quest.id}:${teamRef}:${condition}:${match.entityRef}`,
+          questId: quest.id,
+          subjectRef: teamRef,
+          callerSubject: 'internal:catalog-linked-runner',
+          opts,
+        });
+
+        triggeredEvents += 1;
+
+        if (result.duplicate) {
+          duplicateEvents += 1;
+        }
+        if (result.blocked) {
+          blockedEvents += 1;
+        }
+      }
+    }
+
+    return {
+      teamRef,
+      evaluatedQuests: catalogQuests.length,
+      skippedQuests,
+      matchedEntities,
+      triggeredEvents,
+      duplicateEvents,
+      blockedEvents,
+    };
   }
 
   async handleQuestEvent(params: {

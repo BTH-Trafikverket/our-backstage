@@ -15,8 +15,14 @@ import {
   createReadAdminAccess,
   createRequireAdminCredentials,
 } from './adminAccess';
+import { z } from 'zod';
 
 const UI_TEST_CALLER_SUBJECT = 'internal:backstage-ui-test';
+const catalogRunnerRequestSchema = z
+  .object({
+    teamRef: z.string().trim().min(1),
+  })
+  .strict();
 
 export function QuestsRouter({
   httpAuth,
@@ -173,6 +179,41 @@ export function QuestsRouter({
       callerSubject: principal.subject,
       opts: { credentials },
     });
+
+    res.status(200).json(result);
+  });
+
+  router.post('/catalog/run', async (req, res) => {
+    const parsed = catalogRunnerRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new InputError(parsed.error.toString());
+    }
+
+    const credentials = await httpAuth.credentials(req, {
+      allow: ['service', 'user'],
+    });
+
+    let runnerCredentials = credentials;
+    if (credentials.principal.type === 'service') {
+      const allowed =
+        config.getOptionalStringArray('gamification.quests.allowedCallers') ??
+        [];
+
+      if (!allowed.includes(credentials.principal.subject)) {
+        throw new NotFoundError('Caller not allowed');
+      }
+    } else if (credentials.principal.type === 'user') {
+      runnerCredentials = await requireAdminCredentials(req);
+    } else {
+      throw new InputError('Unsupported credential type');
+    }
+
+    const result = await questsService.runCatalogLinkedQuestsForTeam(
+      parsed.data.teamRef,
+      {
+        credentials: runnerCredentials,
+      },
+    );
 
     res.status(200).json(result);
   });
