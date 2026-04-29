@@ -595,6 +595,9 @@ describe('QuestsService', () => {
       expect(result.triggeredEvents).toBe(1);
       expect(result.duplicateEvents).toBe(0);
       expect(result.unknownEvaluations).toBe(0);
+      expect(result.unknownCatalogFetches).toBe(0);
+      expect(result.unknownMissingEntities).toBe(0);
+      expect(result.unknownRuleErrors).toBe(0);
       expect(mockCatalogService.getTeamOwnedEntities).toHaveBeenCalledTimes(1);
       expect(mockCatalogService.evaluateRuleAgainstEntities).toHaveBeenCalled();
     });
@@ -680,6 +683,9 @@ describe('QuestsService', () => {
       expect(result.matchedEntities).toBe(1);
       expect(result.triggeredEvents).toBe(1);
       expect(result.unknownEvaluations).toBe(0);
+      expect(result.unknownCatalogFetches).toBe(0);
+      expect(result.unknownMissingEntities).toBe(0);
+      expect(result.unknownRuleErrors).toBe(0);
       expect(mockCatalogService.getTeamOwnedEntities).toHaveBeenCalledTimes(1);
       expect(mockCatalogService.evaluateRuleAgainstEntities).toHaveBeenCalled();
     });
@@ -823,9 +829,68 @@ describe('QuestsService', () => {
       expect(result.evaluatedQuests).toBe(1);
       expect(result.triggeredEvents).toBe(0);
       expect(result.unknownEvaluations).toBe(1);
+      expect(result.unknownCatalogFetches).toBe(1);
+      expect(result.unknownMissingEntities).toBe(0);
+      expect(result.unknownRuleErrors).toBe(0);
       expect(
         mockCatalogService.evaluateRuleAgainstEntities,
       ).not.toHaveBeenCalled();
+    });
+
+    it('counts unknown reasons from evaluator output explicitly', async () => {
+      mockRepo.getQuests.mockResolvedValue({
+        data: [
+          {
+            id: 'quest-catalog-3',
+            title: 'Catalog quality',
+            description: '',
+            target_count: 1,
+            xp_reward: 10,
+            subject_type: 'team',
+            completion_policy: 'REPEATABLE',
+            cooldown_days: null,
+            quest_mode: 'catalog',
+            linked_config: {
+              catalog_rule: {
+                version: 'v1',
+                check: { type: 'missing_owner' },
+              },
+            },
+            created_at: new Date(),
+            updated_at: new Date(),
+            archived_at: null,
+          },
+        ] as any,
+        pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+      } as any);
+
+      mockCatalogService.getTeamOwnedEntities.mockResolvedValue([
+        { kind: 'Component', metadata: { name: 'service-a' } },
+      ]);
+      mockCatalogService.evaluateRuleAgainstEntities.mockReturnValue([
+        {
+          entityRef: 'component:default/service-a',
+          status: 'unknown',
+          unknownReason: 'missing_or_deleted_entity',
+        },
+        {
+          entityRef: 'component:default/service-b',
+          status: 'unknown',
+          unknownReason: 'rule_evaluation_error',
+        },
+      ]);
+
+      const result = await service.runCatalogLinkedQuestsForTeam(
+        'group:default/platform',
+        {
+          credentials: {} as any,
+        },
+      );
+
+      expect(result.unknownEvaluations).toBe(2);
+      expect(result.unknownMissingEntities).toBe(1);
+      expect(result.unknownRuleErrors).toBe(1);
+      expect(result.triggeredEvents).toBe(0);
     });
   });
 

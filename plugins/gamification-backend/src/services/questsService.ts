@@ -609,6 +609,9 @@ export class QuestsService {
     duplicateEvents: number;
     blockedEvents: number;
     unknownEvaluations: number;
+    unknownCatalogFetches: number;
+    unknownMissingEntities: number;
+    unknownRuleErrors: number;
   }> {
     if (!teamRef.startsWith('group:')) {
       throw new InputError('teamRef must be a group entity ref');
@@ -656,6 +659,9 @@ export class QuestsService {
     let duplicateEvents = 0;
     let blockedEvents = 0;
     let unknownEvaluations = 0;
+    let unknownCatalogFetches = 0;
+    let unknownMissingEntities = 0;
+    let unknownRuleErrors = 0;
 
     let teamOwnedEntities: Entity[] | undefined;
     let teamEntitiesUnavailable = false;
@@ -667,6 +673,7 @@ export class QuestsService {
       );
     } catch {
       teamEntitiesUnavailable = true;
+      unknownCatalogFetches = catalogQuests.length;
     }
 
     for (const quest of catalogQuests) {
@@ -688,8 +695,15 @@ export class QuestsService {
       const passingEntities = evaluations.filter(
         result => result.status === 'pass',
       );
-      unknownEvaluations += evaluations.filter(
+      const unknownResults = evaluations.filter(
         result => result.status === 'unknown',
+      );
+      unknownEvaluations += unknownResults.length;
+      unknownMissingEntities += unknownResults.filter(
+        result => result.unknownReason === 'missing_or_deleted_entity',
+      ).length;
+      unknownRuleErrors += unknownResults.filter(
+        result => result.unknownReason === 'rule_evaluation_error',
       ).length;
 
       matchedEntities += passingEntities.length;
@@ -723,6 +737,9 @@ export class QuestsService {
       duplicateEvents,
       blockedEvents,
       unknownEvaluations,
+      unknownCatalogFetches,
+      unknownMissingEntities,
+      unknownRuleErrors,
     };
   }
 

@@ -64,6 +64,71 @@ describe('catalogRules', () => {
     ).toBe(true);
   });
 
+  it('builds missing_lifecycle evaluator from catalog_rule config', () => {
+    const rule = getCatalogRuleFromConfig({
+      version: 'v1',
+      check: {
+        type: 'missing_lifecycle',
+      },
+    });
+
+    expect(rule).toBeDefined();
+    expect(rule?.evaluate(baseEntity)).toBe(true);
+    expect(
+      rule?.evaluate({
+        ...baseEntity,
+        spec: {
+          lifecycle: 'production',
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('builds missing_relation evaluator from catalog_rule config', () => {
+    const rule = getCatalogRuleFromConfig({
+      version: 'v1',
+      check: {
+        type: 'missing_relation',
+        relationType: 'ownedBy',
+      },
+    });
+
+    expect(rule).toBeDefined();
+    expect(rule?.evaluate(baseEntity)).toBe(true);
+    expect(
+      rule?.evaluate({
+        ...baseEntity,
+        relations: [
+          {
+            type: 'ownedBy',
+            targetRef: 'group:default/platform',
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it('builds missing_dependency_metadata evaluator from catalog_rule config', () => {
+    const rule = getCatalogRuleFromConfig({
+      version: 'v1',
+      check: {
+        type: 'missing_dependency_metadata',
+        field: 'dependsOn',
+      },
+    });
+
+    expect(rule).toBeDefined();
+    expect(rule?.evaluate(baseEntity)).toBe(true);
+    expect(
+      rule?.evaluate({
+        ...baseEntity,
+        spec: {
+          dependsOn: ['component:default/api'],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('passes when the techdocs annotation is missing', () => {
     expect(missingTechDocsRule.evaluate(baseEntity)).toBe(true);
   });

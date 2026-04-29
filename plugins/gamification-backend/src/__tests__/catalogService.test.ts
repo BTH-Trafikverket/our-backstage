@@ -149,4 +149,66 @@ describe('CatalogService', () => {
       service.checkCondition(entityRef, missingTechDocsRule, credentials),
     ).resolves.toBe(true);
   });
+
+  it('marks entities with missing identity data as unknown', () => {
+    const logger = createLogger();
+    const auth = {
+      getPluginRequestToken: jest.fn(),
+    } as unknown as jest.Mocked<AuthService>;
+    const catalogClient = {
+      getEntityByRef: jest.fn(),
+    } as unknown as jest.Mocked<Pick<CatalogClient, 'getEntityByRef'>>;
+    const service = new CatalogService(catalogClient, auth, logger);
+
+    const evaluations = service.evaluateRuleAgainstEntities(
+      [
+        {
+          apiVersion: 'backstage.io/v1alpha1',
+          kind: '',
+          metadata: {
+            name: '',
+          },
+        } as Entity,
+      ],
+      missingTechDocsRule,
+    );
+
+    expect(evaluations).toEqual([
+      {
+        entityRef: 'unknown:entity',
+        status: 'unknown',
+        unknownReason: 'missing_or_deleted_entity',
+      },
+    ]);
+  });
+
+  it('marks rule evaluation exceptions as unknown rule errors', () => {
+    const logger = createLogger();
+    const auth = {
+      getPluginRequestToken: jest.fn(),
+    } as unknown as jest.Mocked<AuthService>;
+    const catalogClient = {
+      getEntityByRef: jest.fn(),
+    } as unknown as jest.Mocked<Pick<CatalogClient, 'getEntityByRef'>>;
+    const service = new CatalogService(catalogClient, auth, logger);
+
+    const badRule: CatalogRule = {
+      id: 'broken-rule',
+      description: 'always throws',
+      evaluate: () => {
+        throw new Error('boom');
+      },
+    };
+
+    const evaluations = service.evaluateRuleAgainstEntities([entity], badRule);
+
+    expect(evaluations).toEqual([
+      {
+        entityRef: 'component:default/sample-service',
+        status: 'unknown',
+        unknownReason: 'rule_evaluation_error',
+      },
+    ]);
+    expect(logger.error).toHaveBeenCalled();
+  });
 });

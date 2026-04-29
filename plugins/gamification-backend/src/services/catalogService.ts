@@ -13,9 +13,14 @@ type TeamOwnedEntitiesCatalogClient = Pick<CatalogClient, 'getEntities'>;
 
 export type CatalogEvaluationStatus = 'pass' | 'fail' | 'unknown';
 
+export type CatalogEvaluationUnknownReason =
+  | 'missing_or_deleted_entity'
+  | 'rule_evaluation_error';
+
 export type CatalogRuleEvaluation = {
   entityRef: string;
   status: CatalogEvaluationStatus;
+  unknownReason?: CatalogEvaluationUnknownReason;
 };
 
 export class CatalogService {
@@ -109,7 +114,31 @@ export class CatalogService {
   ): CatalogRuleEvaluation[] {
     // Evaluate a pre-fetched entity set so callers can reuse one catalog fetch.
     return entities.map(entity => {
-      const entityRef = stringifyEntityRef(entity);
+      const hasValidIdentity =
+        typeof entity.kind === 'string' &&
+        entity.kind.trim().length > 0 &&
+        typeof entity.metadata?.name === 'string' &&
+        entity.metadata.name.trim().length > 0;
+
+      if (!hasValidIdentity) {
+        return {
+          entityRef: 'unknown:entity',
+          status: 'unknown',
+          unknownReason: 'missing_or_deleted_entity',
+        };
+      }
+
+      let entityRef: string;
+
+      try {
+        entityRef = stringifyEntityRef(entity);
+      } catch {
+        return {
+          entityRef: 'unknown:entity',
+          status: 'unknown',
+          unknownReason: 'missing_or_deleted_entity',
+        };
+      }
 
       try {
         const passed = rule.evaluate(entity);
@@ -129,6 +158,7 @@ export class CatalogService {
         return {
           entityRef,
           status: 'unknown',
+          unknownReason: 'rule_evaluation_error',
         };
       }
     });

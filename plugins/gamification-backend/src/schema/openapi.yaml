@@ -1250,6 +1250,9 @@ components:
         - duplicateEvents
         - blockedEvents
         - unknownEvaluations
+        - unknownCatalogFetches
+        - unknownMissingEntities
+        - unknownRuleErrors
       additionalProperties: false
       properties:
         teamRef:
@@ -1273,6 +1276,15 @@ components:
           type: integer
           minimum: 0
         unknownEvaluations:
+          type: integer
+          minimum: 0
+        unknownCatalogFetches:
+          type: integer
+          minimum: 0
+        unknownMissingEntities:
+          type: integer
+          minimum: 0
+        unknownRuleErrors:
           type: integer
           minimum: 0
     BadgeCriteria:
