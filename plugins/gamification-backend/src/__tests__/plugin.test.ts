@@ -110,4 +110,30 @@ describe('gamification backend plugin worker startup', () => {
       'gamification scheduled webhook worker started',
     );
   });
+
+  it('constructs the delivery webhook service with the configured target policy and timeout', async () => {
+    await initPlugin({
+      gamification: {
+        webhooks: {
+          delivery: {
+            requestTimeoutMs: 4321,
+            allowedHosts: ['hooks.example.com'],
+            allowHttp: true,
+            allowPrivateTargets: true,
+          },
+        },
+      },
+    });
+
+    const domainEventWorkerArgs = (DomainEventWorker as jest.Mock).mock
+      .calls[0][0];
+    const webhookService = domainEventWorkerArgs.webhookService;
+
+    expect((webhookService as any).requestTimeoutMs).toBe(4321);
+    expect((webhookService as any).targetPolicy.allowHttp).toBe(true);
+    expect((webhookService as any).targetPolicy.allowPrivateTargets).toBe(true);
+    expect((webhookService as any).targetPolicy.allowedHosts).toEqual(
+      new Set(['hooks.example.com']),
+    );
+  });
 });

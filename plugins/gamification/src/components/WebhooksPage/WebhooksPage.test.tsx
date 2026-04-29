@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { discoveryApiRef, fetchApiRef } from '@backstage/core-plugin-api';
 import { TestApiProvider } from '@backstage/test-utils';
@@ -238,6 +238,95 @@ describe('WebhooksPage', () => {
         `${baseUrl}/webhooks/webhook-1`,
         expect.objectContaining({
           method: 'DELETE',
+        }),
+      ),
+    );
+  });
+
+  it('shows an override dialog when create health check warns and retries with skipEndpointHealthCheck', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = jest.fn(async (input: RequestInfo | URL, init?: any) => {
+      const url = getRequestUrl(input);
+
+      if (url === `${baseUrl}/webhooks` && init?.method === 'POST') {
+        const body = JSON.parse(init.body);
+
+        if (body.skipEndpointHealthCheck) {
+          return createJsonResponse(
+            {
+              ...webhook,
+              id: 'webhook-2',
+              title: body.title,
+              description: body.description,
+              url: body.url,
+              events: [body.event],
+              payload: body.payload,
+            },
+            { status: 201 },
+          );
+        }
+
+        return createJsonResponse(
+          {
+            error: {
+              name: 'WebhookTargetReachabilityError',
+              message:
+                'Webhook endpoint responded with status 404 to a health check. Double-check the URL before saving.',
+              canOverride: true,
+              url: 'https://example.com/webhooks/gamification',
+              statusCode: 404,
+            },
+          },
+          { status: 409 },
+        );
+      }
+
+      return createWebhookListResponse([]);
+    });
+
+    renderPage(fetchImpl);
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Create Webhook' }),
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: 'Title' }),
+      'Production Webhook',
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: 'Webhook URL' }),
+      'https://example.com/webhooks/gamification',
+    );
+    await user.click(screen.getByRole('button', { name: 'Select event' }));
+    await user.click(screen.getByLabelText('Quest Completed'));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Create Webhook',
+      }),
+    );
+
+    expect(
+      await screen.findByText('Endpoint not responding'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/might mean the endpoint is down/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Save anyway' }));
+
+    await waitFor(() =>
+      expect(fetchImpl).toHaveBeenCalledWith(
+        `${baseUrl}/webhooks`,
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            title: 'Production Webhook',
+            description: '',
+            url: 'https://example.com/webhooks/gamification',
+            event: 'quest.completed',
+            payload: {},
+            skipEndpointHealthCheck: true,
+          }),
         }),
       ),
     );

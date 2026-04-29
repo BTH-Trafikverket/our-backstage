@@ -1,9 +1,13 @@
 import { NotFoundError } from '@backstage/errors';
 import type { DomainEventRow } from '../repositories/domainEventsRepository';
-import { WebhookService } from '../services/webhookService';
+import {
+  WebhookService,
+  WebhookTargetReachabilityError,
+} from '../services/webhookService';
 
 describe('WebhookService', () => {
   const originalFetch = global.fetch;
+  const serviceOpts = { credentials: {} as any };
 
   const createDomainEvent = (
     overrides: Partial<DomainEventRow> = {},
@@ -63,6 +67,154 @@ describe('WebhookService', () => {
     await expect(
       service.getWebhookEventMetadata('unknown.event'),
     ).rejects.toThrow(NotFoundError);
+  });
+
+  it('rejects private targets during create using the delivery policy', async () => {
+    const webhookRepo = {
+      getWebhookTriggerEvent: jest.fn(),
+      createWebhook: jest.fn(),
+    };
+    const service = new WebhookService({
+      webhookRepo: webhookRepo as any,
+    });
+
+    await expect(
+      service.createWebhook(
+        {
+          title: 'Private target',
+          description: '',
+          url: 'https://127.0.0.1/webhook',
+          event: 'quest.completed',
+          payload: {},
+        },
+        serviceOpts,
+      ),
+    ).rejects.toThrow("Webhook target host '127.0.0.1' is not allowed");
+
+    expect(webhookRepo.getWebhookTriggerEvent).not.toHaveBeenCalled();
+    expect(webhookRepo.createWebhook).not.toHaveBeenCalled();
+  });
+
+  it('raises an overrideable reachability warning when create health check gets a 404', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: jest.fn().mockResolvedValue(''),
+    });
+    const webhookRepo = {
+      getWebhookTriggerEvent: jest.fn().mockResolvedValue({ name: 'daily' }),
+      createWebhook: jest.fn(),
+    };
+    const service = new WebhookService({
+      webhookRepo: webhookRepo as any,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(
+      service.createWebhook(
+        {
+          title: 'Down target',
+          description: '',
+          url: 'https://example.com/webhook',
+          event: 'quest.completed',
+          payload: {},
+        },
+        serviceOpts,
+      ),
+    ).rejects.toThrow(WebhookTargetReachabilityError);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://example.com/webhook',
+      expect.objectContaining({
+        method: 'HEAD',
+        redirect: 'manual',
+        signal: expect.any(Object),
+      }),
+    );
+    expect(webhookRepo.createWebhook).not.toHaveBeenCalled();
+  });
+
+  it('allows create to proceed when the caller skips the endpoint health check warning', async () => {
+    const fetchImpl = jest.fn();
+    const webhookRepo = {
+      getWebhookTriggerEvent: jest.fn().mockResolvedValue({ name: 'daily' }),
+      createWebhook: jest.fn().mockResolvedValue({
+        id: 'webhook-1',
+        title: 'Override target',
+        description: '',
+        url: 'https://example.com/webhook',
+        trigger_event_name: 'quest.completed',
+        payload: {},
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+    };
+    const service = new WebhookService({
+      webhookRepo: webhookRepo as any,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(
+      service.createWebhook(
+        {
+          title: 'Override target',
+          description: '',
+          url: 'https://example.com/webhook',
+          event: 'quest.completed',
+          payload: {},
+          skipEndpointHealthCheck: true,
+        },
+        serviceOpts,
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: 'webhook-1',
+        url: 'https://example.com/webhook',
+      }),
+    );
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(webhookRepo.createWebhook).toHaveBeenCalled();
+  });
+
+  it('does not probe reachability when editing a webhook without changing its URL', async () => {
+    const fetchImpl = jest.fn();
+    const webhookRepo = {
+      getWebhookById: jest.fn().mockResolvedValue({
+        id: 'webhook-1',
+        title: 'Existing webhook',
+        description: '',
+        url: 'https://example.com/webhook',
+        trigger_event_name: 'quest.completed',
+        payload: {},
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+      updateWebhook: jest.fn().mockResolvedValue({
+        id: 'webhook-1',
+        title: 'Renamed webhook',
+        description: '',
+        url: 'https://example.com/webhook',
+        trigger_event_name: 'quest.completed',
+        payload: {},
+        created_at: new Date(),
+        updated_at: new Date(),
+      }),
+      getWebhookTriggerEvent: jest.fn(),
+    };
+    const service = new WebhookService({
+      webhookRepo: webhookRepo as any,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await service.editWebhook(
+      'webhook-1',
+      { title: 'Renamed webhook' },
+      serviceOpts,
+    );
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(webhookRepo.updateWebhook).toHaveBeenCalled();
   });
 
   it('renders handlebars variables into the saved JSON payload before POSTing', async () => {

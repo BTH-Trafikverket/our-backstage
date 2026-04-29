@@ -18,6 +18,7 @@ import {
 } from '@backstage/core-plugin-api';
 import { WebhookDeleteDialog } from './WebhookDeleteDialog';
 import { WebhookFormDialog } from './WebhookFormDialog';
+import { WebhookReachabilityDialog } from './WebhookReachabilityDialog';
 import { WebhookTable } from './WebhookTable';
 import {
   WEBHOOK_EVENTS,
@@ -25,6 +26,7 @@ import {
   type WebhookApiResponse,
   type WebhookEventMetadata,
   type WebhookFormData,
+  type WebhookReachabilityWarning,
   type WebhookTableRow,
 } from './types';
 import {
@@ -32,6 +34,7 @@ import {
   createWebhookFormData,
   normalizeWebhook,
   readErrorMessage,
+  readWebhookReachabilityWarning,
   validateWebhookForm,
 } from './utils';
 import { JsonHighlight } from './JsonHighlight';
@@ -68,6 +71,11 @@ export const WebhooksPage = () => {
     createEmptyWebhookForm(),
   );
   const [editError, setEditError] = useState<string | null>(null);
+  const [reachabilityWarning, setReachabilityWarning] =
+    useState<WebhookReachabilityWarning | null>(null);
+  const [reachabilityMode, setReachabilityMode] = useState<
+    'create' | 'edit' | null
+  >(null);
 
   const [deleteWebhook, setDeleteWebhook] = useState<Webhook | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -112,12 +120,16 @@ export const WebhooksPage = () => {
     setCreateEventMetadataError(null);
     setCreateEventMetadataLoading(false);
     setCreateForm(createEmptyWebhookForm());
+    setReachabilityWarning(null);
+    setReachabilityMode(null);
   };
 
   const resetEditDialog = () => {
     setEditWebhook(null);
     setEditError(null);
     setEditForm(createEmptyWebhookForm());
+    setReachabilityWarning(null);
+    setReachabilityMode(null);
   };
 
   const resetDeleteDialog = () => {
@@ -258,16 +270,33 @@ export const WebhooksPage = () => {
       return;
     }
 
+    await submitCreateWebhook();
+  };
+
+  async function submitCreateWebhook(skipEndpointHealthCheck = false) {
     setCreateLoading(true);
     setCreateError(null);
+    setReachabilityWarning(null);
+    setReachabilityMode(null);
 
     try {
       const url = await buildGamificationUrl('/webhooks');
       const response = await fetchApi.fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildWebhookPayload(createForm)),
+        body: JSON.stringify(
+          buildWebhookPayload(createForm, { skipEndpointHealthCheck }),
+        ),
       });
+
+      if (response.status === 409) {
+        const warning = await readWebhookReachabilityWarning(response.clone());
+        if (warning?.canOverride) {
+          setReachabilityWarning(warning);
+          setReachabilityMode('create');
+          return;
+        }
+      }
 
       if (!response.ok) {
         throw new Error(await readErrorMessage(response));
@@ -284,7 +313,7 @@ export const WebhooksPage = () => {
     } finally {
       setCreateLoading(false);
     }
-  };
+  }
 
   const handleViewWebhook = (webhook: Webhook) => {
     setViewWebhook(webhook);
@@ -294,6 +323,8 @@ export const WebhooksPage = () => {
     setEditWebhook(webhook);
     setEditForm(createWebhookFormData(webhook));
     setEditError(null);
+    setReachabilityWarning(null);
+    setReachabilityMode(null);
   };
 
   const handleEditSubmit = async () => {
@@ -307,16 +338,37 @@ export const WebhooksPage = () => {
       return;
     }
 
+    await submitEditWebhook();
+  };
+
+  async function submitEditWebhook(skipEndpointHealthCheck = false) {
+    if (!editWebhook) {
+      return;
+    }
+
     setEditLoading(true);
     setEditError(null);
+    setReachabilityWarning(null);
+    setReachabilityMode(null);
 
     try {
       const url = await buildGamificationUrl(`/webhooks/${editWebhook.id}`);
       const response = await fetchApi.fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildWebhookPayload(editForm)),
+        body: JSON.stringify(
+          buildWebhookPayload(editForm, { skipEndpointHealthCheck }),
+        ),
       });
+
+      if (response.status === 409) {
+        const warning = await readWebhookReachabilityWarning(response.clone());
+        if (warning?.canOverride) {
+          setReachabilityWarning(warning);
+          setReachabilityMode('edit');
+          return;
+        }
+      }
 
       if (!response.ok) {
         throw new Error(await readErrorMessage(response));
@@ -340,6 +392,22 @@ export const WebhooksPage = () => {
     } finally {
       setEditLoading(false);
     }
+  }
+
+  const handleReachabilityConfirm = async () => {
+    if (reachabilityMode === 'create') {
+      await submitCreateWebhook(true);
+      return;
+    }
+
+    if (reachabilityMode === 'edit') {
+      await submitEditWebhook(true);
+    }
+  };
+
+  const handleReachabilityClose = () => {
+    setReachabilityWarning(null);
+    setReachabilityMode(null);
   };
 
   const handleDeleteWebhook = (webhook: Webhook) => {
@@ -418,6 +486,14 @@ export const WebhooksPage = () => {
         loading={deleteLoading}
         onClose={resetDeleteDialog}
         onConfirm={handleConfirmDelete}
+      />
+
+      <WebhookReachabilityDialog
+        isOpen={reachabilityWarning !== null}
+        warning={reachabilityWarning}
+        loading={createLoading || editLoading}
+        onClose={handleReachabilityClose}
+        onConfirm={handleReachabilityConfirm}
       />
 
       <Flex direction="column" gap="4">
