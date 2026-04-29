@@ -1,40 +1,16 @@
-import { isIP } from 'node:net';
 import type { WebhookRow } from '../repositories/webhookRepository';
-
-function isPrivateIpv4Address(hostname: string): boolean {
-  const octets = hostname.split('.').map(part => Number(part));
-  if (octets.length !== 4 || octets.some(octet => Number.isNaN(octet))) {
-    return false;
-  }
-
-  const [first, second] = octets;
-  return (
-    first === 10 ||
-    first === 127 ||
-    first === 0 ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168)
-  );
-}
-
-function isPrivateIpv6Address(hostname: string): boolean {
-  const normalized = hostname.toLowerCase();
-  return (
-    normalized === '::1' ||
-    normalized.startsWith('fc') ||
-    normalized.startsWith('fd') ||
-    normalized.startsWith('fe80:') ||
-    normalized.startsWith('::ffff:127.')
-  );
-}
+import {
+  normalizeWebhookTargetPolicy,
+  validateWebhookTargetUrl,
+  WebhookTargetValidationError,
+} from './webhookTargetPolicy';
 
 export class WebhookDeliveryService {
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
-  private readonly allowedHosts: Set<string>;
-  private readonly allowHttp: boolean;
-  private readonly allowPrivateTargets: boolean;
+  private readonly targetPolicy: ReturnType<
+    typeof normalizeWebhookTargetPolicy
+  >;
 
   constructor(options?: {
     fetchImpl?: typeof fetch;
@@ -45,51 +21,33 @@ export class WebhookDeliveryService {
   }) {
     this.fetchImpl = options?.fetchImpl ?? fetch;
     this.timeoutMs = options?.timeoutMs ?? 10_000;
-    this.allowedHosts = new Set(
-      (options?.allowedHosts ?? []).map(host =>
-        host.toLocaleLowerCase('en-US'),
-      ),
-    );
-    this.allowHttp = options?.allowHttp ?? false;
-    this.allowPrivateTargets = options?.allowPrivateTargets ?? false;
+    this.targetPolicy = normalizeWebhookTargetPolicy(options);
   }
 
   private validateTarget(webhook: Pick<WebhookRow, 'id' | 'url'>): URL {
-    const url = new URL(webhook.url);
-    const hostname = url.hostname.toLocaleLowerCase('en-US');
+    try {
+      return validateWebhookTargetUrl(webhook.url, this.targetPolicy);
+    } catch (error) {
+      if (!(error instanceof WebhookTargetValidationError)) {
+        throw error;
+      }
 
-    if (url.username || url.password) {
-      throw new Error(
-        `Webhook '${webhook.id}' URL must not include embedded credentials`,
-      );
+      switch (error.code) {
+        case 'embeddedCredentials':
+          throw new Error(
+            `Webhook '${webhook.id}' URL must not include embedded credentials`,
+          );
+        case 'protocolNotAllowed':
+          throw new Error(`Webhook '${webhook.id}' must use HTTPS`);
+        case 'hostNotAllowed':
+        case 'privateTargetNotAllowed':
+          throw new Error(
+            `Webhook '${webhook.id}' target host '${error.hostname}' is not allowed`,
+          );
+        default:
+          throw error;
+      }
     }
-
-    if (
-      url.protocol !== 'https:' &&
-      !(this.allowHttp && url.protocol === 'http:')
-    ) {
-      throw new Error(`Webhook '${webhook.id}' must use HTTPS`);
-    }
-
-    if (this.allowedHosts.size > 0 && !this.allowedHosts.has(hostname)) {
-      throw new Error(
-        `Webhook '${webhook.id}' target host '${hostname}' is not allowed`,
-      );
-    }
-
-    if (
-      !this.allowPrivateTargets &&
-      (hostname === 'localhost' ||
-        hostname.endsWith('.localhost') ||
-        (isIP(hostname) === 4 && isPrivateIpv4Address(hostname)) ||
-        (isIP(hostname) === 6 && isPrivateIpv6Address(hostname)))
-    ) {
-      throw new Error(
-        `Webhook '${webhook.id}' target host '${hostname}' is not allowed`,
-      );
-    }
-
-    return url;
   }
 
   async sendWebhook(

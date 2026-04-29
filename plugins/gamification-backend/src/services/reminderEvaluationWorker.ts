@@ -44,10 +44,17 @@ export class ReminderEvaluationWorker {
       if (
         summary.createdCount > 0 ||
         summary.refreshedCount > 0 ||
+        (summary.notificationFailureCount ?? 0) > 0 ||
         summary.skippedRuleCount > 0
       ) {
         this.logger.info(
-          `gamification reminder evaluation completed (created=${summary.createdCount}, refreshed=${summary.refreshedCount}, suppressed=${summary.suppressedCount}, skippedRules=${summary.skippedRuleCount})`,
+          `gamification reminder evaluation completed (created=${
+            summary.createdCount
+          }, refreshed=${summary.refreshedCount}, suppressed=${
+            summary.suppressedCount
+          }, notified=${summary.notificationCount ?? 0}, notificationFailures=${
+            summary.notificationFailureCount ?? 0
+          }, skippedRules=${summary.skippedRuleCount})`,
         );
       }
 

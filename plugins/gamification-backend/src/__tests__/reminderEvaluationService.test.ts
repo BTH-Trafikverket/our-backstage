@@ -17,7 +17,11 @@ function createLogger(): jest.Mocked<LoggerService> {
   } as unknown as jest.Mocked<LoggerService>;
 }
 
-async function createUserQuest(knex: Knex, title: string) {
+async function createUserQuest(
+  knex: Knex,
+  title: string,
+  options?: { cooldownDays?: number | null },
+) {
   const questsRepo = new QuestsRepository(knex);
 
   return questsRepo.createQuest({
@@ -26,6 +30,7 @@ async function createUserQuest(knex: Knex, title: string) {
     target_count: 1,
     xp_reward: 10,
     subject_type: 'user',
+    cooldown_days: options?.cooldownDays ?? null,
   });
 }
 
@@ -43,6 +48,27 @@ async function insertQuestReceipt(params: {
     caller_subject: 'external:default/github',
     received_at: params.receivedAt,
   });
+}
+
+async function insertQuestAward(params: {
+  knex: Knex;
+  questId: string;
+  subjectRef: string;
+  createdAt: Date;
+  awardedOnCompletionCount?: number;
+}) {
+  await params.knex('xp_awards').insert({
+    subject_ref: params.subjectRef,
+    quest_id: params.questId,
+    awarded_on_completion_count: params.awardedOnCompletionCount ?? 1,
+    xp_amount: 10,
+    source: 'test',
+    created_at: params.createdAt,
+  });
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 describePostgres18('ReminderEvaluationService integration', () => {
@@ -106,11 +132,369 @@ describePostgres18('ReminderEvaluationService integration', () => {
     });
   });
 
-  it('refreshes the existing reminder row instead of creating duplicates on repeat runs', async () => {
+  it('skips reminder generation while the quest is still in cooldown', async () => {
     const knex = await initDb();
     const questsRepo = new QuestsRepository(knex);
     const reminderRepo = new ReminderRepository(knex);
     const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Cooldown Reminder Quest', {
+      cooldownDays: 7,
+    });
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-cooldown-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-01T09:00:00.000Z'),
+    });
+    await insertQuestAward({
+      knex,
+      questId: quest.id,
+      subjectRef: 'user:default/alice',
+      createdAt: new Date('2026-04-20T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-23T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-cooldown-7d',
+          questId: quest.id,
+          inactivityDays: 7,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 0,
+      suppressedCount: 0,
+    });
+    await expect(
+      reminderRepo.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-cooldown-7d',
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('skips reminder generation during the inactivity interval after cooldown', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Cooldown Inactivity Quest', {
+      cooldownDays: 7,
+    });
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-cooldown-inactivity-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-01T09:00:00.000Z'),
+    });
+    await insertQuestAward({
+      knex,
+      questId: quest.id,
+      subjectRef: 'user:default/alice',
+      createdAt: new Date('2026-04-20T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-30T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-after-cooldown-7d',
+          questId: quest.id,
+          inactivityDays: 7,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 0,
+      suppressedCount: 0,
+    });
+    await expect(
+      reminderRepo.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-after-cooldown-7d',
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('creates a reminder after cooldown and inactivity interval have both passed', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Cooldown Eligible Quest', {
+      cooldownDays: 7,
+    });
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-cooldown-eligible-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-01T09:00:00.000Z'),
+    });
+    await insertQuestAward({
+      knex,
+      questId: quest.id,
+      subjectRef: 'user:default/alice',
+      createdAt: new Date('2026-04-20T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-05-04T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-cooldown-eligible-7d',
+          questId: quest.id,
+          inactivityDays: 7,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 1,
+      refreshedCount: 0,
+      suppressedCount: 0,
+    });
+    await expect(
+      reminderRepo.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-cooldown-eligible-7d',
+      ),
+    ).resolves.toMatchObject({
+      quest_id: quest.id,
+      target_subject_ref: 'user:default/alice',
+      status: 'active',
+    });
+  });
+
+  it('force mode bypasses the inactivity interval and sends a notification', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const notificationSender = {
+      sendReminderNotification: jest.fn(async () => undefined),
+    };
+    const quest = await createUserQuest(knex, 'Force Reminder Quest');
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-force-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-26T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      notificationSender,
+      now: () => new Date('2026-04-27T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-force-7d',
+          questId: quest.id,
+          inactivityDays: 7,
+          activityDescription: 'merged a PR',
+        },
+      ],
+    });
+
+    await expect(
+      service.evaluateConfiguredRules({ force: true }),
+    ).resolves.toMatchObject({
+      createdCount: 1,
+      refreshedCount: 0,
+      suppressedCount: 0,
+      notificationCount: 1,
+      notificationFailureCount: 0,
+    });
+
+    const reminder = await reminderRepo.getReminderByIdentity(
+      quest.id,
+      'user:default/alice',
+      'inactive-force-7d',
+    );
+    expect(reminder).toMatchObject({
+      quest_id: quest.id,
+      target_subject_ref: 'user:default/alice',
+      status: 'active',
+    });
+    expect(notificationSender.sendReminderNotification).toHaveBeenCalledWith({
+      reminder: expect.objectContaining({
+        id: reminder?.id,
+        quest_id: quest.id,
+        target_subject_ref: 'user:default/alice',
+        rule_key: 'inactive-force-7d',
+      }),
+      questTitle: 'Force Reminder Quest',
+    });
+  });
+
+  it('normal mode still waits for the inactivity interval', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Normal Interval Reminder Quest');
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-normal-interval-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-26T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-27T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-normal-7d',
+          questId: quest.id,
+          inactivityDays: 7,
+          activityDescription: 'merged a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 0,
+      suppressedCount: 0,
+    });
+    await expect(
+      reminderRepo.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-normal-7d',
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('resolves configured reminder rules by quest title', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Title Resolved Reminder Quest');
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-title-resolved-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-26T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-27T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-title-resolved-7d',
+          questTitle: 'Title Resolved Reminder Quest',
+          inactivityDays: 7,
+          activityDescription: 'merged a PR',
+        },
+      ],
+    });
+
+    await expect(
+      service.evaluateConfiguredRules({ force: true }),
+    ).resolves.toMatchObject({
+      createdCount: 1,
+      ruleResults: [
+        expect.objectContaining({
+          questId: quest.id,
+          questTitle: 'Title Resolved Reminder Quest',
+        }),
+      ],
+    });
+  });
+
+  it('keeps existing behavior for quests without cooldowns', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'No Cooldown Reminder Quest');
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-no-cooldown-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-20T09:00:00.000Z'),
+    });
+    await insertQuestAward({
+      knex,
+      questId: quest.id,
+      subjectRef: 'user:default/alice',
+      createdAt: new Date('2026-04-26T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-27T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-no-cooldown-7d',
+          questId: quest.id,
+          inactivityDays: 7,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 1,
+      refreshedCount: 0,
+      suppressedCount: 0,
+    });
+  });
+
+  it('refreshes the existing reminder row without sending duplicate notifications on repeat runs', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const notificationSender = {
+      sendReminderNotification: jest.fn(async () => undefined),
+    };
     const quest = await createUserQuest(knex, 'Repeat Reminder Quest');
     let now = new Date('2026-04-20T09:00:00.000Z');
 
@@ -126,6 +510,7 @@ describePostgres18('ReminderEvaluationService integration', () => {
       questsRepo,
       reminderRepo,
       logger,
+      notificationSender,
       now: () => now,
       rules: [
         {
@@ -140,6 +525,7 @@ describePostgres18('ReminderEvaluationService integration', () => {
     await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
       createdCount: 1,
       refreshedCount: 0,
+      notificationCount: 1,
     });
 
     now = new Date('2026-04-21T12:00:00.000Z');
@@ -147,12 +533,164 @@ describePostgres18('ReminderEvaluationService integration', () => {
     await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
       createdCount: 0,
       refreshedCount: 1,
+      notificationCount: 0,
     });
 
     const reminderRows = await knex('quest_reminders').select('*');
+    const deliveryRows = await knex(
+      'quest_reminder_notification_deliveries',
+    ).select('*');
     expect(reminderRows).toHaveLength(1);
+    expect(deliveryRows).toHaveLength(1);
+    expect(deliveryRows[0]).toMatchObject({
+      reminder_id: reminderRows[0].id,
+      delivery_window_key: 'activity:2026-04-14T09:00:00.000Z',
+      status: 'sent',
+    });
     expect(new Date(reminderRows[0].last_generated_at).toISOString()).toBe(
       '2026-04-21T12:00:00.000Z',
+    );
+    expect(notificationSender.sendReminderNotification).toHaveBeenCalledTimes(
+      1,
+    );
+  });
+
+  it('uses the delivery ledger to prevent concurrent duplicate notifications', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const notificationSender = {
+      sendReminderNotification: jest.fn(async () => {
+        await delay(50);
+      }),
+    };
+    const quest = await createUserQuest(knex, 'Concurrent Reminder Quest');
+    const rules = [
+      {
+        key: 'inactive-concurrent-14d',
+        questId: quest.id,
+        inactivityDays: 14,
+        activityDescription: 'reviewed a PR',
+      },
+    ];
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-concurrent-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-03-31T09:00:00.000Z'),
+    });
+
+    const firstService = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      notificationSender,
+      now: () => new Date('2026-04-20T09:00:00.000Z'),
+      rules,
+    });
+    const secondService = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      notificationSender,
+      now: () => new Date('2026-04-20T09:00:00.000Z'),
+      rules,
+    });
+
+    const results = await Promise.all([
+      firstService.evaluateConfiguredRules(),
+      secondService.evaluateConfiguredRules(),
+    ]);
+
+    expect(
+      results.reduce((sum, result) => sum + result.notificationCount, 0),
+    ).toBe(1);
+    expect(notificationSender.sendReminderNotification).toHaveBeenCalledTimes(
+      1,
+    );
+
+    const reminderRows = await knex('quest_reminders').select('*');
+    const deliveryRows = await knex(
+      'quest_reminder_notification_deliveries',
+    ).select('*');
+    expect(reminderRows).toHaveLength(1);
+    expect(deliveryRows).toHaveLength(1);
+    expect(deliveryRows[0]).toMatchObject({
+      reminder_id: reminderRows[0].id,
+      delivery_window_key: 'activity:2026-04-14T09:00:00.000Z',
+      status: 'sent',
+    });
+  });
+
+  it('releases the delivery reservation when notification sending fails so a later run can retry', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const notificationSender = {
+      sendReminderNotification: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('notifications unavailable'))
+        .mockResolvedValueOnce(undefined),
+    };
+    const quest = await createUserQuest(knex, 'Retry Reminder Quest');
+    let now = new Date('2026-04-20T09:00:00.000Z');
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-retry-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-03-31T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      notificationSender,
+      now: () => now,
+      rules: [
+        {
+          key: 'inactive-retry-14d',
+          questId: quest.id,
+          inactivityDays: 14,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 1,
+      notificationCount: 0,
+      notificationFailureCount: 1,
+    });
+    await expect(
+      knex('quest_reminder_notification_deliveries').select('*'),
+    ).resolves.toHaveLength(0);
+
+    now = new Date('2026-04-21T09:00:00.000Z');
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 1,
+      notificationCount: 1,
+      notificationFailureCount: 0,
+    });
+
+    const deliveryRows = await knex(
+      'quest_reminder_notification_deliveries',
+    ).select('*');
+    expect(deliveryRows).toHaveLength(1);
+    expect(deliveryRows[0]).toMatchObject({
+      delivery_window_key: 'activity:2026-04-14T09:00:00.000Z',
+      status: 'sent',
+    });
+    expect(notificationSender.sendReminderNotification).toHaveBeenCalledTimes(
+      2,
     );
   });
 
@@ -198,7 +736,9 @@ describePostgres18('ReminderEvaluationService integration', () => {
       ],
     });
 
-    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+    await expect(
+      service.evaluateConfiguredRules({ force: true }),
+    ).resolves.toMatchObject({
       createdCount: 0,
       refreshedCount: 0,
       suppressedCount: 1,

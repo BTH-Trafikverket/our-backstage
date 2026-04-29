@@ -24,8 +24,10 @@ import { BadgesService } from './services/badgesService';
 import { LeaderboardService } from './services/leaderboardService';
 import { QuestsService } from './services/questsService';
 import { ReminderService } from './services/reminderService';
+import type { ReminderEvaluationService } from './services/reminderEvaluationService';
 import { WebhookService } from './services/webhookService';
 import { CatalogService } from './services/catalogService';
+import { readWebhookDeliveryConfig } from './services/webhookTargetPolicy';
 
 import { XpRouter } from './routes/xpRouter';
 import { CatalogClient } from '@backstage/catalog-client';
@@ -74,6 +76,7 @@ export function createRouter({
   auth,
   discovery,
   logger,
+  reminderEvaluationService,
 }: {
   httpAuth: HttpAuthService;
   userInfo: UserInfoService;
@@ -82,6 +85,7 @@ export function createRouter({
   auth: AuthService;
   discovery: DiscoveryService;
   logger: LoggerService;
+  reminderEvaluationService?: ReminderEvaluationService;
 }): express.Router {
   const router = Router();
   router.use(express.json());
@@ -94,7 +98,11 @@ export function createRouter({
   const catalogClient = new CatalogClient({ discoveryApi: discovery });
   const catalogService = new CatalogService(catalogClient, auth, logger);
   const actorResolutionProviders = readActorResolutionProviders(config);
-  const webhookService = new WebhookService({ webhookRepo, logger });
+  const webhookService = new WebhookService({
+    webhookRepo,
+    logger,
+    ...readWebhookDeliveryConfig(config),
+  });
 
   const questsService = new QuestsService({
     questsRepo,
@@ -138,6 +146,7 @@ export function createRouter({
       userInfo,
       questsService,
       config,
+      reminderEvaluationService,
     }),
   );
 

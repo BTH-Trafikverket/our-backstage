@@ -413,4 +413,70 @@ describePostgres18('ReminderRepository integration', () => {
       }),
     ).rejects.toThrow();
   });
+
+  it('reserves one notification delivery per reminder window and can release a failed attempt', async () => {
+    const knex = await initDb();
+    const repository = new ReminderRepository(knex);
+    const quest = await createQuest(
+      knex,
+      'Notification Delivery Ledger Quest',
+      'user',
+    );
+    const reminder = await repository.createOrRefreshReminder({
+      questId: quest.id,
+      targetSubjectRef: 'user:default/alice',
+      targetSubjectType: 'user',
+      ruleKey: 'inactive-ledger',
+      ruleKind: 'activity',
+      reasonPayload: { inactiveDays: 7 },
+    });
+
+    await expect(
+      repository.tryReserveNotificationDelivery({
+        reminderId: reminder.id,
+        deliveryWindowKey: 'activity:2026-04-08T09:00:00.000Z',
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      repository.tryReserveNotificationDelivery({
+        reminderId: reminder.id,
+        deliveryWindowKey: 'activity:2026-04-08T09:00:00.000Z',
+      }),
+    ).resolves.toBe(false);
+
+    await repository.markNotificationDeliverySent({
+      reminderId: reminder.id,
+      deliveryWindowKey: 'activity:2026-04-08T09:00:00.000Z',
+      sentAt: new Date('2026-04-15T09:00:00.000Z'),
+    });
+
+    await expect(
+      knex('quest_reminder_notification_deliveries')
+        .where({
+          reminder_id: reminder.id,
+          delivery_window_key: 'activity:2026-04-08T09:00:00.000Z',
+        })
+        .first(),
+    ).resolves.toMatchObject({
+      status: 'sent',
+      sent_at: new Date('2026-04-15T09:00:00.000Z'),
+    });
+
+    await expect(
+      repository.tryReserveNotificationDelivery({
+        reminderId: reminder.id,
+        deliveryWindowKey: 'activity:2026-04-09T09:00:00.000Z',
+      }),
+    ).resolves.toBe(true);
+    await repository.releaseNotificationDelivery({
+      reminderId: reminder.id,
+      deliveryWindowKey: 'activity:2026-04-09T09:00:00.000Z',
+    });
+    await expect(
+      repository.tryReserveNotificationDelivery({
+        reminderId: reminder.id,
+        deliveryWindowKey: 'activity:2026-04-09T09:00:00.000Z',
+      }),
+    ).resolves.toBe(true);
+  });
 });

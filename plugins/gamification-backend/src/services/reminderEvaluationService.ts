@@ -1,24 +1,36 @@
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { ReminderReasonPayload } from '../repositories/reminderRepository';
-import { ReminderRepository } from '../repositories/reminderRepository';
+import {
+  ReminderRepository,
+  type ReminderRow,
+} from '../repositories/reminderRepository';
+import type { QuestRow } from '../repositories/questsRepository';
 import { QuestsRepository } from '../repositories/questsRepository';
 
 export type ReminderActivitySource = 'quest_event_receipts';
 
 export type ReminderEvaluationRule = {
   key: string;
-  questId: string;
+  questId?: string;
+  questTitle?: string;
   inactivityDays: number;
   activityDescription: string;
   activitySource?: ReminderActivitySource | string;
 };
 
+export type ReminderEvaluationOptions = {
+  force?: boolean;
+};
+
 export type ReminderRuleEvaluationResult = {
   ruleKey: string;
-  questId: string;
+  questId?: string;
+  questTitle?: string;
   createdCount: number;
   refreshedCount: number;
   suppressedCount: number;
+  notificationCount: number;
+  notificationFailureCount: number;
   skippedReason?:
     | 'missing_quest'
     | 'unsupported_subject_type'
@@ -29,8 +41,17 @@ export type ReminderEvaluationSummary = {
   createdCount: number;
   refreshedCount: number;
   suppressedCount: number;
+  notificationCount: number;
+  notificationFailureCount: number;
   skippedRuleCount: number;
   ruleResults: ReminderRuleEvaluationResult[];
+};
+
+export type ReminderNotificationSender = {
+  sendReminderNotification(params: {
+    reminder: ReminderRow;
+    questTitle: string;
+  }): Promise<void>;
 };
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -70,6 +91,7 @@ export class ReminderEvaluationService {
   private readonly rules: ReminderEvaluationRule[];
   private readonly logger: LoggerService;
   private readonly now: () => Date;
+  private readonly notificationSender?: ReminderNotificationSender;
 
   constructor(options: {
     questsRepo: QuestsRepository;
@@ -77,19 +99,23 @@ export class ReminderEvaluationService {
     rules: ReminderEvaluationRule[];
     logger: LoggerService;
     now?: () => Date;
+    notificationSender?: ReminderNotificationSender;
   }) {
     this.questsRepo = options.questsRepo;
     this.reminderRepo = options.reminderRepo;
     this.rules = options.rules;
     this.logger = options.logger;
     this.now = options.now ?? (() => new Date());
+    this.notificationSender = options.notificationSender;
   }
 
-  async evaluateConfiguredRules(): Promise<ReminderEvaluationSummary> {
+  async evaluateConfiguredRules(
+    options: ReminderEvaluationOptions = {},
+  ): Promise<ReminderEvaluationSummary> {
     const results: ReminderRuleEvaluationResult[] = [];
 
     for (const rule of this.rules) {
-      results.push(await this.evaluateRule(rule));
+      results.push(await this.evaluateRule(rule, options));
     }
 
     return {
@@ -103,6 +129,14 @@ export class ReminderEvaluationService {
       ),
       suppressedCount: results.reduce(
         (sum, result) => sum + result.suppressedCount,
+        0,
+      ),
+      notificationCount: results.reduce(
+        (sum, result) => sum + result.notificationCount,
+        0,
+      ),
+      notificationFailureCount: results.reduce(
+        (sum, result) => sum + result.notificationFailureCount,
         0,
       ),
       skippedRuleCount: results.filter(result => result.skippedReason).length,
@@ -125,22 +159,111 @@ export class ReminderEvaluationService {
     };
   }
 
+  private async getCooldownReminderEligibleAt(params: {
+    quest: QuestRow;
+    subjectRef: string;
+    inactivityDays: number;
+  }): Promise<Date | undefined> {
+    const { quest, subjectRef, inactivityDays } = params;
+
+    if (
+      quest.completion_policy !== 'REPEATABLE' ||
+      quest.cooldown_days === null
+    ) {
+      return undefined;
+    }
+
+    const lastAwardedAt = await this.questsRepo.getLastAwardedAt(
+      subjectRef,
+      quest.id,
+    );
+    if (!lastAwardedAt) {
+      return undefined;
+    }
+
+    return new Date(
+      lastAwardedAt.getTime() +
+        (quest.cooldown_days + inactivityDays) * DAY_IN_MS,
+    );
+  }
+
+  private async getQuestForRule(
+    rule: ReminderEvaluationRule,
+  ): Promise<QuestRow | undefined> {
+    if (rule.questId) {
+      return this.questsRepo.getQuestById(rule.questId);
+    }
+
+    if (rule.questTitle) {
+      return this.questsRepo.getQuestByTitle(rule.questTitle);
+    }
+
+    return undefined;
+  }
+
+  private async sendNotification(params: {
+    result: ReminderRuleEvaluationResult;
+    reminder: ReminderRow;
+    quest: QuestRow;
+    deliveryWindowKey: string;
+  }): Promise<void> {
+    if (!this.notificationSender) {
+      return;
+    }
+
+    const reserved = await this.reminderRepo.tryReserveNotificationDelivery({
+      reminderId: params.reminder.id,
+      deliveryWindowKey: params.deliveryWindowKey,
+    });
+    if (!reserved) {
+      return;
+    }
+
+    try {
+      await this.notificationSender.sendReminderNotification({
+        reminder: params.reminder,
+        questTitle: params.quest.title,
+      });
+      await this.reminderRepo.markNotificationDeliverySent({
+        reminderId: params.reminder.id,
+        deliveryWindowKey: params.deliveryWindowKey,
+        sentAt: this.now(),
+      });
+      params.result.notificationCount += 1;
+    } catch (error) {
+      await this.reminderRepo.releaseNotificationDelivery({
+        reminderId: params.reminder.id,
+        deliveryWindowKey: params.deliveryWindowKey,
+      });
+      params.result.notificationFailureCount += 1;
+      this.logger.warn(
+        `Failed to send reminder notification for rule '${params.reminder.rule_key}' and subject '${params.reminder.target_subject_ref}': ${error}`,
+      );
+    }
+  }
+
   private async evaluateRule(
     rule: ReminderEvaluationRule,
+    options: ReminderEvaluationOptions,
   ): Promise<ReminderRuleEvaluationResult> {
     const now = this.now();
     const activitySource = rule.activitySource ?? 'quest_event_receipts';
     const baseResult: ReminderRuleEvaluationResult = {
       ruleKey: rule.key,
       questId: rule.questId,
+      questTitle: rule.questTitle,
       createdCount: 0,
       refreshedCount: 0,
       suppressedCount: 0,
+      notificationCount: 0,
+      notificationFailureCount: 0,
     };
 
     if (activitySource !== 'quest_event_receipts') {
       this.logger.warn(
-        `Skipping reminder rule '${rule.key}' for quest '${rule.questId}': unsupported activity source '${activitySource}'`,
+        `Skipping reminder rule '${rule.key}' for quest '${
+          rule.questId ?? rule.questTitle ?? 'unknown'
+        }': unsupported activity source '${activitySource}'`,
       );
       return {
         ...baseResult,
@@ -148,10 +271,12 @@ export class ReminderEvaluationService {
       };
     }
 
-    const quest = await this.questsRepo.getQuestById(rule.questId);
+    const quest = await this.getQuestForRule(rule);
     if (!quest) {
       this.logger.warn(
-        `Skipping reminder rule '${rule.key}': quest '${rule.questId}' was not found or is archived`,
+        `Skipping reminder rule '${rule.key}': quest '${
+          rule.questId ?? rule.questTitle ?? 'unknown'
+        }' was not found or is archived`,
       );
       return {
         ...baseResult,
@@ -159,9 +284,12 @@ export class ReminderEvaluationService {
       };
     }
 
+    baseResult.questId = quest.id;
+    baseResult.questTitle = quest.title;
+
     if (quest.subject_type !== 'user') {
       this.logger.warn(
-        `Skipping reminder rule '${rule.key}' for quest '${rule.questId}': only user-scoped reminder evaluation is supported in v1`,
+        `Skipping reminder rule '${rule.key}' for quest '${quest.id}': only user-scoped reminder evaluation is supported in v1`,
       );
       return {
         ...baseResult,
@@ -183,9 +311,28 @@ export class ReminderEvaluationService {
         continue;
       }
 
-      const inactiveForMs = now.getTime() - latestActivityAt.getTime();
-      if (inactiveForMs < rule.inactivityDays * DAY_IN_MS) {
-        continue;
+      const cooldownReminderEligibleAt =
+        await this.getCooldownReminderEligibleAt({
+          quest,
+          subjectRef,
+          inactivityDays: rule.inactivityDays,
+        });
+      const reminderEligibleAt =
+        cooldownReminderEligibleAt ??
+        new Date(latestActivityAt.getTime() + rule.inactivityDays * DAY_IN_MS);
+      const deliveryWindowKey = `activity:${reminderEligibleAt.toISOString()}`;
+
+      if (!options.force) {
+        if (cooldownReminderEligibleAt) {
+          if (now.getTime() < cooldownReminderEligibleAt.getTime()) {
+            continue;
+          }
+        } else if (
+          now.getTime() - latestActivityAt.getTime() <
+          rule.inactivityDays * DAY_IN_MS
+        ) {
+          continue;
+        }
       }
 
       const existingReminder = await this.reminderRepo.getReminderByIdentity(
@@ -219,7 +366,7 @@ export class ReminderEvaluationService {
         }
       }
 
-      await this.reminderRepo.createOrRefreshReminder({
+      const reminder = await this.reminderRepo.createOrRefreshReminder({
         questId: quest.id,
         targetSubjectRef: subjectRef,
         targetSubjectType: 'user',
@@ -239,6 +386,13 @@ export class ReminderEvaluationService {
       } else {
         baseResult.createdCount += 1;
       }
+
+      await this.sendNotification({
+        result: baseResult,
+        reminder,
+        quest,
+        deliveryWindowKey,
+      });
     }
 
     return baseResult;

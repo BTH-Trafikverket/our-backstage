@@ -9,7 +9,10 @@ import Router from 'express-promise-router';
 import { webhookCreationSchema } from '../schemas/webhooks/webhookCreationSchema';
 import { webhookEditSchema } from '../schemas/webhooks/webhookEditSchema';
 import { webhookEventMetadataParamsSchema } from '../schemas/webhooks/webhookEventMetadataSchema';
-import { WebhookService } from '../services/webhookService';
+import {
+  WebhookService,
+  WebhookTargetReachabilityError,
+} from '../services/webhookService';
 import { createRequireAdminCredentials } from './adminAccess';
 
 export function WebhookRouter({
@@ -44,6 +47,21 @@ export function WebhookRouter({
     };
   };
 
+  const sendReachabilityWarning = (
+    res: express.Response,
+    error: WebhookTargetReachabilityError,
+  ) => {
+    res.status(409).json({
+      error: {
+        name: error.name,
+        message: error.message,
+        canOverride: true,
+        url: error.url,
+        statusCode: error.statusCode,
+      },
+    });
+  };
+
   router.post('/', async (req, res) => {
     const parsed = webhookCreationSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -51,9 +69,19 @@ export function WebhookRouter({
     }
 
     const credentials = await requireAdminCredentials(req);
-    const created = await webhookService.createWebhook(parsed.data, {
-      credentials,
-    });
+    let created;
+    try {
+      created = await webhookService.createWebhook(parsed.data, {
+        credentials,
+      });
+    } catch (error) {
+      if (error instanceof WebhookTargetReachabilityError) {
+        sendReachabilityWarning(res, error);
+        return;
+      }
+
+      throw error;
+    }
 
     res.status(201).json(created);
   });
@@ -96,9 +124,19 @@ export function WebhookRouter({
     }
 
     const credentials = await requireAdminCredentials(req);
-    const updated = await webhookService.editWebhook(id, parsed.data, {
-      credentials,
-    });
+    let updated;
+    try {
+      updated = await webhookService.editWebhook(id, parsed.data, {
+        credentials,
+      });
+    } catch (error) {
+      if (error instanceof WebhookTargetReachabilityError) {
+        sendReachabilityWarning(res, error);
+        return;
+      }
+
+      throw error;
+    }
 
     if (!updated) {
       throw new NotFoundError('Webhook not found');

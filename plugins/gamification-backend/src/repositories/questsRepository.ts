@@ -239,6 +239,13 @@ export class QuestsRepository {
       .first();
   }
 
+  async getQuestByTitle(title: string): Promise<QuestRow | undefined> {
+    return this.db<QuestRow>('quests')
+      .where({ title })
+      .whereNull('archived_at')
+      .first();
+  }
+
   async getQuestsByIds(ids: string[]): Promise<QuestRow[]> {
     if (ids.length === 0) {
       return [];

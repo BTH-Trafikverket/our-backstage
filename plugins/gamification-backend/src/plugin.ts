@@ -18,10 +18,12 @@ import {
   type ReminderEvaluationRule,
 } from './services/reminderEvaluationService';
 import { ReminderEvaluationWorker } from './services/reminderEvaluationWorker';
+import { ReminderNotificationService } from './services/reminderNotificationService';
 import { WebhookService } from './services/webhookService';
 import { ScheduledWebhooksService } from './services/scheduledWebhooksService';
 import { DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE } from './services/scheduledWebhookPeriod';
 import { ScheduledWebhooksWorker } from './services/scheduledWebhooksWorker';
+import { readWebhookDeliveryConfig } from './services/webhookTargetPolicy';
 
 function readReminderEvaluationRules(
   config: RootConfigService,
@@ -34,6 +36,7 @@ function readReminderEvaluationRules(
   for (const ruleConfig of ruleConfigs) {
     const key = ruleConfig.getOptionalString('key')?.trim();
     const questId = ruleConfig.getOptionalString('questId')?.trim();
+    const questTitle = ruleConfig.getOptionalString('questTitle')?.trim();
     const inactivityDays = ruleConfig.getOptionalNumber('inactivityDays');
     const activityDescription = ruleConfig
       .getOptionalString('activityDescription')
@@ -43,12 +46,12 @@ function readReminderEvaluationRules(
 
     if (
       !key ||
-      !questId ||
+      (!questId && !questTitle) ||
       !activityDescription ||
       inactivityDays === undefined
     ) {
       logger.warn(
-        'Skipping gamification reminder rule because key, questId, inactivityDays, or activityDescription is missing',
+        'Skipping gamification reminder rule because key, questId/questTitle, inactivityDays, or activityDescription is missing',
       );
       continue;
     }
@@ -63,6 +66,7 @@ function readReminderEvaluationRules(
     rules.push({
       key,
       questId,
+      questTitle,
       inactivityDays,
       activityDescription,
       activitySource,
@@ -140,13 +144,20 @@ export const gamificationBackendPlugin = createBackendPlugin({
             ) ?? 60_000,
         });
         const reminderRules = readReminderEvaluationRules(config, logger);
+        const reminderNotificationService = new ReminderNotificationService({
+          auth,
+          discovery,
+          logger,
+        });
+        const reminderEvaluationService = new ReminderEvaluationService({
+          questsRepo: new QuestsRepository(knex),
+          reminderRepo: new ReminderRepository(knex),
+          rules: reminderRules,
+          logger,
+          notificationSender: reminderNotificationService,
+        });
         const reminderEvaluationWorker = new ReminderEvaluationWorker({
-          reminderEvaluationService: new ReminderEvaluationService({
-            questsRepo: new QuestsRepository(knex),
-            reminderRepo: new ReminderRepository(knex),
-            rules: reminderRules,
-            logger,
-          }),
+          reminderEvaluationService,
           logger,
           evaluationIntervalMs:
             config.getOptionalNumber(
@@ -163,34 +174,20 @@ export const gamificationBackendPlugin = createBackendPlugin({
             auth,
             discovery,
             logger,
+            reminderEvaluationService,
           }),
         );
 
         const webhookRepo = new WebhookRepository(knex);
         const domainEventsRepo = new DomainEventsRepository(knex);
-        const requestTimeoutMs =
-          config.getOptionalNumber(
-            'gamification.webhooks.delivery.requestTimeoutMs',
-          ) ?? 10_000;
+        const webhookDeliveryConfig = readWebhookDeliveryConfig(config);
         const domainEventWorker = new DomainEventWorker({
           db: knex,
           domainEventsRepo,
           webhookService: new WebhookService({
             webhookRepo,
             logger,
-            requestTimeoutMs,
-            allowedHosts:
-              config.getOptionalStringArray(
-                'gamification.webhooks.delivery.allowedHosts',
-              ) ?? [],
-            allowHttp:
-              config.getOptionalBoolean(
-                'gamification.webhooks.delivery.allowHttp',
-              ) ?? false,
-            allowPrivateTargets:
-              config.getOptionalBoolean(
-                'gamification.webhooks.delivery.allowPrivateTargets',
-              ) ?? false,
+            ...webhookDeliveryConfig,
           }),
           logger,
           pollIntervalMs:
