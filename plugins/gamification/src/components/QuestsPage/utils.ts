@@ -1,5 +1,6 @@
 import type { SortDescriptor } from '@backstage/ui';
 import type {
+  CatalogRule,
   CatalogConditionType,
   Quest,
   QuestAudienceFilter,
@@ -14,6 +15,45 @@ import type {
   QuestSubjectType,
   QuestTableRow,
 } from './types';
+
+function toCatalogRule(condition: CatalogConditionType): CatalogRule {
+  return {
+    version: 'v1',
+    check: {
+      type: condition,
+    },
+  };
+}
+
+function extractCatalogCondition(
+  linkedConfig: any,
+): CatalogConditionType | undefined {
+  if (!linkedConfig) {
+    return undefined;
+  }
+
+  const checkType = linkedConfig.catalog_rule?.check?.type;
+  if (
+    checkType === 'missing_techdocs' ||
+    checkType === 'missing_owner' ||
+    checkType === 'missing_description' ||
+    checkType === 'missing_tags'
+  ) {
+    return checkType;
+  }
+
+  const condition = linkedConfig.catalog_condition;
+  if (
+    condition === 'missing_techdocs' ||
+    condition === 'missing_owner' ||
+    condition === 'missing_description' ||
+    condition === 'missing_tags'
+  ) {
+    return condition;
+  }
+
+  return undefined;
+}
 
 export const audienceOptions: Array<QuestOption<QuestAudienceFilter>> = [
   { value: 'all', label: 'All' },
@@ -92,7 +132,12 @@ export const normalizeQuest = (quest: any): Quest => ({
   progress_toward_target: quest.progress_toward_target ?? 0,
   next_milestone: quest.next_milestone ?? quest.target_count ?? 0,
   quest_mode: quest.quest_mode === 'catalog' ? 'catalog' : 'event_driven',
-  linked_config: quest.linked_config,
+  linked_config: quest.linked_config
+    ? {
+        ...quest.linked_config,
+        catalog_condition: extractCatalogCondition(quest.linked_config),
+      }
+    : undefined,
 });
 
 export const createQuestTableRow = (quest: Quest): QuestTableRow => ({
@@ -123,7 +168,7 @@ export const buildQuestPayload = (formData: QuestFormData) => {
 
   const linkedConfig: Record<string, unknown> = {};
   if (formData.quest_mode === 'catalog' && formData.catalog_condition) {
-    linkedConfig.catalog_condition = formData.catalog_condition;
+    linkedConfig.catalog_rule = toCatalogRule(formData.catalog_condition);
   }
   if (hasReminder) {
     linkedConfig.reminder = {

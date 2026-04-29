@@ -18,7 +18,11 @@ import { AuthService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import type { QuestEventActor } from '../schemas/quests/questEventSchema';
-import { getCatalogRule } from './catalogRules';
+import {
+  getCatalogRule,
+  getCatalogRuleFromConfig,
+  type CatalogRule,
+} from './catalogRules';
 import { CatalogService } from './catalogService';
 
 type QuestServiceOpts = {
@@ -629,7 +633,10 @@ export class QuestsService {
         ...pageResult.data.filter(
           quest =>
             quest.quest_mode === 'catalog' &&
-            Boolean(quest.linked_config?.catalog_condition),
+            Boolean(
+              quest.linked_config?.catalog_rule ||
+                quest.linked_config?.catalog_condition,
+            ),
         ),
       );
 
@@ -649,21 +656,15 @@ export class QuestsService {
     let blockedEvents = 0;
 
     for (const quest of catalogQuests) {
-      const condition = quest.linked_config?.catalog_condition;
-      if (!condition) {
-        skippedQuests += 1;
-        continue;
-      }
-
-      const rule = getCatalogRule(condition);
-      if (!rule) {
+      const resolved = this.resolveCatalogRuleForQuest(quest);
+      if (!resolved) {
         skippedQuests += 1;
         continue;
       }
 
       const evaluations = await this.catalogService.evaluateTeamOwnedEntities(
         teamRef,
-        rule,
+        resolved.rule,
         opts.credentials,
       );
       const passingEntities = evaluations.filter(result => result.passed);
@@ -672,7 +673,7 @@ export class QuestsService {
 
       for (const match of passingEntities) {
         const result = await this.handleQuestEvent({
-          eventId: `catalog:${quest.id}:${teamRef}:${condition}:${match.entityRef}`,
+          eventId: `catalog:${quest.id}:${teamRef}:${resolved.ruleKey}:${match.entityRef}`,
           questId: quest.id,
           subjectRef: teamRef,
           callerSubject: 'internal:catalog-linked-runner',
@@ -699,6 +700,41 @@ export class QuestsService {
       duplicateEvents,
       blockedEvents,
     };
+  }
+
+  private resolveCatalogRuleForQuest(
+    quest: QuestRow,
+  ): { ruleKey: string; rule: CatalogRule } | undefined {
+    const config = quest.linked_config;
+    if (!config) {
+      return undefined;
+    }
+
+    if (config.catalog_rule) {
+      const rule = getCatalogRuleFromConfig(config.catalog_rule);
+      if (!rule) {
+        return undefined;
+      }
+
+      return {
+        ruleKey: rule.id,
+        rule,
+      };
+    }
+
+    if (config.catalog_condition) {
+      const rule = getCatalogRule(config.catalog_condition);
+      if (!rule) {
+        return undefined;
+      }
+
+      return {
+        ruleKey: config.catalog_condition,
+        rule,
+      };
+    }
+
+    return undefined;
   }
 
   async handleQuestEvent(params: {

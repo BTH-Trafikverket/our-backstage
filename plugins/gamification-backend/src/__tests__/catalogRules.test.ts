@@ -1,5 +1,6 @@
 import type { Entity } from '@backstage/catalog-model';
 import {
+  getCatalogRuleFromConfig,
   getCatalogRule,
   missingDescriptionRule,
   missingOwnerRule,
@@ -31,6 +32,36 @@ describe('catalogRules', () => {
 
   it('registers missingTagsRule by id', () => {
     expect(getCatalogRule('missing_tags')).toBe(missingTagsRule);
+  });
+
+  it('maps catalog_rule config to a registered evaluator rule', () => {
+    expect(
+      getCatalogRuleFromConfig({
+        version: 'v1',
+        check: { type: 'missing_techdocs' },
+      }),
+    ).toBe(missingTechDocsRule);
+  });
+
+  it('builds required_annotation evaluator from catalog_rule config', () => {
+    const rule = getCatalogRuleFromConfig({
+      version: 'v1',
+      check: {
+        type: 'required_annotation',
+        annotation: 'backstage.io/techdocs-ref',
+      },
+    });
+
+    expect(rule).toBeDefined();
+    expect(
+      rule?.evaluate({
+        ...baseEntity,
+        metadata: {
+          ...baseEntity.metadata,
+          annotations: {},
+        },
+      }),
+    ).toBe(true);
   });
 
   it('passes when the techdocs annotation is missing', () => {

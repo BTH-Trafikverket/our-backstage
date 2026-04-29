@@ -17,6 +17,19 @@ export type CatalogConditionType =
   | 'missing_description'
   | 'missing_tags';
 
+export type CatalogRule = {
+  version: 'v1';
+  check:
+    | { type: 'missing_techdocs' }
+    | { type: 'missing_owner' }
+    | { type: 'missing_description' }
+    | { type: 'missing_tags' }
+    | { type: 'missing_lifecycle' }
+    | { type: 'required_annotation'; annotation: string }
+    | { type: 'missing_relation'; relationType: string }
+    | { type: 'missing_dependency_metadata'; field: string };
+};
+
 export type QuestReminderConfig = {
   description: string;
   day: number;
@@ -24,6 +37,7 @@ export type QuestReminderConfig = {
 
 export type LinkedQuestConfig = {
   catalog_condition?: CatalogConditionType;
+  catalog_rule?: CatalogRule;
   reminder?: QuestReminderConfig;
 };
 
