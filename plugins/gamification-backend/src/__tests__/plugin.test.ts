@@ -20,10 +20,17 @@ jest.mock('../services/scheduledWebhooksWorker', () => ({
   })),
 }));
 
+jest.mock('../services/catalogLinkedQuestWorker', () => ({
+  CatalogLinkedQuestWorker: jest.fn().mockImplementation(() => ({
+    start: jest.fn(),
+  })),
+}));
+
 import { initGameDb } from '../database';
 import { createRouter } from '../router';
 import { DomainEventWorker } from '../services/domainEventWorker';
 import { ScheduledWebhooksWorker } from '../services/scheduledWebhooksWorker';
+import { CatalogLinkedQuestWorker } from '../services/catalogLinkedQuestWorker';
 import { gamificationBackendPlugin } from '../plugin';
 
 describe('gamification backend plugin worker startup', () => {
@@ -78,18 +85,42 @@ describe('gamification backend plugin worker startup', () => {
     const scheduledWebhooksWorkerInstance = (
       ScheduledWebhooksWorker as jest.Mock
     ).mock.results[0]?.value;
+    const catalogLinkedQuestWorkerInstance = (
+      CatalogLinkedQuestWorker as jest.Mock
+    ).mock.results[0]?.value;
 
     expect(initGameDb).toHaveBeenCalled();
     expect(httpRouter.use).toHaveBeenCalledWith('mock-router');
     expect(DomainEventWorker).toHaveBeenCalledTimes(1);
     expect(ScheduledWebhooksWorker).toHaveBeenCalledTimes(1);
+    expect(CatalogLinkedQuestWorker).toHaveBeenCalledTimes(1);
     expect(domainEventWorkerInstance.start).not.toHaveBeenCalled();
     expect(scheduledWebhooksWorkerInstance.start).not.toHaveBeenCalled();
+    expect(catalogLinkedQuestWorkerInstance.start).toHaveBeenCalledTimes(1);
     expect(logger.info).toHaveBeenCalledWith(
       'gamification domain event worker disabled by config (gamification.webhooks.delivery.enabled=false)',
     );
     expect(logger.info).toHaveBeenCalledWith(
       'gamification scheduled webhook worker disabled by config (gamification.webhooks.scheduling.enabled=false)',
+    );
+  });
+
+  it('skips catalog-linked worker when disabled by config', async () => {
+    const { logger } = await initPlugin({
+      gamification: {
+        catalogLinked: {
+          enabled: false,
+        },
+      },
+    });
+    const catalogLinkedQuestWorkerInstance = (
+      CatalogLinkedQuestWorker as jest.Mock
+    ).mock.results[0]?.value;
+
+    expect(CatalogLinkedQuestWorker).toHaveBeenCalledTimes(1);
+    expect(catalogLinkedQuestWorkerInstance.start).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      'gamification catalog-linked worker disabled by config (gamification.catalogLinked.enabled=false)',
     );
   });
 
@@ -100,14 +131,21 @@ describe('gamification backend plugin worker startup', () => {
     const scheduledWebhooksWorkerInstance = (
       ScheduledWebhooksWorker as jest.Mock
     ).mock.results[0]?.value;
+    const catalogLinkedQuestWorkerInstance = (
+      CatalogLinkedQuestWorker as jest.Mock
+    ).mock.results[0]?.value;
 
     expect(domainEventWorkerInstance.start).toHaveBeenCalledTimes(1);
     expect(scheduledWebhooksWorkerInstance.start).toHaveBeenCalledTimes(1);
+    expect(catalogLinkedQuestWorkerInstance.start).toHaveBeenCalledTimes(1);
     expect(logger.info).toHaveBeenCalledWith(
       'gamification domain event worker started',
     );
     expect(logger.info).toHaveBeenCalledWith(
       'gamification scheduled webhook worker started',
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      'gamification catalog-linked worker started',
     );
   });
 });

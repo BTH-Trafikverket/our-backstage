@@ -708,6 +708,35 @@ export class QuestsService {
 
       matchedEntities += passingEntities.length;
 
+      const shouldCompleteOnAllClear =
+        resolved.ruleKey.startsWith('missing_') ||
+        resolved.ruleKey.startsWith('required_annotation:');
+
+      if (shouldCompleteOnAllClear) {
+        if (unknownResults.length > 0 || passingEntities.length > 0) {
+          continue;
+        }
+
+        const result = await this.handleQuestEvent({
+          eventId: `catalog:${quest.id}:${teamRef}:${resolved.ruleKey}:all-clear`,
+          questId: quest.id,
+          subjectRef: teamRef,
+          callerSubject: 'internal:catalog-linked-runner',
+          opts,
+        });
+
+        triggeredEvents += 1;
+
+        if (result.duplicate) {
+          duplicateEvents += 1;
+        }
+        if (result.blocked) {
+          blockedEvents += 1;
+        }
+
+        continue;
+      }
+
       for (const match of passingEntities) {
         const result = await this.handleQuestEvent({
           eventId: `catalog:${quest.id}:${teamRef}:${resolved.ruleKey}:${match.entityRef}`,
