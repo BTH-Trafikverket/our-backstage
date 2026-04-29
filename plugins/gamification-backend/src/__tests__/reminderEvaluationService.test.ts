@@ -67,6 +67,10 @@ async function insertQuestAward(params: {
   });
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 describePostgres18('ReminderEvaluationService integration', () => {
   it('creates an inactivity reminder from quest_event_receipts and stores a human-readable reason', async () => {
     const knex = await initDb();
@@ -483,7 +487,7 @@ describePostgres18('ReminderEvaluationService integration', () => {
     });
   });
 
-  it('refreshes the existing reminder row instead of creating duplicates on repeat runs', async () => {
+  it('refreshes the existing reminder row without sending duplicate notifications on repeat runs', async () => {
     const knex = await initDb();
     const questsRepo = new QuestsRepository(knex);
     const reminderRepo = new ReminderRepository(knex);
@@ -529,14 +533,162 @@ describePostgres18('ReminderEvaluationService integration', () => {
     await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
       createdCount: 0,
       refreshedCount: 1,
-      notificationCount: 1,
+      notificationCount: 0,
     });
 
     const reminderRows = await knex('quest_reminders').select('*');
+    const deliveryRows = await knex(
+      'quest_reminder_notification_deliveries',
+    ).select('*');
     expect(reminderRows).toHaveLength(1);
+    expect(deliveryRows).toHaveLength(1);
+    expect(deliveryRows[0]).toMatchObject({
+      reminder_id: reminderRows[0].id,
+      delivery_window_key: 'activity:2026-04-14T09:00:00.000Z',
+      status: 'sent',
+    });
     expect(new Date(reminderRows[0].last_generated_at).toISOString()).toBe(
       '2026-04-21T12:00:00.000Z',
     );
+    expect(notificationSender.sendReminderNotification).toHaveBeenCalledTimes(
+      1,
+    );
+  });
+
+  it('uses the delivery ledger to prevent concurrent duplicate notifications', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const notificationSender = {
+      sendReminderNotification: jest.fn(async () => {
+        await delay(50);
+      }),
+    };
+    const quest = await createUserQuest(knex, 'Concurrent Reminder Quest');
+    const rules = [
+      {
+        key: 'inactive-concurrent-14d',
+        questId: quest.id,
+        inactivityDays: 14,
+        activityDescription: 'reviewed a PR',
+      },
+    ];
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-concurrent-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-03-31T09:00:00.000Z'),
+    });
+
+    const firstService = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      notificationSender,
+      now: () => new Date('2026-04-20T09:00:00.000Z'),
+      rules,
+    });
+    const secondService = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      notificationSender,
+      now: () => new Date('2026-04-20T09:00:00.000Z'),
+      rules,
+    });
+
+    const results = await Promise.all([
+      firstService.evaluateConfiguredRules(),
+      secondService.evaluateConfiguredRules(),
+    ]);
+
+    expect(
+      results.reduce((sum, result) => sum + result.notificationCount, 0),
+    ).toBe(1);
+    expect(notificationSender.sendReminderNotification).toHaveBeenCalledTimes(
+      1,
+    );
+
+    const reminderRows = await knex('quest_reminders').select('*');
+    const deliveryRows = await knex(
+      'quest_reminder_notification_deliveries',
+    ).select('*');
+    expect(reminderRows).toHaveLength(1);
+    expect(deliveryRows).toHaveLength(1);
+    expect(deliveryRows[0]).toMatchObject({
+      reminder_id: reminderRows[0].id,
+      delivery_window_key: 'activity:2026-04-14T09:00:00.000Z',
+      status: 'sent',
+    });
+  });
+
+  it('releases the delivery reservation when notification sending fails so a later run can retry', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const notificationSender = {
+      sendReminderNotification: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('notifications unavailable'))
+        .mockResolvedValueOnce(undefined),
+    };
+    const quest = await createUserQuest(knex, 'Retry Reminder Quest');
+    let now = new Date('2026-04-20T09:00:00.000Z');
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-retry-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-03-31T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      notificationSender,
+      now: () => now,
+      rules: [
+        {
+          key: 'inactive-retry-14d',
+          questId: quest.id,
+          inactivityDays: 14,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 1,
+      notificationCount: 0,
+      notificationFailureCount: 1,
+    });
+    await expect(
+      knex('quest_reminder_notification_deliveries').select('*'),
+    ).resolves.toHaveLength(0);
+
+    now = new Date('2026-04-21T09:00:00.000Z');
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 1,
+      notificationCount: 1,
+      notificationFailureCount: 0,
+    });
+
+    const deliveryRows = await knex(
+      'quest_reminder_notification_deliveries',
+    ).select('*');
+    expect(deliveryRows).toHaveLength(1);
+    expect(deliveryRows[0]).toMatchObject({
+      delivery_window_key: 'activity:2026-04-14T09:00:00.000Z',
+      status: 'sent',
+    });
     expect(notificationSender.sendReminderNotification).toHaveBeenCalledTimes(
       2,
     );
