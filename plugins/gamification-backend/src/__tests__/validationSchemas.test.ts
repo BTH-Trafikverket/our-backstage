@@ -348,6 +348,24 @@ describe('validation schemas', () => {
         ['event'],
       ]);
     });
+
+    it('accepts an explicit skipEndpointHealthCheck override', () => {
+      expect(
+        webhookCreationSchema.parse({
+          title: 'Production Webhook',
+          url: 'https://example.com/webhooks/gamification',
+          event: 'quest.completed',
+          skipEndpointHealthCheck: true,
+        }),
+      ).toEqual({
+        title: 'Production Webhook',
+        description: '',
+        url: 'https://example.com/webhooks/gamification',
+        event: 'quest.completed',
+        payload: {},
+        skipEndpointHealthCheck: true,
+      });
+    });
   });
 
   describe('webhookEditSchema', () => {

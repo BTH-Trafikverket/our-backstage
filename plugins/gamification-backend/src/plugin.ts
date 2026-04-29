@@ -23,6 +23,7 @@ import { WebhookService } from './services/webhookService';
 import { ScheduledWebhooksService } from './services/scheduledWebhooksService';
 import { DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE } from './services/scheduledWebhookPeriod';
 import { ScheduledWebhooksWorker } from './services/scheduledWebhooksWorker';
+import { readWebhookDeliveryConfig } from './services/webhookTargetPolicy';
 import { CatalogLinkedQuestWorker } from './services/catalogLinkedQuestWorker';
 import { CatalogClient } from '@backstage/catalog-client';
 import { CatalogService } from './services/catalogService';
@@ -202,29 +203,14 @@ export const gamificationBackendPlugin = createBackendPlugin({
 
         const webhookRepo = new WebhookRepository(knex);
         const domainEventsRepo = new DomainEventsRepository(knex);
-        const requestTimeoutMs =
-          config.getOptionalNumber(
-            'gamification.webhooks.delivery.requestTimeoutMs',
-          ) ?? 10_000;
+        const webhookDeliveryConfig = readWebhookDeliveryConfig(config);
         const domainEventWorker = new DomainEventWorker({
           db: knex,
           domainEventsRepo,
           webhookService: new WebhookService({
             webhookRepo,
             logger,
-            requestTimeoutMs,
-            allowedHosts:
-              config.getOptionalStringArray(
-                'gamification.webhooks.delivery.allowedHosts',
-              ) ?? [],
-            allowHttp:
-              config.getOptionalBoolean(
-                'gamification.webhooks.delivery.allowHttp',
-              ) ?? false,
-            allowPrivateTargets:
-              config.getOptionalBoolean(
-                'gamification.webhooks.delivery.allowPrivateTargets',
-              ) ?? false,
+            ...webhookDeliveryConfig,
           }),
           logger,
           pollIntervalMs:

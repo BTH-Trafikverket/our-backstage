@@ -4,6 +4,7 @@ import {
   type WebhookApiResponse,
   type WebhookEventId,
   type WebhookFormData,
+  type WebhookReachabilityWarning,
 } from './types';
 
 export function validateWebhookForm(formData: WebhookFormData): string | null {
@@ -42,13 +43,21 @@ export function validateWebhookForm(formData: WebhookFormData): string | null {
   return null;
 }
 
-export function buildWebhookPayload(formData: WebhookFormData) {
+export function buildWebhookPayload(
+  formData: WebhookFormData,
+  options?: {
+    skipEndpointHealthCheck?: boolean;
+  },
+) {
   return {
     title: formData.title.trim(),
     description: formData.description.trim(),
     url: formData.url.trim(),
     event: formData.event,
     payload: JSON.parse(formData.payload || '{}') as Record<string, unknown>,
+    ...(options?.skipEndpointHealthCheck
+      ? { skipEndpointHealthCheck: true }
+      : {}),
   };
 }
 
@@ -99,5 +108,34 @@ export async function readErrorMessage(response: Response): Promise<string> {
     return parsed.error?.message ?? parsed.message ?? body;
   } catch {
     return body;
+  }
+}
+
+export async function readWebhookReachabilityWarning(
+  response: Response,
+): Promise<WebhookReachabilityWarning | null> {
+  const body = await response.text();
+  if (!body) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(body);
+    if (
+      parsed?.error?.name !== 'WebhookTargetReachabilityError' ||
+      parsed?.error?.canOverride !== true ||
+      typeof parsed?.error?.message !== 'string' ||
+      typeof parsed?.error?.url !== 'string'
+    ) {
+      return null;
+    }
+
+    return {
+      message: parsed.error.message,
+      url: parsed.error.url,
+      canOverride: true,
+    };
+  } catch {
+    return null;
   }
 }

@@ -120,4 +120,23 @@ describe('WebhookDeliveryService', () => {
       `Webhook 'webhook-5' target host 'example.com' is not allowed`,
     );
   });
+
+  it('rejects private literal IP targets by default', async () => {
+    const fetchImpl = jest.fn();
+    const service = new WebhookDeliveryService({
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(
+      service.sendWebhook({
+        id: 'webhook-6',
+        url: 'https://10.0.0.15/webhook',
+        payload: {},
+      }),
+    ).rejects.toThrow(
+      `Webhook 'webhook-6' target host '10.0.0.15' is not allowed`,
+    );
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 });

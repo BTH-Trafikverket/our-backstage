@@ -8,6 +8,7 @@ import {
   mockServices,
 } from '@backstage/backend-test-utils';
 import { WebhookRouter } from '../routes/webhookRouter';
+import { WebhookTargetReachabilityError } from '../services/webhookService';
 
 describe('webhook routes auth', () => {
   const adminGroup = 'group:default/admin';
@@ -229,6 +230,40 @@ describe('webhook routes auth', () => {
     expect(webhookService.createWebhook).not.toHaveBeenCalled();
   });
 
+  it('returns 409 with override metadata when create health check warns', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    (webhookService.createWebhook as jest.Mock).mockRejectedValue(
+      new WebhookTargetReachabilityError({
+        url: createWebhookPayload.url,
+        statusCode: 404,
+        message:
+          'Webhook endpoint responded with status 404 to a health check. Double-check the URL before saving.',
+      }),
+    );
+
+    const res = await request(app)
+      .post('/webhooks')
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send(createWebhookPayload);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: {
+        name: 'WebhookTargetReachabilityError',
+        message:
+          'Webhook endpoint responded with status 404 to a health check. Double-check the URL before saving.',
+        canOverride: true,
+        url: createWebhookPayload.url,
+        statusCode: 404,
+      },
+    });
+  });
+
   it('allows admin users to fetch webhook event metadata', async () => {
     const userRef = 'user:default/alice';
     const userInfo = mockServices.userInfo({
@@ -414,6 +449,40 @@ describe('webhook routes auth', () => {
 
     expect(res.status).toBe(404);
     expect(res.body?.error?.name).toBe('NotFoundError');
+  });
+
+  it('returns 409 with override metadata when edit health check warns', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, webhookService } = makeApp({ userInfo });
+
+    (webhookService.editWebhook as jest.Mock).mockRejectedValue(
+      new WebhookTargetReachabilityError({
+        url: editWebhookPayload.url,
+        statusCode: 503,
+        message:
+          'Webhook endpoint responded with status 503 to a health check and may not be available right now.',
+      }),
+    );
+
+    const res = await request(app)
+      .patch(`/webhooks/${webhookId}`)
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send(editWebhookPayload);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: {
+        name: 'WebhookTargetReachabilityError',
+        message:
+          'Webhook endpoint responded with status 503 to a health check and may not be available right now.',
+        canOverride: true,
+        url: editWebhookPayload.url,
+        statusCode: 503,
+      },
+    });
   });
 
   it('allows admin users to delete webhooks', async () => {

@@ -5,6 +5,7 @@ export type ReminderStatus = 'active' | 'disabled';
 export type ReminderViewerStoredState = 'dismissed' | 'disabled';
 export type ReminderViewerState = ReminderViewerStoredState | 'active';
 export type ReminderReasonPayload = Record<string, unknown>;
+export type ReminderNotificationDeliveryStatus = 'sending' | 'sent';
 
 export type ReminderRow = {
   id: string;
@@ -31,6 +32,16 @@ export type ReminderViewerStateRow = {
 export type ReminderWithViewerStateRow = ReminderRow & {
   quest_title: string;
   viewer_state: ReminderViewerState;
+};
+
+export type ReminderNotificationDeliveryRow = {
+  id: string;
+  reminder_id: string;
+  delivery_window_key: string;
+  status: ReminderNotificationDeliveryStatus;
+  sent_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
 };
 
 export class ReminderRepository {
@@ -267,5 +278,58 @@ export class ReminderRepository {
       .returning('*');
 
     return rows[0];
+  }
+
+  async tryReserveNotificationDelivery(params: {
+    reminderId: string;
+    deliveryWindowKey: string;
+  }): Promise<boolean> {
+    try {
+      await this.db<ReminderNotificationDeliveryRow>(
+        'quest_reminder_notification_deliveries',
+      ).insert({
+        reminder_id: params.reminderId,
+        delivery_window_key: params.deliveryWindowKey,
+        status: 'sending',
+      });
+      return true;
+    } catch (error: any) {
+      if (error?.code === '23505') {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  async markNotificationDeliverySent(params: {
+    reminderId: string;
+    deliveryWindowKey: string;
+    sentAt?: Date;
+  }): Promise<void> {
+    await this.db<ReminderNotificationDeliveryRow>(
+      'quest_reminder_notification_deliveries',
+    )
+      .where({
+        reminder_id: params.reminderId,
+        delivery_window_key: params.deliveryWindowKey,
+      })
+      .update({
+        status: 'sent',
+        sent_at: params.sentAt ?? this.db.fn.now(),
+      });
+  }
+
+  async releaseNotificationDelivery(params: {
+    reminderId: string;
+    deliveryWindowKey: string;
+  }): Promise<void> {
+    await this.db<ReminderNotificationDeliveryRow>(
+      'quest_reminder_notification_deliveries',
+    )
+      .where({
+        reminder_id: params.reminderId,
+        delivery_window_key: params.deliveryWindowKey,
+      })
+      .del();
   }
 }

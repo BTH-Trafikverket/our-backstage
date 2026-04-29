@@ -1,4 +1,3 @@
-import { isIP } from 'node:net';
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import { InputError, NotFoundError } from '@backstage/errors';
 import Handlebars from 'handlebars';
@@ -17,6 +16,11 @@ import {
   getStaticWebhookEventMetadata,
   type WebhookEventMetadata,
 } from './webhookEventMetadata';
+import {
+  normalizeWebhookTargetPolicy,
+  validateWebhookTargetUrl,
+  WebhookTargetValidationError,
+} from './webhookTargetPolicy';
 
 type WebhookServiceOpts = {
   credentials: any;
@@ -38,40 +42,25 @@ export type WebhookEventName =
   | 'weekly'
   | 'monthly';
 
-function isPrivateIpv4Address(hostname: string): boolean {
-  const octets = hostname.split('.').map(part => Number(part));
-  if (octets.length !== 4 || octets.some(octet => Number.isNaN(octet))) {
-    return false;
+export class WebhookTargetReachabilityError extends Error {
+  readonly url: string;
+  readonly statusCode?: number;
+
+  constructor(options: { url: string; message: string; statusCode?: number }) {
+    super(options.message);
+    this.name = 'WebhookTargetReachabilityError';
+    this.url = options.url;
+    this.statusCode = options.statusCode;
   }
-
-  const [first, second] = octets;
-  return (
-    first === 10 ||
-    first === 127 ||
-    first === 0 ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168)
-  );
-}
-
-function isPrivateIpv6Address(hostname: string): boolean {
-  const normalized = hostname.toLowerCase();
-  return (
-    normalized === '::1' ||
-    normalized.startsWith('fc') ||
-    normalized.startsWith('fd') ||
-    normalized.startsWith('fe80:') ||
-    normalized.startsWith('::ffff:127.')
-  );
 }
 
 export class WebhookService {
   private readonly webhookRepo: WebhookRepository;
   private readonly requestTimeoutMs: number;
-  private readonly allowedHosts: Set<string>;
-  private readonly allowHttp: boolean;
-  private readonly allowPrivateTargets: boolean;
+  private readonly fetchImpl: typeof fetch;
+  private readonly targetPolicy: ReturnType<
+    typeof normalizeWebhookTargetPolicy
+  >;
 
   constructor(options: {
     webhookRepo: WebhookRepository;
@@ -80,14 +69,12 @@ export class WebhookService {
     allowedHosts?: string[];
     allowHttp?: boolean;
     allowPrivateTargets?: boolean;
+    fetchImpl?: typeof fetch;
   }) {
     this.webhookRepo = options.webhookRepo;
     this.requestTimeoutMs = options.requestTimeoutMs ?? 10_000;
-    this.allowedHosts = new Set(
-      (options.allowedHosts ?? []).map(host => host.toLocaleLowerCase('en-US')),
-    );
-    this.allowHttp = options.allowHttp ?? false;
-    this.allowPrivateTargets = options.allowPrivateTargets ?? false;
+    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.targetPolicy = normalizeWebhookTargetPolicy(options);
   }
 
   private buildWebhook(row: WebhookRow): WebhookResponse {
@@ -104,12 +91,18 @@ export class WebhookService {
   }
 
   async createWebhook(data: WebhookCreationInput, _opts: WebhookServiceOpts) {
+    this.validateCrudTarget(data.url);
+
     const triggerEvent = await this.webhookRepo.getWebhookTriggerEvent(
       data.event,
     );
 
     if (!triggerEvent) {
       throw new InputError(`Webhook trigger event '${data.event}' not found`);
+    }
+
+    if (!data.skipEndpointHealthCheck) {
+      await this.checkCrudTargetReachability(data.url);
     }
 
     const created = await this.webhookRepo.createWebhook({
@@ -133,6 +126,9 @@ export class WebhookService {
       return undefined;
     }
 
+    const targetUrl = data.url ?? current.url;
+    this.validateCrudTarget(targetUrl);
+
     if (data.event !== undefined) {
       const triggerEvent = await this.webhookRepo.getWebhookTriggerEvent(
         data.event,
@@ -141,6 +137,14 @@ export class WebhookService {
       if (!triggerEvent) {
         throw new InputError(`Webhook trigger event '${data.event}' not found`);
       }
+    }
+
+    if (
+      data.url !== undefined &&
+      data.url !== current.url &&
+      !data.skipEndpointHealthCheck
+    ) {
+      await this.checkCrudTargetReachability(data.url);
     }
 
     const updated = await this.webhookRepo.updateWebhook(id, {
@@ -298,43 +302,119 @@ export class WebhookService {
     target: DomainEventDeliveryTarget,
     eventName: WebhookEventName,
   ): URL {
-    const url = new URL(target.url);
-    const hostname = url.hostname.toLocaleLowerCase('en-US');
+    try {
+      return validateWebhookTargetUrl(target.url, this.targetPolicy);
+    } catch (error) {
+      if (!(error instanceof WebhookTargetValidationError)) {
+        throw error;
+      }
 
-    if (url.username || url.password) {
-      throw new Error(
-        `Webhook '${target.title}' (${target.url}) for event '${eventName}' uses embedded credentials`,
-      );
+      switch (error.code) {
+        case 'embeddedCredentials':
+          throw new Error(
+            `Webhook '${target.title}' (${target.url}) for event '${eventName}' uses embedded credentials`,
+          );
+        case 'protocolNotAllowed':
+          throw new Error(
+            `Webhook '${target.title}' (${target.url}) for event '${eventName}' must use HTTPS`,
+          );
+        case 'hostNotAllowed':
+          throw new Error(
+            `Webhook '${target.title}' (${target.url}) for event '${eventName}' targets a host that is not allowed`,
+          );
+        case 'privateTargetNotAllowed':
+          throw new Error(
+            `Webhook '${target.title}' (${target.url}) for event '${eventName}' targets a private host that is not allowed`,
+          );
+        default:
+          throw error;
+      }
+    }
+  }
+
+  private validateCrudTarget(url: string): void {
+    try {
+      validateWebhookTargetUrl(url, this.targetPolicy);
+    } catch (error) {
+      if (!(error instanceof WebhookTargetValidationError)) {
+        throw error;
+      }
+
+      switch (error.code) {
+        case 'embeddedCredentials':
+          throw new InputError(
+            'Webhook URL must not include embedded credentials',
+          );
+        case 'protocolNotAllowed':
+          throw new InputError('Webhook URL must use HTTPS');
+        case 'hostNotAllowed':
+        case 'privateTargetNotAllowed':
+          throw new InputError(
+            `Webhook target host '${error.hostname}' is not allowed`,
+          );
+        default:
+          throw error;
+      }
+    }
+  }
+
+  private async checkCrudTargetReachability(urlString: string): Promise<void> {
+    const url = validateWebhookTargetUrl(urlString, this.targetPolicy);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url.toString(), {
+        method: 'HEAD',
+        redirect: 'manual',
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new WebhookTargetReachabilityError({
+          url: url.toString(),
+          message: `Webhook endpoint did not respond to a health check within ${this.requestTimeoutMs}ms. Double-check the URL before saving.`,
+        });
+      }
+
+      throw new WebhookTargetReachabilityError({
+        url: url.toString(),
+        message:
+          'Webhook endpoint could not be reached right now. Double-check the URL before saving.',
+      });
+    } finally {
+      clearTimeout(timeout);
     }
 
     if (
-      url.protocol !== 'https:' &&
-      !(this.allowHttp && url.protocol === 'http:')
+      response.ok ||
+      response.status < 400 ||
+      response.status === 401 ||
+      response.status === 403 ||
+      response.status === 405
     ) {
-      throw new Error(
-        `Webhook '${target.title}' (${target.url}) for event '${eventName}' must use HTTPS`,
-      );
+      return;
     }
 
-    if (this.allowedHosts.size > 0 && !this.allowedHosts.has(hostname)) {
-      throw new Error(
-        `Webhook '${target.title}' (${target.url}) for event '${eventName}' targets a host that is not allowed`,
-      );
+    const responseBody = await response.text();
+    const detail = responseBody.trim();
+
+    if (response.status === 404 || response.status === 410) {
+      throw new WebhookTargetReachabilityError({
+        url: url.toString(),
+        statusCode: response.status,
+        message: `Webhook endpoint responded with status ${response.status} to a health check. Double-check the URL before saving.`,
+      });
     }
 
-    if (
-      !this.allowPrivateTargets &&
-      (hostname === 'localhost' ||
-        hostname.endsWith('.localhost') ||
-        (isIP(hostname) === 4 && isPrivateIpv4Address(hostname)) ||
-        (isIP(hostname) === 6 && isPrivateIpv6Address(hostname)))
-    ) {
-      throw new Error(
-        `Webhook '${target.title}' (${target.url}) for event '${eventName}' targets a private host that is not allowed`,
-      );
-    }
-
-    return url;
+    throw new WebhookTargetReachabilityError({
+      url: url.toString(),
+      statusCode: response.status,
+      message: detail
+        ? `Webhook endpoint responded with status ${response.status} to a health check: ${detail}`
+        : `Webhook endpoint responded with status ${response.status} to a health check and may not be available right now.`,
+    });
   }
 
   private async deliverWebhook(
@@ -345,7 +425,7 @@ export class WebhookService {
   ): Promise<void> {
     const payload = this.renderPayloadTemplate(target.payload, context);
     const url = this.validateTarget(target, eventName);
-    const response = await fetch(url.toString(), {
+    const response = await this.fetchImpl(url.toString(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
