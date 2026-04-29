@@ -213,83 +213,229 @@ describePostgres18('ReminderEvaluationService integration', () => {
     });
   });
 
-  it.each(['dismissed', 'disabled'] as const)(
-    'suppresses generation when the target user has viewer state %s',
-    async viewerState => {
-      const knex = await initDb();
-      const questsRepo = new QuestsRepository(knex);
-      const reminderRepo = new ReminderRepository(knex);
-      const logger = createLogger();
-      const quest = await createUserQuest(
-        knex,
-        `${viewerState} viewer reminder`,
-      );
-      const originalGeneratedAt = new Date('2026-04-10T08:00:00.000Z');
+  it('suppresses generation when a dismissed reminder is still in the same inactivity cycle', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Dismissed same-cycle reminder');
+    const originalGeneratedAt = new Date('2026-04-10T08:00:00.000Z');
 
-      await insertQuestReceipt({
-        knex,
-        questId: quest.id,
-        eventId: `evt-viewer-${viewerState}`,
-        subjectRef: 'user:default/alice',
-        receivedAt: new Date('2026-03-25T09:00:00.000Z'),
-      });
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-viewer-dismissed-same-cycle',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-03-25T09:00:00.000Z'),
+    });
 
-      const reminder = await reminderRepo.createOrRefreshReminder({
-        questId: quest.id,
-        targetSubjectRef: 'user:default/alice',
-        targetSubjectType: 'user',
-        ruleKey: 'inactive-viewer-14d',
-        ruleKind: 'activity',
-        reasonPayload: { message: 'Original reminder' },
-        status: 'active',
-        lastGeneratedAt: originalGeneratedAt,
-      });
+    const reminder = await reminderRepo.createOrRefreshReminder({
+      questId: quest.id,
+      targetSubjectRef: 'user:default/alice',
+      targetSubjectType: 'user',
+      ruleKey: 'inactive-viewer-14d',
+      ruleKind: 'activity',
+      reasonPayload: { message: 'Original reminder' },
+      status: 'active',
+      lastGeneratedAt: originalGeneratedAt,
+    });
 
-      if (viewerState === 'dismissed') {
-        await reminderRepo.dismissReminderForViewer(
-          reminder.id,
-          'user:default/alice',
-        );
-      } else {
-        await reminderRepo.disableReminderForViewer(
-          reminder.id,
-          'user:default/alice',
-        );
-      }
+    await reminderRepo.dismissReminderForViewer(
+      reminder.id,
+      'user:default/alice',
+    );
 
-      const service = new ReminderEvaluationService({
-        questsRepo,
-        reminderRepo,
-        logger,
-        now: () => new Date('2026-04-21T12:00:00.000Z'),
-        rules: [
-          {
-            key: 'inactive-viewer-14d',
-            questId: quest.id,
-            inactivityDays: 14,
-            activityDescription: 'reviewed a PR',
-          },
-        ],
-      });
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-21T12:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-viewer-14d',
+          questId: quest.id,
+          inactivityDays: 14,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
 
-      await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
-        createdCount: 0,
-        refreshedCount: 0,
-        suppressedCount: 1,
-      });
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 0,
+      suppressedCount: 1,
+    });
 
-      await expect(
-        reminderRepo.getReminderByIdentity(
-          quest.id,
-          'user:default/alice',
-          'inactive-viewer-14d',
-        ),
-      ).resolves.toMatchObject({
-        id: reminder.id,
-        last_generated_at: originalGeneratedAt,
-      });
-    },
-  );
+    await expect(
+      reminderRepo.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-viewer-14d',
+      ),
+    ).resolves.toMatchObject({
+      id: reminder.id,
+      last_generated_at: originalGeneratedAt,
+    });
+  });
+
+  it('recreates a dismissed reminder when a new activity cycle starts', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Dismissed new-cycle reminder');
+    const originalGeneratedAt = new Date('2026-04-10T08:00:00.000Z');
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-viewer-dismissed-old-cycle',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-03-25T09:00:00.000Z'),
+    });
+
+    const reminder = await reminderRepo.createOrRefreshReminder({
+      questId: quest.id,
+      targetSubjectRef: 'user:default/alice',
+      targetSubjectType: 'user',
+      ruleKey: 'inactive-viewer-14d',
+      ruleKind: 'activity',
+      reasonPayload: { message: 'Original reminder' },
+      status: 'active',
+      lastGeneratedAt: originalGeneratedAt,
+    });
+
+    await reminderRepo.dismissReminderForViewer(
+      reminder.id,
+      'user:default/alice',
+    );
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-viewer-dismissed-new-cycle',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-15T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-30T12:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-viewer-14d',
+          questId: quest.id,
+          inactivityDays: 14,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 1,
+      suppressedCount: 0,
+    });
+
+    await expect(
+      reminderRepo.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-viewer-14d',
+      ),
+    ).resolves.toMatchObject({
+      id: reminder.id,
+      last_generated_at: new Date('2026-04-30T12:00:00.000Z'),
+      reason_payload: {
+        message: 'You have not reviewed a PR in two weeks',
+        activitySource: 'quest_event_receipts',
+        activityDescription: 'reviewed a PR',
+        latestActivityAt: '2026-04-15T09:00:00.000Z',
+        inactivityDays: 14,
+      },
+    });
+    await expect(
+      reminderRepo.getViewerState(reminder.id, 'user:default/alice'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('keeps viewer-disabled reminders suppressed even after a new cycle starts', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const quest = await createUserQuest(knex, 'Disabled new-cycle reminder');
+    const originalGeneratedAt = new Date('2026-04-10T08:00:00.000Z');
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-viewer-disabled-old-cycle',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-03-25T09:00:00.000Z'),
+    });
+
+    const reminder = await reminderRepo.createOrRefreshReminder({
+      questId: quest.id,
+      targetSubjectRef: 'user:default/alice',
+      targetSubjectType: 'user',
+      ruleKey: 'inactive-viewer-14d',
+      ruleKind: 'activity',
+      reasonPayload: { message: 'Original reminder' },
+      status: 'active',
+      lastGeneratedAt: originalGeneratedAt,
+    });
+
+    await reminderRepo.disableReminderForViewer(
+      reminder.id,
+      'user:default/alice',
+    );
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-viewer-disabled-new-cycle',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-04-15T09:00:00.000Z'),
+    });
+
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      now: () => new Date('2026-04-30T12:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-viewer-14d',
+          questId: quest.id,
+          inactivityDays: 14,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 0,
+      suppressedCount: 1,
+    });
+
+    await expect(
+      reminderRepo.getReminderByIdentity(
+        quest.id,
+        'user:default/alice',
+        'inactive-viewer-14d',
+      ),
+    ).resolves.toMatchObject({
+      id: reminder.id,
+      last_generated_at: originalGeneratedAt,
+    });
+    await expect(
+      reminderRepo.getViewerState(reminder.id, 'user:default/alice'),
+    ).resolves.toBe('disabled');
+  });
 
   it('skips archived quests and logs the rule as skipped', async () => {
     const knex = await initDb();

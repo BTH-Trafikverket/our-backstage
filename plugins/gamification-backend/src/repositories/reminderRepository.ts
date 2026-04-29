@@ -46,10 +46,6 @@ export class ReminderRepository {
     return this.db.transaction(async trx => fn(new ReminderRepository(trx)));
   }
 
-  private toJsonb(value: ReminderReasonPayload | undefined) {
-    return this.db.raw('?::jsonb', [JSON.stringify(value ?? {})]);
-  }
-
   async createOrRefreshReminder(params: {
     questId: string;
     targetSubjectRef: string;
@@ -59,33 +55,61 @@ export class ReminderRepository {
     reasonPayload?: ReminderReasonPayload;
     status?: ReminderStatus;
     lastGeneratedAt?: Date;
+    resetDismissedViewerState?: boolean;
   }): Promise<ReminderRow> {
     const status = params.status ?? 'active';
-    const reasonPayload = this.toJsonb(params.reasonPayload);
-    const lastGeneratedAt = params.lastGeneratedAt ?? this.db.fn.now();
+    const lastGeneratedAt = params.lastGeneratedAt ?? new Date();
+    const resetDismissedViewerStateBefore = new Date();
 
-    const rows = await this.db<ReminderRow>('quest_reminders')
-      .insert({
-        quest_id: params.questId,
-        target_subject_ref: params.targetSubjectRef,
-        target_subject_type: params.targetSubjectType,
-        rule_key: params.ruleKey,
-        rule_kind: params.ruleKind,
-        reason_payload: reasonPayload,
-        status,
-        last_generated_at: lastGeneratedAt,
-      })
-      .onConflict(['quest_id', 'target_subject_ref', 'rule_key'])
-      .merge({
-        target_subject_type: params.targetSubjectType,
-        rule_kind: params.ruleKind,
-        reason_payload: reasonPayload,
-        status,
-        last_generated_at: lastGeneratedAt,
-      })
-      .returning('*');
+    const upsertReminder = async (
+      db: Knex | Knex.Transaction,
+    ): Promise<ReminderRow> => {
+      const reasonPayload = db.raw('?::jsonb', [
+        JSON.stringify(params.reasonPayload ?? {}),
+      ]);
 
-    return rows[0];
+      const rows = await db<ReminderRow>('quest_reminders')
+        .insert({
+          quest_id: params.questId,
+          target_subject_ref: params.targetSubjectRef,
+          target_subject_type: params.targetSubjectType,
+          rule_key: params.ruleKey,
+          rule_kind: params.ruleKind,
+          reason_payload: reasonPayload,
+          status,
+          last_generated_at: lastGeneratedAt,
+        })
+        .onConflict(['quest_id', 'target_subject_ref', 'rule_key'])
+        .merge({
+          target_subject_type: params.targetSubjectType,
+          rule_kind: params.ruleKind,
+          reason_payload: reasonPayload,
+          status,
+          last_generated_at: lastGeneratedAt,
+        })
+        .returning('*');
+
+      return rows[0];
+    };
+
+    if (!params.resetDismissedViewerState) {
+      return upsertReminder(this.db);
+    }
+
+    return this.withTransaction(async repo => {
+      const reminder = await upsertReminder(repo.db);
+
+      await repo
+        .db<ReminderViewerStateRow>('quest_reminder_viewer_state')
+        .where({
+          reminder_id: reminder.id,
+          state: 'dismissed',
+        })
+        .andWhere('updated_at', '<=', resetDismissedViewerStateBefore)
+        .delete();
+
+      return reminder;
+    });
   }
 
   async getReminderById(id: string): Promise<ReminderRow | undefined> {

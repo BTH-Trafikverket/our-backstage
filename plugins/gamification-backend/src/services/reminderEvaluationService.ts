@@ -193,6 +193,10 @@ export class ReminderEvaluationService {
         subjectRef,
         rule.key,
       );
+      const newCycleStarted =
+        !!existingReminder &&
+        latestActivityAt.getTime() >
+          existingReminder.last_generated_at.getTime();
 
       if (existingReminder?.status === 'disabled') {
         baseResult.suppressedCount += 1;
@@ -204,7 +208,12 @@ export class ReminderEvaluationService {
           existingReminder.id,
           subjectRef,
         );
-        if (viewerState === 'dismissed' || viewerState === 'disabled') {
+        if (viewerState === 'disabled') {
+          baseResult.suppressedCount += 1;
+          continue;
+        }
+
+        if (viewerState === 'dismissed' && !newCycleStarted) {
           baseResult.suppressedCount += 1;
           continue;
         }
@@ -222,6 +231,7 @@ export class ReminderEvaluationService {
         }),
         status: 'active',
         lastGeneratedAt: now,
+        resetDismissedViewerState: newCycleStarted,
       });
 
       if (existingReminder) {

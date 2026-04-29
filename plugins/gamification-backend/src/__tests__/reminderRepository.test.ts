@@ -81,7 +81,7 @@ describePostgres18('ReminderRepository integration', () => {
     expect(stored.target_subject_type).toBe('team');
   });
 
-  it('refreshes an existing reminder without duplicating the row or wiping viewer state', async () => {
+  it('refreshes an existing reminder without duplicating the row or wiping viewer state in the same cycle', async () => {
     const knex = await initDb();
     const repository = new ReminderRepository(knex);
     const quest = await createQuest(knex, 'Refresh Reminder Quest', 'team');
@@ -136,6 +136,68 @@ describePostgres18('ReminderRepository integration', () => {
         state: 'dismissed',
       },
     ]);
+  });
+
+  it('clears dismissed viewer state but keeps disabled viewer state when a new cycle starts', async () => {
+    const knex = await initDb();
+    const repository = new ReminderRepository(knex);
+    const quest = await createQuest(knex, 'Reset Viewer State Quest', 'team');
+
+    const original = await repository.createOrRefreshReminder({
+      questId: quest.id,
+      targetSubjectRef: 'group:default/platform',
+      targetSubjectType: 'team',
+      ruleKey: 'inactive-14d',
+      ruleKind: 'activity',
+      reasonPayload: { inactiveDays: 14, missingTasks: 2 },
+      lastGeneratedAt: new Date('2026-04-01T00:00:00.000Z'),
+    });
+
+    await repository.dismissReminderForViewer(
+      original.id,
+      'user:default/alice',
+    );
+    await repository.disableReminderForViewer(original.id, 'user:default/bob');
+
+    const refreshed = await repository.createOrRefreshReminder({
+      questId: quest.id,
+      targetSubjectRef: 'group:default/platform',
+      targetSubjectType: 'team',
+      ruleKey: 'inactive-14d',
+      ruleKind: 'activity',
+      reasonPayload: { inactiveDays: 21, missingTasks: 5 },
+      lastGeneratedAt: new Date('2026-04-10T00:00:00.000Z'),
+      resetDismissedViewerState: true,
+    });
+
+    const viewerRows = await knex('quest_reminder_viewer_state')
+      .select(['reminder_id', 'viewer_subject_ref', 'state'])
+      .orderBy('viewer_subject_ref');
+
+    expect(refreshed.id).toBe(original.id);
+    expect(viewerRows).toEqual([
+      {
+        reminder_id: original.id,
+        viewer_subject_ref: 'user:default/bob',
+        state: 'disabled',
+      },
+    ]);
+
+    const aliceView = await repository.listVisibleRemindersForViewer({
+      viewerSubjectRef: 'user:default/alice',
+      teamRefs: ['group:default/platform'],
+    });
+    const bobView = await repository.listVisibleRemindersForViewer({
+      viewerSubjectRef: 'user:default/bob',
+      teamRefs: ['group:default/platform'],
+    });
+
+    expect(aliceView).toHaveLength(1);
+    expect(aliceView[0]).toMatchObject({
+      id: original.id,
+      viewer_state: 'active',
+    });
+    expect(bobView).toEqual([]);
   });
 
   it('shows the same team reminder to multiple team members independently', async () => {
