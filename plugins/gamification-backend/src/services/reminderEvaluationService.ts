@@ -205,8 +205,17 @@ export class ReminderEvaluationService {
     result: ReminderRuleEvaluationResult;
     reminder: ReminderRow;
     quest: QuestRow;
+    deliveryWindowKey: string;
   }): Promise<void> {
     if (!this.notificationSender) {
+      return;
+    }
+
+    const reserved = await this.reminderRepo.tryReserveNotificationDelivery({
+      reminderId: params.reminder.id,
+      deliveryWindowKey: params.deliveryWindowKey,
+    });
+    if (!reserved) {
       return;
     }
 
@@ -215,8 +224,17 @@ export class ReminderEvaluationService {
         reminder: params.reminder,
         questTitle: params.quest.title,
       });
+      await this.reminderRepo.markNotificationDeliverySent({
+        reminderId: params.reminder.id,
+        deliveryWindowKey: params.deliveryWindowKey,
+        sentAt: this.now(),
+      });
       params.result.notificationCount += 1;
     } catch (error) {
+      await this.reminderRepo.releaseNotificationDelivery({
+        reminderId: params.reminder.id,
+        deliveryWindowKey: params.deliveryWindowKey,
+      });
       params.result.notificationFailureCount += 1;
       this.logger.warn(
         `Failed to send reminder notification for rule '${params.reminder.rule_key}' and subject '${params.reminder.target_subject_ref}': ${error}`,
@@ -293,13 +311,18 @@ export class ReminderEvaluationService {
         continue;
       }
 
+      const cooldownReminderEligibleAt =
+        await this.getCooldownReminderEligibleAt({
+          quest,
+          subjectRef,
+          inactivityDays: rule.inactivityDays,
+        });
+      const reminderEligibleAt =
+        cooldownReminderEligibleAt ??
+        new Date(latestActivityAt.getTime() + rule.inactivityDays * DAY_IN_MS);
+      const deliveryWindowKey = `activity:${reminderEligibleAt.toISOString()}`;
+
       if (!options.force) {
-        const cooldownReminderEligibleAt =
-          await this.getCooldownReminderEligibleAt({
-            quest,
-            subjectRef,
-            inactivityDays: rule.inactivityDays,
-          });
         if (cooldownReminderEligibleAt) {
           if (now.getTime() < cooldownReminderEligibleAt.getTime()) {
             continue;
@@ -358,6 +381,7 @@ export class ReminderEvaluationService {
         result: baseResult,
         reminder,
         quest,
+        deliveryWindowKey,
       });
     }
 
