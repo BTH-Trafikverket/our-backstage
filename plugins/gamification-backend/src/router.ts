@@ -27,6 +27,7 @@ import { ReminderService } from './services/reminderService';
 import type { ReminderEvaluationService } from './services/reminderEvaluationService';
 import { WebhookService } from './services/webhookService';
 import { CatalogService } from './services/catalogService';
+import { readWebhookDeliveryConfig } from './services/webhookTargetPolicy';
 
 import { XpRouter } from './routes/xpRouter';
 import { CatalogClient } from '@backstage/catalog-client';
@@ -97,7 +98,11 @@ export function createRouter({
   const catalogClient = new CatalogClient({ discoveryApi: discovery });
   const catalogService = new CatalogService(catalogClient, auth, logger);
   const actorResolutionProviders = readActorResolutionProviders(config);
-  const webhookService = new WebhookService({ webhookRepo, logger });
+  const webhookService = new WebhookService({
+    webhookRepo,
+    logger,
+    ...readWebhookDeliveryConfig(config),
+  });
 
   const questsService = new QuestsService({
     questsRepo,

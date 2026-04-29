@@ -190,6 +190,8 @@ spec:
                     $ref: '#/components/schemas/Quest'
             '400':
               $ref: '#/components/responses/BadRequest'
+            '409':
+              $ref: '#/components/responses/Conflict'
             '401':
               $ref: '#/components/responses/Unauthorized'
             '403':
@@ -297,6 +299,8 @@ spec:
                     $ref: '#/components/schemas/Quest'
             '400':
               $ref: '#/components/responses/BadRequest'
+            '409':
+              $ref: '#/components/responses/Conflict'
             '401':
               $ref: '#/components/responses/Unauthorized'
             '403':
@@ -1589,6 +1593,9 @@ spec:
             payload:
               type: object
               additionalProperties: true
+            skipEndpointHealthCheck:
+              type: boolean
+              description: Skip the non-blocking endpoint health check warning and save anyway.
         UpdateWebhookRequest:
           type: object
           minProperties: 1
@@ -1607,6 +1614,9 @@ spec:
             payload:
               type: object
               additionalProperties: true
+            skipEndpointHealthCheck:
+              type: boolean
+              description: Skip the non-blocking endpoint health check warning and save anyway.
         XpStatus:
           type: object
           required:

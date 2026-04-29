@@ -34,6 +34,7 @@ export const webhookCreationSchema = z
     url: webhookUrlSchema,
     event: webhookEventSchema,
     payload: webhookPayloadSchema.default({}),
+    skipEndpointHealthCheck: z.boolean().optional(),
   })
   .strict();
 

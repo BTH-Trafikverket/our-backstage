@@ -162,8 +162,12 @@ describe('quests routes auth', () => {
       expect(questsService.getQuests).not.toHaveBeenCalled();
       expect(questsService.listGithubUsers).not.toHaveBeenCalled();
       expect(questsService.handleQuestEvent).not.toHaveBeenCalled();
-      expect(reminderEvaluationService.evaluateConfiguredRules).not.toHaveBeenCalled();
-      expect(questsService.runCatalogLinkedQuestsForTeam).not.toHaveBeenCalled();
+      expect(
+        reminderEvaluationService.evaluateConfiguredRules,
+      ).not.toHaveBeenCalled();
+      expect(
+        questsService.runCatalogLinkedQuestsForTeam,
+      ).not.toHaveBeenCalled();
     },
   );
 

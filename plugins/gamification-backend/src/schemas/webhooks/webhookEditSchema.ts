@@ -14,6 +14,7 @@ export const webhookEditSchema = z
     url: webhookUrlSchema.optional(),
     event: webhookEventSchema.optional(),
     payload: webhookPayloadSchema.optional(),
+    skipEndpointHealthCheck: z.boolean().optional(),
   })
   .strict()
   .refine(
@@ -22,7 +23,8 @@ export const webhookEditSchema = z
       value.description !== undefined ||
       value.url !== undefined ||
       value.event !== undefined ||
-      value.payload !== undefined,
+      value.payload !== undefined ||
+      value.skipEndpointHealthCheck !== undefined,
     {
       message: 'No fields provided to update',
     },
