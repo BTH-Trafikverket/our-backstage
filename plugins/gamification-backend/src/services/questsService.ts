@@ -16,7 +16,7 @@ import type {
 import { CatalogClient } from '@backstage/catalog-client';
 import { AuthService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
-import { stringifyEntityRef } from '@backstage/catalog-model';
+import { stringifyEntityRef, type Entity } from '@backstage/catalog-model';
 import type { QuestEventActor } from '../schemas/quests/questEventSchema';
 import {
   getCatalogRule,
@@ -608,6 +608,7 @@ export class QuestsService {
     triggeredEvents: number;
     duplicateEvents: number;
     blockedEvents: number;
+    unknownEvaluations: number;
   }> {
     if (!teamRef.startsWith('group:')) {
       throw new InputError('teamRef must be a group entity ref');
@@ -654,6 +655,19 @@ export class QuestsService {
     let triggeredEvents = 0;
     let duplicateEvents = 0;
     let blockedEvents = 0;
+    let unknownEvaluations = 0;
+
+    let teamOwnedEntities: Entity[] | undefined;
+    let teamEntitiesUnavailable = false;
+
+    try {
+      teamOwnedEntities = await this.catalogService.getTeamOwnedEntities(
+        teamRef,
+        opts.credentials,
+      );
+    } catch {
+      teamEntitiesUnavailable = true;
+    }
 
     for (const quest of catalogQuests) {
       const resolved = this.resolveCatalogRuleForQuest(quest);
@@ -662,12 +676,21 @@ export class QuestsService {
         continue;
       }
 
-      const evaluations = await this.catalogService.evaluateTeamOwnedEntities(
-        teamRef,
+      if (teamEntitiesUnavailable || !teamOwnedEntities) {
+        unknownEvaluations += 1;
+        continue;
+      }
+
+      const evaluations = this.catalogService.evaluateRuleAgainstEntities(
+        teamOwnedEntities,
         resolved.rule,
-        opts.credentials,
       );
-      const passingEntities = evaluations.filter(result => result.passed);
+      const passingEntities = evaluations.filter(
+        result => result.status === 'pass',
+      );
+      unknownEvaluations += evaluations.filter(
+        result => result.status === 'unknown',
+      ).length;
 
       matchedEntities += passingEntities.length;
 
@@ -699,6 +722,7 @@ export class QuestsService {
       triggeredEvents,
       duplicateEvents,
       blockedEvents,
+      unknownEvaluations,
     };
   }
 

@@ -94,6 +94,7 @@ describe('quests routes auth', () => {
         triggeredEvents: 3,
         duplicateEvents: 0,
         blockedEvents: 0,
+        unknownEvaluations: 0,
       })),
     };
     const reminderEvaluationService = {

@@ -14,7 +14,10 @@ describe('QuestsService', () => {
   };
   let mockCatalogClient: { getEntities: jest.Mock };
   let mockAuthService: { getPluginRequestToken: jest.Mock };
-  let mockCatalogService: { evaluateTeamOwnedEntities: jest.Mock };
+  let mockCatalogService: {
+    getTeamOwnedEntities: jest.Mock;
+    evaluateRuleAgainstEntities: jest.Mock;
+  };
 
   beforeEach(() => {
     mockRepo = {
@@ -37,7 +40,8 @@ describe('QuestsService', () => {
       getEntities: jest.fn(),
     };
     mockCatalogService = {
-      evaluateTeamOwnedEntities: jest.fn(),
+      getTeamOwnedEntities: jest.fn(),
+      evaluateRuleAgainstEntities: jest.fn(),
     };
     mockReminderRepo = {
       createOrRefreshReminder: jest.fn(),
@@ -541,14 +545,18 @@ describe('QuestsService', () => {
           pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
         } as any);
 
-      mockCatalogService.evaluateTeamOwnedEntities.mockResolvedValue([
+      mockCatalogService.getTeamOwnedEntities.mockResolvedValue([
+        { kind: 'Component', metadata: { name: 'service-a' } },
+        { kind: 'Component', metadata: { name: 'service-b' } },
+      ]);
+      mockCatalogService.evaluateRuleAgainstEntities.mockReturnValue([
         {
           entityRef: 'component:default/service-a',
-          passed: true,
+          status: 'pass',
         },
         {
           entityRef: 'component:default/service-b',
-          passed: false,
+          status: 'fail',
         },
       ]);
 
@@ -586,7 +594,9 @@ describe('QuestsService', () => {
       expect(result.matchedEntities).toBe(1);
       expect(result.triggeredEvents).toBe(1);
       expect(result.duplicateEvents).toBe(0);
-      expect(mockCatalogService.evaluateTeamOwnedEntities).toHaveBeenCalled();
+      expect(result.unknownEvaluations).toBe(0);
+      expect(mockCatalogService.getTeamOwnedEntities).toHaveBeenCalledTimes(1);
+      expect(mockCatalogService.evaluateRuleAgainstEntities).toHaveBeenCalled();
     });
 
     it('evaluates catalog-linked quests using catalog_rule config', async () => {
@@ -621,10 +631,13 @@ describe('QuestsService', () => {
           pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
         } as any);
 
-      mockCatalogService.evaluateTeamOwnedEntities.mockResolvedValue([
+      mockCatalogService.getTeamOwnedEntities.mockResolvedValue([
+        { kind: 'Component', metadata: { name: 'service-c' } },
+      ]);
+      mockCatalogService.evaluateRuleAgainstEntities.mockReturnValue([
         {
           entityRef: 'component:default/service-c',
-          passed: true,
+          status: 'pass',
         },
       ]);
 
@@ -666,7 +679,153 @@ describe('QuestsService', () => {
       expect(result.evaluatedQuests).toBe(1);
       expect(result.matchedEntities).toBe(1);
       expect(result.triggeredEvents).toBe(1);
-      expect(mockCatalogService.evaluateTeamOwnedEntities).toHaveBeenCalled();
+      expect(result.unknownEvaluations).toBe(0);
+      expect(mockCatalogService.getTeamOwnedEntities).toHaveBeenCalledTimes(1);
+      expect(mockCatalogService.evaluateRuleAgainstEntities).toHaveBeenCalled();
+    });
+
+    it('fetches team-owned entities once for multiple catalog quests', async () => {
+      mockRepo.getQuests.mockResolvedValue({
+        data: [
+          {
+            id: 'quest-catalog-1',
+            title: 'Missing techdocs',
+            description: '',
+            target_count: 1,
+            xp_reward: 10,
+            subject_type: 'team',
+            completion_policy: 'REPEATABLE',
+            cooldown_days: null,
+            quest_mode: 'catalog',
+            linked_config: {
+              catalog_rule: {
+                version: 'v1',
+                check: { type: 'missing_techdocs' },
+              },
+            },
+            created_at: new Date(),
+            updated_at: new Date(),
+            archived_at: null,
+          },
+          {
+            id: 'quest-catalog-2',
+            title: 'Missing owner',
+            description: '',
+            target_count: 1,
+            xp_reward: 10,
+            subject_type: 'team',
+            completion_policy: 'REPEATABLE',
+            cooldown_days: null,
+            quest_mode: 'catalog',
+            linked_config: {
+              catalog_rule: {
+                version: 'v1',
+                check: { type: 'missing_owner' },
+              },
+            },
+            created_at: new Date(),
+            updated_at: new Date(),
+            archived_at: null,
+          },
+        ] as any,
+        pagination: { page: 1, limit: 100, total: 2, totalPages: 1 },
+      } as any);
+
+      mockCatalogService.getTeamOwnedEntities.mockResolvedValue([
+        { kind: 'Component', metadata: { name: 'service-a' } },
+      ]);
+      mockCatalogService.evaluateRuleAgainstEntities.mockReturnValue([
+        {
+          entityRef: 'component:default/service-a',
+          status: 'pass',
+        },
+      ]);
+
+      mockRepo.getQuestById.mockImplementation(
+        async (questId: string) =>
+          ({
+            id: questId,
+            title: `Quest ${questId}`,
+            description: '',
+            target_count: 1,
+            xp_reward: 10,
+            subject_type: 'team',
+            completion_policy: 'REPEATABLE',
+            cooldown_days: null,
+            quest_mode: 'catalog',
+            linked_config: {
+              catalog_rule: {
+                version: 'v1',
+                check: { type: 'missing_owner' },
+              },
+            },
+            created_at: new Date(),
+            updated_at: new Date(),
+          } as any),
+      );
+      mockRepo.tryInsertReceipt.mockResolvedValue(true);
+      mockRepo.incrementQuestProgress.mockResolvedValue({
+        subject_ref: 'group:default/platform',
+        quest_id: 'quest-catalog-1',
+        completion_count: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any);
+
+      await service.runCatalogLinkedQuestsForTeam('group:default/platform', {
+        credentials: {} as any,
+      });
+
+      expect(mockCatalogService.getTeamOwnedEntities).toHaveBeenCalledTimes(1);
+      expect(
+        mockCatalogService.evaluateRuleAgainstEntities,
+      ).toHaveBeenCalledTimes(2);
+    });
+
+    it('counts unknown evaluations when team-owned entity fetch fails', async () => {
+      mockRepo.getQuests.mockResolvedValue({
+        data: [
+          {
+            id: 'quest-catalog-1',
+            title: 'Missing techdocs',
+            description: '',
+            target_count: 1,
+            xp_reward: 10,
+            subject_type: 'team',
+            completion_policy: 'REPEATABLE',
+            cooldown_days: null,
+            quest_mode: 'catalog',
+            linked_config: {
+              catalog_rule: {
+                version: 'v1',
+                check: { type: 'missing_techdocs' },
+              },
+            },
+            created_at: new Date(),
+            updated_at: new Date(),
+            archived_at: null,
+          },
+        ] as any,
+        pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+      } as any);
+
+      mockCatalogService.getTeamOwnedEntities.mockRejectedValue(
+        new Error('catalog unavailable'),
+      );
+
+      const result = await service.runCatalogLinkedQuestsForTeam(
+        'group:default/platform',
+        {
+          credentials: {} as any,
+        },
+      );
+
+      expect(result.evaluatedQuests).toBe(1);
+      expect(result.triggeredEvents).toBe(0);
+      expect(result.unknownEvaluations).toBe(1);
+      expect(
+        mockCatalogService.evaluateRuleAgainstEntities,
+      ).not.toHaveBeenCalled();
     });
   });
 

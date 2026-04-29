@@ -11,6 +11,13 @@ type CatalogServiceOpts = {
 
 type TeamOwnedEntitiesCatalogClient = Pick<CatalogClient, 'getEntities'>;
 
+export type CatalogEvaluationStatus = 'pass' | 'fail' | 'unknown';
+
+export type CatalogRuleEvaluation = {
+  entityRef: string;
+  status: CatalogEvaluationStatus;
+};
+
 export class CatalogService {
   constructor(
     private readonly catalogClient: Pick<CatalogClient, 'getEntityByRef'>,
@@ -89,13 +96,41 @@ export class CatalogService {
     teamRef: string,
     rule: CatalogRule,
     credentials: CatalogServiceOpts['credentials'],
-  ): Promise<Array<{ entityRef: string; passed: boolean }>> {
+  ): Promise<CatalogRuleEvaluation[]> {
     // Evaluates each team-owned entity against a caller-provided rule.
     const entities = await this.getTeamOwnedEntities(teamRef, credentials);
 
-    return entities.map(entity => ({
-      entityRef: stringifyEntityRef(entity),
-      passed: rule.evaluate(entity),
-    }));
+    return this.evaluateRuleAgainstEntities(entities, rule);
+  }
+
+  evaluateRuleAgainstEntities(
+    entities: Entity[],
+    rule: CatalogRule,
+  ): CatalogRuleEvaluation[] {
+    // Evaluate a pre-fetched entity set so callers can reuse one catalog fetch.
+    return entities.map(entity => {
+      const entityRef = stringifyEntityRef(entity);
+
+      try {
+        const passed = rule.evaluate(entity);
+
+        return {
+          entityRef,
+          status: passed ? 'pass' : 'fail',
+        };
+      } catch (error) {
+        const message = `Failed to evaluate catalog rule '${rule.id}' for entity '${entityRef}': ${error}`;
+        if (this.logger) {
+          this.logger.error(message);
+        } else {
+          console.error(message);
+        }
+
+        return {
+          entityRef,
+          status: 'unknown',
+        };
+      }
+    });
   }
 }

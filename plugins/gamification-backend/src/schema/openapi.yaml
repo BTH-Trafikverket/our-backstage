@@ -1249,6 +1249,7 @@ components:
         - triggeredEvents
         - duplicateEvents
         - blockedEvents
+        - unknownEvaluations
       additionalProperties: false
       properties:
         teamRef:
@@ -1269,6 +1270,9 @@ components:
           type: integer
           minimum: 0
         blockedEvents:
+          type: integer
+          minimum: 0
+        unknownEvaluations:
           type: integer
           minimum: 0
     BadgeCriteria:
