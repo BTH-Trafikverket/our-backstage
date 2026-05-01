@@ -1137,7 +1137,7 @@ describePostgres18('QuestsRepository integration', () => {
       ).resolves.toEqual([]);
     });
 
-    it('de-duplicates quest event receipts by event id', async () => {
+    it('de-duplicates exact replay of the same logical quest completion', async () => {
       const knex = await initDb();
       const repository = new QuestsRepository(knex);
       const firstInsert = await repository.tryInsertReceipt({
@@ -1155,6 +1155,48 @@ describePostgres18('QuestsRepository integration', () => {
 
       expect(firstInsert).toBe(true);
       expect(duplicateInsert).toBe(false);
+    });
+
+    it('allows the same event id to be applied to two different quests for the same subject', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const firstInsert = await repository.tryInsertReceipt({
+        event_id: 'evt-1',
+        event_key: 'quest:quest-a',
+        subject_ref: 'user:default/alice',
+        caller_subject: 'external:test-service',
+      });
+      const secondInsert = await repository.tryInsertReceipt({
+        event_id: 'evt-1',
+        event_key: 'quest:quest-b',
+        subject_ref: 'user:default/alice',
+        caller_subject: 'external:test-service',
+      });
+
+      expect(firstInsert).toBe(true);
+      expect(secondInsert).toBe(true);
+    });
+
+    it('allows the same event id to be applied to the same quest for two subjects', async () => {
+      const knex = await initDb();
+      const repository = new QuestsRepository(knex);
+
+      const firstInsert = await repository.tryInsertReceipt({
+        event_id: 'evt-1',
+        event_key: 'quest:quest-a',
+        subject_ref: 'user:default/alice',
+        caller_subject: 'external:test-service',
+      });
+      const secondInsert = await repository.tryInsertReceipt({
+        event_id: 'evt-1',
+        event_key: 'quest:quest-a',
+        subject_ref: 'user:default/bob',
+        caller_subject: 'external:test-service',
+      });
+
+      expect(firstInsert).toBe(true);
+      expect(secondInsert).toBe(true);
     });
   });
 });

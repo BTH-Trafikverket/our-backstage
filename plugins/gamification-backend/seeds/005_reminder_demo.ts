@@ -28,7 +28,7 @@ export const seed005ReminderDemo: Seed = {
           caller_subject: 'seed',
         })),
       )
-      .onConflict('event_id')
+      .onConflict(['caller_subject', 'event_id', 'event_key', 'subject_ref'])
       .ignore();
   },
 };

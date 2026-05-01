@@ -597,7 +597,12 @@ export const seed003DemoEvents: Seed = {
             subject_ref: ev.subject_ref,
             caller_subject: ev.caller_subject,
           })
-          .onConflict('event_id')
+          .onConflict([
+            'caller_subject',
+            'event_id',
+            'event_key',
+            'subject_ref',
+          ])
           .ignore()
           .returning(['event_id']);
 
