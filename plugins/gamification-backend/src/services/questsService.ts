@@ -16,9 +16,13 @@ import type {
 import { CatalogClient } from '@backstage/catalog-client';
 import { AuthService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
-import { stringifyEntityRef } from '@backstage/catalog-model';
+import { stringifyEntityRef, type Entity } from '@backstage/catalog-model';
 import type { QuestEventActor } from '../schemas/quests/questEventSchema';
-import { getCatalogRule } from './catalogRules';
+import {
+  getCatalogRule,
+  getCatalogRuleFromConfig,
+  type CatalogRule,
+} from './catalogRules';
 import { CatalogService } from './catalogService';
 
 type QuestServiceOpts = {
@@ -604,6 +608,10 @@ export class QuestsService {
     triggeredEvents: number;
     duplicateEvents: number;
     blockedEvents: number;
+    unknownEvaluations: number;
+    unknownCatalogFetches: number;
+    unknownMissingEntities: number;
+    unknownRuleErrors: number;
   }> {
     if (!teamRef.startsWith('group:')) {
       throw new InputError('teamRef must be a group entity ref');
@@ -629,7 +637,10 @@ export class QuestsService {
         ...pageResult.data.filter(
           quest =>
             quest.quest_mode === 'catalog' &&
-            Boolean(quest.linked_config?.catalog_condition),
+            Boolean(
+              quest.linked_config?.catalog_rule ||
+                quest.linked_config?.catalog_condition,
+            ),
         ),
       );
 
@@ -647,32 +658,88 @@ export class QuestsService {
     let triggeredEvents = 0;
     let duplicateEvents = 0;
     let blockedEvents = 0;
+    let unknownEvaluations = 0;
+    let unknownCatalogFetches = 0;
+    let unknownMissingEntities = 0;
+    let unknownRuleErrors = 0;
 
-    for (const quest of catalogQuests) {
-      const condition = quest.linked_config?.catalog_condition;
-      if (!condition) {
-        skippedQuests += 1;
-        continue;
-      }
+    let teamOwnedEntities: Entity[] | undefined;
+    let teamEntitiesUnavailable = false;
 
-      const rule = getCatalogRule(condition);
-      if (!rule) {
-        skippedQuests += 1;
-        continue;
-      }
-
-      const evaluations = await this.catalogService.evaluateTeamOwnedEntities(
+    try {
+      teamOwnedEntities = await this.catalogService.getTeamOwnedEntities(
         teamRef,
-        rule,
         opts.credentials,
       );
-      const passingEntities = evaluations.filter(result => result.passed);
+    } catch {
+      teamEntitiesUnavailable = true;
+      unknownCatalogFetches = catalogQuests.length;
+    }
+
+    for (const quest of catalogQuests) {
+      const resolved = this.resolveCatalogRuleForQuest(quest);
+      if (!resolved) {
+        skippedQuests += 1;
+        continue;
+      }
+
+      if (teamEntitiesUnavailable || !teamOwnedEntities) {
+        unknownEvaluations += 1;
+        continue;
+      }
+
+      const evaluations = this.catalogService.evaluateRuleAgainstEntities(
+        teamOwnedEntities,
+        resolved.rule,
+      );
+      const passingEntities = evaluations.filter(
+        result => result.status === 'pass',
+      );
+      const unknownResults = evaluations.filter(
+        result => result.status === 'unknown',
+      );
+      unknownEvaluations += unknownResults.length;
+      unknownMissingEntities += unknownResults.filter(
+        result => result.unknownReason === 'missing_or_deleted_entity',
+      ).length;
+      unknownRuleErrors += unknownResults.filter(
+        result => result.unknownReason === 'rule_evaluation_error',
+      ).length;
 
       matchedEntities += passingEntities.length;
 
+      const shouldCompleteOnAllClear =
+        resolved.ruleKey.startsWith('missing_') ||
+        resolved.ruleKey.startsWith('required_annotation:');
+
+      if (shouldCompleteOnAllClear) {
+        if (unknownResults.length > 0 || passingEntities.length > 0) {
+          continue;
+        }
+
+        const result = await this.handleQuestEvent({
+          eventId: `catalog:${quest.id}:${teamRef}:${resolved.ruleKey}:all-clear`,
+          questId: quest.id,
+          subjectRef: teamRef,
+          callerSubject: 'internal:catalog-linked-runner',
+          opts,
+        });
+
+        triggeredEvents += 1;
+
+        if (result.duplicate) {
+          duplicateEvents += 1;
+        }
+        if (result.blocked) {
+          blockedEvents += 1;
+        }
+
+        continue;
+      }
+
       for (const match of passingEntities) {
         const result = await this.handleQuestEvent({
-          eventId: `catalog:${quest.id}:${teamRef}:${condition}:${match.entityRef}`,
+          eventId: `catalog:${quest.id}:${teamRef}:${resolved.ruleKey}:${match.entityRef}`,
           questId: quest.id,
           subjectRef: teamRef,
           callerSubject: 'internal:catalog-linked-runner',
@@ -698,7 +765,46 @@ export class QuestsService {
       triggeredEvents,
       duplicateEvents,
       blockedEvents,
+      unknownEvaluations,
+      unknownCatalogFetches,
+      unknownMissingEntities,
+      unknownRuleErrors,
     };
+  }
+
+  private resolveCatalogRuleForQuest(
+    quest: QuestRow,
+  ): { ruleKey: string; rule: CatalogRule } | undefined {
+    const config = quest.linked_config;
+    if (!config) {
+      return undefined;
+    }
+
+    if (config.catalog_rule) {
+      const rule = getCatalogRuleFromConfig(config.catalog_rule);
+      if (!rule) {
+        return undefined;
+      }
+
+      return {
+        ruleKey: rule.id,
+        rule,
+      };
+    }
+
+    if (config.catalog_condition) {
+      const rule = getCatalogRule(config.catalog_condition);
+      if (!rule) {
+        return undefined;
+      }
+
+      return {
+        ruleKey: config.catalog_condition,
+        rule,
+      };
+    }
+
+    return undefined;
   }
 
   async handleQuestEvent(params: {

@@ -81,6 +81,20 @@ export interface Config {
         activitySource?: 'quest_event_receipts';
       }>;
     };
+    catalogLinked?: {
+      /**
+       * Whether the catalog-linked quest evaluation worker starts on backend boot.
+       * Defaults to true.
+       * @visibility backend
+       */
+      enabled?: boolean;
+      /**
+       * Interval in milliseconds between automatic catalog-linked evaluation runs.
+       * Defaults to 900000 (15 minutes).
+       * @visibility backend
+       */
+      scanIntervalMs?: number;
+    };
     leaderboard?: {
       /**
        * IANA timezone used when calculating weekly and monthly leaderboard windows.

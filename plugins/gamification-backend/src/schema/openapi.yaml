@@ -898,6 +898,84 @@ components:
         - missing_owner
         - missing_description
         - missing_tags
+    CatalogRuleVersion:
+      type: string
+      enum:
+        - v1
+    CatalogRuleCheckType:
+      type: string
+      enum:
+        - missing_techdocs
+        - missing_owner
+        - missing_description
+        - missing_tags
+        - missing_lifecycle
+        - required_annotation
+        - missing_relation
+        - missing_dependency_metadata
+    CatalogRule:
+      type: object
+      required:
+        - version
+        - check
+      additionalProperties: false
+      properties:
+        version:
+          $ref: '#/components/schemas/CatalogRuleVersion'
+        check:
+          oneOf:
+            - type: object
+              required:
+                - type
+              additionalProperties: false
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - missing_techdocs
+                    - missing_owner
+                    - missing_description
+                    - missing_tags
+                    - missing_lifecycle
+            - type: object
+              required:
+                - type
+                - annotation
+              additionalProperties: false
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - required_annotation
+                annotation:
+                  type: string
+                  minLength: 1
+            - type: object
+              required:
+                - type
+                - relationType
+              additionalProperties: false
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - missing_relation
+                relationType:
+                  type: string
+                  minLength: 1
+            - type: object
+              required:
+                - type
+                - field
+              additionalProperties: false
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - missing_dependency_metadata
+                field:
+                  type: string
+                  minLength: 1
     QuestReminderConfig:
       type: object
       required:
@@ -917,6 +995,8 @@ components:
       properties:
         catalog_condition:
           $ref: '#/components/schemas/CatalogCondition'
+        catalog_rule:
+          $ref: '#/components/schemas/CatalogRule'
         reminder:
           $ref: '#/components/schemas/QuestReminderConfig'
     Quest:
@@ -1173,6 +1253,10 @@ components:
         - triggeredEvents
         - duplicateEvents
         - blockedEvents
+        - unknownEvaluations
+        - unknownCatalogFetches
+        - unknownMissingEntities
+        - unknownRuleErrors
       additionalProperties: false
       properties:
         teamRef:
@@ -1193,6 +1277,18 @@ components:
           type: integer
           minimum: 0
         blockedEvents:
+          type: integer
+          minimum: 0
+        unknownEvaluations:
+          type: integer
+          minimum: 0
+        unknownCatalogFetches:
+          type: integer
+          minimum: 0
+        unknownMissingEntities:
+          type: integer
+          minimum: 0
+        unknownRuleErrors:
           type: integer
           minimum: 0
     BadgeCriteria:

@@ -24,6 +24,10 @@ import { ScheduledWebhooksService } from './services/scheduledWebhooksService';
 import { DEFAULT_SCHEDULED_WEBHOOK_TIME_ZONE } from './services/scheduledWebhookPeriod';
 import { ScheduledWebhooksWorker } from './services/scheduledWebhooksWorker';
 import { readWebhookDeliveryConfig } from './services/webhookTargetPolicy';
+import { CatalogLinkedQuestWorker } from './services/catalogLinkedQuestWorker';
+import { CatalogClient } from '@backstage/catalog-client';
+import { CatalogService } from './services/catalogService';
+import { QuestsService } from './services/questsService';
 
 function readReminderEvaluationRules(
   config: RootConfigService,
@@ -165,6 +169,25 @@ export const gamificationBackendPlugin = createBackendPlugin({
             ) ?? 60 * 60_000,
         });
 
+        const catalogClient = new CatalogClient({ discoveryApi: discovery });
+        const catalogService = new CatalogService(catalogClient, auth, logger);
+        const catalogLinkedQuestWorker = new CatalogLinkedQuestWorker({
+          questsService: new QuestsService({
+            questsRepo: new QuestsRepository(knex),
+            reminderRepo: new ReminderRepository(knex),
+            catalogService,
+            catalogClient,
+            auth,
+          }),
+          auth,
+          catalogClient,
+          logger,
+          scanIntervalMs:
+            config.getOptionalNumber(
+              'gamification.catalogLinked.scanIntervalMs',
+            ) ?? 15 * 60_000,
+        });
+
         httpRouter.use(
           createRouter({
             httpAuth,
@@ -217,6 +240,9 @@ export const gamificationBackendPlugin = createBackendPlugin({
           ) ?? true;
         const reminderWorkerEnabled =
           config.getOptionalBoolean('gamification.reminders.enabled') ?? true;
+        const catalogLinkedWorkerEnabled =
+          config.getOptionalBoolean('gamification.catalogLinked.enabled') ??
+          true;
 
         if (deliveryWorkerEnabled) {
           domainEventWorker.start();
@@ -247,6 +273,15 @@ export const gamificationBackendPlugin = createBackendPlugin({
         } else {
           reminderEvaluationWorker.start();
           logger.info('gamification reminder evaluation worker started');
+        }
+
+        if (!catalogLinkedWorkerEnabled) {
+          logger.info(
+            'gamification catalog-linked worker disabled by config (gamification.catalogLinked.enabled=false)',
+          );
+        } else {
+          catalogLinkedQuestWorker.start();
+          logger.info('gamification catalog-linked worker started');
         }
       },
     });
