@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { ReminderReasonPayload } from '../repositories/reminderRepository';
 import {
@@ -113,9 +114,17 @@ export class ReminderEvaluationService {
     options: ReminderEvaluationOptions = {},
   ): Promise<ReminderEvaluationSummary> {
     const results: ReminderRuleEvaluationResult[] = [];
+    const forceDeliveryWindowKey = options.force
+      ? `force:${randomUUID()}`
+      : undefined;
 
     for (const rule of this.rules) {
-      results.push(await this.evaluateRule(rule, options));
+      results.push(
+        await this.evaluateRule(rule, {
+          ...options,
+          forceDeliveryWindowKey,
+        }),
+      );
     }
 
     return {
@@ -244,7 +253,9 @@ export class ReminderEvaluationService {
 
   private async evaluateRule(
     rule: ReminderEvaluationRule,
-    options: ReminderEvaluationOptions,
+    options: ReminderEvaluationOptions & {
+      forceDeliveryWindowKey?: string;
+    },
   ): Promise<ReminderRuleEvaluationResult> {
     const now = this.now();
     const activitySource = rule.activitySource ?? 'quest_event_receipts';
@@ -320,7 +331,10 @@ export class ReminderEvaluationService {
       const reminderEligibleAt =
         cooldownReminderEligibleAt ??
         new Date(latestActivityAt.getTime() + rule.inactivityDays * DAY_IN_MS);
-      const deliveryWindowKey = `activity:${reminderEligibleAt.toISOString()}`;
+      const deliveryWindowKey =
+        options.force && options.forceDeliveryWindowKey
+          ? options.forceDeliveryWindowKey
+          : `activity:${reminderEligibleAt.toISOString()}`;
 
       if (!options.force) {
         if (cooldownReminderEligibleAt) {

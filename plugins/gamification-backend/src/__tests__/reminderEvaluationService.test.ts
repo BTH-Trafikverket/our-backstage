@@ -555,6 +555,89 @@ describePostgres18('ReminderEvaluationService integration', () => {
     );
   });
 
+  it('uses unique force delivery windows so repeated force runs send again without duplicating reminders', async () => {
+    const knex = await initDb();
+    const questsRepo = new QuestsRepository(knex);
+    const reminderRepo = new ReminderRepository(knex);
+    const logger = createLogger();
+    const notificationSender = {
+      sendReminderNotification: jest.fn(async () => undefined),
+    };
+    const quest = await createUserQuest(knex, 'Repeat Force Reminder Quest');
+    const service = new ReminderEvaluationService({
+      questsRepo,
+      reminderRepo,
+      logger,
+      notificationSender,
+      now: () => new Date('2026-04-20T09:00:00.000Z'),
+      rules: [
+        {
+          key: 'inactive-force-repeat-14d',
+          questId: quest.id,
+          inactivityDays: 14,
+          activityDescription: 'reviewed a PR',
+        },
+      ],
+    });
+
+    await insertQuestReceipt({
+      knex,
+      questId: quest.id,
+      eventId: 'evt-force-repeat-1',
+      subjectRef: 'user:default/alice',
+      receivedAt: new Date('2026-03-31T09:00:00.000Z'),
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 1,
+      refreshedCount: 0,
+      notificationCount: 1,
+    });
+
+    await expect(
+      service.evaluateConfiguredRules({ force: true }),
+    ).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 1,
+      notificationCount: 1,
+    });
+
+    await expect(
+      service.evaluateConfiguredRules({ force: true }),
+    ).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 1,
+      notificationCount: 1,
+    });
+
+    await expect(service.evaluateConfiguredRules()).resolves.toMatchObject({
+      createdCount: 0,
+      refreshedCount: 1,
+      notificationCount: 0,
+    });
+
+    const reminderRows = await knex('quest_reminders').select('*');
+    const deliveryRows = await knex('quest_reminder_notification_deliveries')
+      .select('*')
+      .orderBy('created_at', 'asc');
+    const deliveryWindowKeys = deliveryRows.map(row => row.delivery_window_key);
+    const forceDeliveryWindowKeys = deliveryWindowKeys.filter(key =>
+      key.startsWith('force:'),
+    );
+
+    expect(reminderRows).toHaveLength(1);
+    expect(deliveryRows).toHaveLength(3);
+    expect(deliveryWindowKeys).toContain('activity:2026-04-14T09:00:00.000Z');
+    expect(forceDeliveryWindowKeys).toHaveLength(2);
+    expect(new Set(forceDeliveryWindowKeys).size).toBe(2);
+    expect(
+      deliveryRows.every(row => row.reminder_id === reminderRows[0].id),
+    ).toBe(true);
+    expect(notificationSender.sendReminderNotification).toHaveBeenCalledTimes(
+      3,
+    );
+  });
+
   it('uses the delivery ledger to prevent concurrent duplicate notifications', async () => {
     const knex = await initDb();
     const questsRepo = new QuestsRepository(knex);
