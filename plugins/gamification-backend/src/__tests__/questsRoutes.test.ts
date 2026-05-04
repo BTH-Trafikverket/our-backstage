@@ -99,6 +99,49 @@ describe('quests routes auth', () => {
         unknownMissingEntities: 0,
         unknownRuleErrors: 0,
       })),
+      runCatalogLinkedQuestsForAllTeams: jest.fn(async () => ({
+        teamRefs: ['group:default/platform', 'group:default/admin'],
+        results: [
+          {
+            teamRef: 'group:default/platform',
+            evaluatedQuests: 2,
+            skippedQuests: 0,
+            matchedEntities: 3,
+            triggeredEvents: 3,
+            duplicateEvents: 0,
+            blockedEvents: 0,
+            unknownEvaluations: 0,
+            unknownCatalogFetches: 0,
+            unknownMissingEntities: 0,
+            unknownRuleErrors: 0,
+          },
+          {
+            teamRef: 'group:default/admin',
+            evaluatedQuests: 2,
+            skippedQuests: 0,
+            matchedEntities: 0,
+            triggeredEvents: 1,
+            duplicateEvents: 0,
+            blockedEvents: 0,
+            unknownEvaluations: 0,
+            unknownCatalogFetches: 0,
+            unknownMissingEntities: 0,
+            unknownRuleErrors: 0,
+          },
+        ],
+        totals: {
+          evaluatedQuests: 4,
+          skippedQuests: 0,
+          matchedEntities: 3,
+          triggeredEvents: 4,
+          duplicateEvents: 0,
+          blockedEvents: 0,
+          unknownEvaluations: 0,
+          unknownCatalogFetches: 0,
+          unknownMissingEntities: 0,
+          unknownRuleErrors: 0,
+        },
+      })),
     };
     const reminderEvaluationService = {
       evaluateConfiguredRules: jest.fn(async () => ({
@@ -171,6 +214,9 @@ describe('quests routes auth', () => {
       ).not.toHaveBeenCalled();
       expect(
         questsService.runCatalogLinkedQuestsForTeam,
+      ).not.toHaveBeenCalled();
+      expect(
+        questsService.runCatalogLinkedQuestsForAllTeams,
       ).not.toHaveBeenCalled();
     },
   );
@@ -598,6 +644,61 @@ describe('quests routes auth', () => {
         }),
       },
     );
+    expect(
+      questsService.runCatalogLinkedQuestsForAllTeams,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('allows approved services to trigger catalog runner for all teams', async () => {
+    const { app, questsService } = makeApp();
+
+    const res = await request(app)
+      .post('/quests/catalog/run')
+      .set(
+        'authorization',
+        mockCredentials.service.header({
+          targetPluginId,
+          onBehalfOf: mockCredentials.service('external:test-service'),
+        }),
+      )
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.teamRefs).toEqual([
+      'group:default/platform',
+      'group:default/admin',
+    ]);
+    expect(
+      questsService.runCatalogLinkedQuestsForAllTeams,
+    ).toHaveBeenCalledWith({
+      credentials: expect.objectContaining({
+        principal: expect.objectContaining({
+          type: 'service',
+          subject: 'external:test-service',
+        }),
+      }),
+    });
+    expect(questsService.runCatalogLinkedQuestsForTeam).not.toHaveBeenCalled();
+  });
+
+  it('treats a missing catalog runner body as an all-team run', async () => {
+    const { app, questsService } = makeApp();
+
+    const res = await request(app)
+      .post('/quests/catalog/run')
+      .set(
+        'authorization',
+        mockCredentials.service.header({
+          targetPluginId,
+          onBehalfOf: mockCredentials.service('external:test-service'),
+        }),
+      );
+
+    expect(res.status).toBe(200);
+    expect(
+      questsService.runCatalogLinkedQuestsForAllTeams,
+    ).toHaveBeenCalledTimes(1);
+    expect(questsService.runCatalogLinkedQuestsForTeam).not.toHaveBeenCalled();
   });
 
   it('returns 404 for non-allowed service callers on catalog runner endpoint', async () => {
@@ -617,6 +718,9 @@ describe('quests routes auth', () => {
     expect(res.status).toBe(404);
     expect(res.body?.error?.name).toBe('NotFoundError');
     expect(questsService.runCatalogLinkedQuestsForTeam).not.toHaveBeenCalled();
+    expect(
+      questsService.runCatalogLinkedQuestsForAllTeams,
+    ).not.toHaveBeenCalled();
   });
 
   it('allows admin users to trigger catalog runner', async () => {
@@ -643,6 +747,35 @@ describe('quests routes auth', () => {
         }),
       },
     );
+    expect(
+      questsService.runCatalogLinkedQuestsForAllTeams,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('allows admin users to trigger catalog runner for all teams', async () => {
+    const userRef = 'user:default/alice';
+    const userInfo = mockServices.userInfo({
+      ownershipEntityRefs: [userRef, adminGroup],
+    });
+    const { app, questsService } = makeApp({ userInfo });
+
+    const res = await request(app)
+      .post('/quests/catalog/run')
+      .set('authorization', mockCredentials.user.header(userRef))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(
+      questsService.runCatalogLinkedQuestsForAllTeams,
+    ).toHaveBeenCalledWith({
+      credentials: expect.objectContaining({
+        principal: expect.objectContaining({
+          type: 'user',
+          userEntityRef: userRef,
+        }),
+      }),
+    });
+    expect(questsService.runCatalogLinkedQuestsForTeam).not.toHaveBeenCalled();
   });
 
   it('returns duplicate quest event responses from the service', async () => {

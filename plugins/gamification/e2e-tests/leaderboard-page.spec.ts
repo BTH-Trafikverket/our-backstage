@@ -21,7 +21,7 @@ async function expectLeaderboardEntriesOrEmptyState(
 ) {
   await expect(
     page
-      .getByRole('rowheader', { name: expectedRow })
+      .getByRole('rowheader', { name: expectedRow, exact: true })
       .or(page.getByText('No leaderboard entries to show.')),
   ).toBeVisible();
 }
@@ -61,7 +61,7 @@ test('switches between individual and team leaderboard', async () => {
 
   await sharedPage.getByRole('button', { name: 'Teams' }).click();
   await expect(
-    sharedPage.getByRole('rowheader', { name: 'Admin' }),
+    sharedPage.getByRole('rowheader', { name: 'Admin', exact: true }),
   ).toBeVisible();
 
   await sharedPage.getByRole('button', { name: 'Individuals' }).click();
@@ -77,7 +77,7 @@ test('changes leaderboard time range', async () => {
 
   await sharedPage.getByRole('button', { name: 'Teams' }).click();
   await expect(
-    sharedPage.getByRole('rowheader', { name: 'Admin' }),
+    sharedPage.getByRole('rowheader', { name: 'Admin', exact: true }),
   ).toBeVisible();
 
   await sharedPage.getByRole('button', { name: 'Monthly' }).click();

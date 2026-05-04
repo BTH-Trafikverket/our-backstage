@@ -364,7 +364,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CatalogRunnerResult'
+                oneOf:
+                  - $ref: '#/components/schemas/CatalogRunnerResult'
+                  - $ref: '#/components/schemas/CatalogRunnerAllResult'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1236,8 +1238,6 @@ components:
           type: string
     CatalogRunnerRequest:
       type: object
-      required:
-        - teamRef
       additionalProperties: false
       properties:
         teamRef:
@@ -1291,6 +1291,69 @@ components:
         unknownRuleErrors:
           type: integer
           minimum: 0
+    CatalogRunnerTotals:
+      type: object
+      required:
+        - evaluatedQuests
+        - skippedQuests
+        - matchedEntities
+        - triggeredEvents
+        - duplicateEvents
+        - blockedEvents
+        - unknownEvaluations
+        - unknownCatalogFetches
+        - unknownMissingEntities
+        - unknownRuleErrors
+      additionalProperties: false
+      properties:
+        evaluatedQuests:
+          type: integer
+          minimum: 0
+        skippedQuests:
+          type: integer
+          minimum: 0
+        matchedEntities:
+          type: integer
+          minimum: 0
+        triggeredEvents:
+          type: integer
+          minimum: 0
+        duplicateEvents:
+          type: integer
+          minimum: 0
+        blockedEvents:
+          type: integer
+          minimum: 0
+        unknownEvaluations:
+          type: integer
+          minimum: 0
+        unknownCatalogFetches:
+          type: integer
+          minimum: 0
+        unknownMissingEntities:
+          type: integer
+          minimum: 0
+        unknownRuleErrors:
+          type: integer
+          minimum: 0
+    CatalogRunnerAllResult:
+      type: object
+      required:
+        - teamRefs
+        - results
+        - totals
+      additionalProperties: false
+      properties:
+        teamRefs:
+          type: array
+          items:
+            type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogRunnerResult'
+        totals:
+          $ref: '#/components/schemas/CatalogRunnerTotals'
     BadgeCriteria:
       type: object
       required:

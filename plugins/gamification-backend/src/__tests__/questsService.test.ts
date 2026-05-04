@@ -973,6 +973,59 @@ describe('QuestsService', () => {
     });
   });
 
+  describe('runCatalogLinkedQuestsForAllTeams', () => {
+    it('runs catalog-linked quests for every catalog group and returns totals', async () => {
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: [
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'Group',
+            metadata: { name: 'platform', namespace: 'default' },
+          },
+          {
+            apiVersion: 'backstage.io/v1alpha1',
+            kind: 'Group',
+            metadata: { name: 'admin', namespace: 'default' },
+          },
+        ],
+      });
+      mockRepo.getQuests.mockResolvedValue({
+        data: [],
+        pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
+      } as any);
+      mockCatalogService.getTeamOwnedEntities.mockResolvedValue([]);
+      mockCatalogService.evaluateRuleAgainstEntities.mockReturnValue([]);
+
+      const result = await service.runCatalogLinkedQuestsForAllTeams({
+        credentials: {} as any,
+      });
+
+      expect(mockCatalogClient.getEntities).toHaveBeenCalledWith(
+        {
+          filter: [{ kind: 'Group' }],
+        },
+        { token: 'catalog-token' },
+      );
+      expect(result.teamRefs).toEqual([
+        'group:default/platform',
+        'group:default/admin',
+      ]);
+      expect(result.results).toHaveLength(2);
+      expect(result.totals).toEqual({
+        evaluatedQuests: 0,
+        skippedQuests: 0,
+        matchedEntities: 0,
+        triggeredEvents: 0,
+        duplicateEvents: 0,
+        blockedEvents: 0,
+        unknownEvaluations: 0,
+        unknownCatalogFetches: 0,
+        unknownMissingEntities: 0,
+        unknownRuleErrors: 0,
+      });
+    });
+  });
+
   describe('getQuests', () => {
     it('passes admin list filters to the repository', async () => {
       mockRepo.getQuests.mockResolvedValue({

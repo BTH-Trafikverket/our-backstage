@@ -20,7 +20,7 @@ import { z } from 'zod';
 const UI_TEST_CALLER_SUBJECT = 'internal:backstage-ui-test';
 const catalogRunnerRequestSchema = z
   .object({
-    teamRef: z.string().trim().min(1),
+    teamRef: z.string().trim().min(1).optional(),
   })
   .strict();
 
@@ -184,7 +184,7 @@ export function QuestsRouter({
   });
 
   router.post('/catalog/run', async (req, res) => {
-    const parsed = catalogRunnerRequestSchema.safeParse(req.body);
+    const parsed = catalogRunnerRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new InputError(parsed.error.toString());
     }
@@ -208,12 +208,13 @@ export function QuestsRouter({
       throw new InputError('Unsupported credential type');
     }
 
-    const result = await questsService.runCatalogLinkedQuestsForTeam(
-      parsed.data.teamRef,
-      {
-        credentials: runnerCredentials,
-      },
-    );
+    const result = parsed.data.teamRef
+      ? await questsService.runCatalogLinkedQuestsForTeam(parsed.data.teamRef, {
+          credentials: runnerCredentials,
+        })
+      : await questsService.runCatalogLinkedQuestsForAllTeams({
+          credentials: runnerCredentials,
+        });
 
     res.status(200).json(result);
   });

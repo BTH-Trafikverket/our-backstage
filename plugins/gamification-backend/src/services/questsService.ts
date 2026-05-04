@@ -29,6 +29,26 @@ type QuestServiceOpts = {
   credentials: any;
 };
 
+export type CatalogLinkedQuestRunResult = {
+  teamRef: string;
+  evaluatedQuests: number;
+  skippedQuests: number;
+  matchedEntities: number;
+  triggeredEvents: number;
+  duplicateEvents: number;
+  blockedEvents: number;
+  unknownEvaluations: number;
+  unknownCatalogFetches: number;
+  unknownMissingEntities: number;
+  unknownRuleErrors: number;
+};
+
+export type CatalogLinkedQuestRunAllResult = {
+  teamRefs: string[];
+  results: CatalogLinkedQuestRunResult[];
+  totals: Omit<CatalogLinkedQuestRunResult, 'teamRef'>;
+};
+
 export type ActorResolutionProviderConfig = {
   idAnnotations?: string[];
   loginAnnotations?: string[];
@@ -600,19 +620,7 @@ export class QuestsService {
   async runCatalogLinkedQuestsForTeam(
     teamRef: string,
     opts: QuestServiceOpts,
-  ): Promise<{
-    teamRef: string;
-    evaluatedQuests: number;
-    skippedQuests: number;
-    matchedEntities: number;
-    triggeredEvents: number;
-    duplicateEvents: number;
-    blockedEvents: number;
-    unknownEvaluations: number;
-    unknownCatalogFetches: number;
-    unknownMissingEntities: number;
-    unknownRuleErrors: number;
-  }> {
+  ): Promise<CatalogLinkedQuestRunResult> {
     if (!teamRef.startsWith('group:')) {
       throw new InputError('teamRef must be a group entity ref');
     }
@@ -769,6 +777,55 @@ export class QuestsService {
       unknownCatalogFetches,
       unknownMissingEntities,
       unknownRuleErrors,
+    };
+  }
+
+  async runCatalogLinkedQuestsForAllTeams(
+    opts: QuestServiceOpts,
+  ): Promise<CatalogLinkedQuestRunAllResult> {
+    const teamRefs = await this.listAudienceSubjectRefs({
+      subjectType: 'team',
+      credentials: opts.credentials,
+    });
+    const results: CatalogLinkedQuestRunResult[] = [];
+
+    for (const teamRef of teamRefs) {
+      results.push(await this.runCatalogLinkedQuestsForTeam(teamRef, opts));
+    }
+
+    const totals = results.reduce<Omit<CatalogLinkedQuestRunResult, 'teamRef'>>(
+      (acc, result) => ({
+        evaluatedQuests: acc.evaluatedQuests + result.evaluatedQuests,
+        skippedQuests: acc.skippedQuests + result.skippedQuests,
+        matchedEntities: acc.matchedEntities + result.matchedEntities,
+        triggeredEvents: acc.triggeredEvents + result.triggeredEvents,
+        duplicateEvents: acc.duplicateEvents + result.duplicateEvents,
+        blockedEvents: acc.blockedEvents + result.blockedEvents,
+        unknownEvaluations: acc.unknownEvaluations + result.unknownEvaluations,
+        unknownCatalogFetches:
+          acc.unknownCatalogFetches + result.unknownCatalogFetches,
+        unknownMissingEntities:
+          acc.unknownMissingEntities + result.unknownMissingEntities,
+        unknownRuleErrors: acc.unknownRuleErrors + result.unknownRuleErrors,
+      }),
+      {
+        evaluatedQuests: 0,
+        skippedQuests: 0,
+        matchedEntities: 0,
+        triggeredEvents: 0,
+        duplicateEvents: 0,
+        blockedEvents: 0,
+        unknownEvaluations: 0,
+        unknownCatalogFetches: 0,
+        unknownMissingEntities: 0,
+        unknownRuleErrors: 0,
+      },
+    );
+
+    return {
+      teamRefs,
+      results,
+      totals,
     };
   }
 
