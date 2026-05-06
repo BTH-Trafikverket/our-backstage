@@ -1,5 +1,7 @@
 ## Gamification Backend
 
+The detailed gamification backend docs now live in the [Gamification TechDocs section](gamification/index.md). This page is kept as a compact backend summary.
+
 This backend plugin is mounted at `/api/gamification` and exposes three route groups:
 
 - `/quests`
