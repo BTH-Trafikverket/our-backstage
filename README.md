@@ -1,119 +1,169 @@
-# Our backstage app
+# Our Backstage App
 
-Our own version of Backstage where we can test the plugin locally.
+This repository contains the BTH-Trafikverket Backstage app plus custom
+gamification plugins. It is a Yarn workspace Backstage project with the main
+frontend app in `packages/app`, backend in `packages/backend`, and custom
+gamification code in:
+
+- `plugins/gamification` - frontend plugin
+- `plugins/gamification-backend` - backend plugin, migrations, seeds, API
+
+The gamification backend is registered from `packages/backend/src/index.ts` and
+runs at `/api/gamification`.
 
 ## Prerequisites
 
-- Node.js (22 or 24)
-- Yarn (Berry) / Corepack enabled
-- GitHub CLI (`gh`) installed and authenticated
-- PostgreSQL running in Docker and reachable with the credentials in `.env.local`
-- Playwright Chromium installed locally: `yarn exec playwright install chromium`
-- Docker for Postgres. Run Backstage and Playwright on your host machine for faster feedback.
+- Node.js 22 or 24
+- Corepack/Yarn Berry. This repo uses `yarn@4.4.1`.
+- Docker with Docker Compose
+- GitHub CLI (`gh`) authenticated for the repo, if you need the shared dev secrets
+- Playwright Chromium for E2E tests: `yarn exec playwright install chromium`
 
-## First-time setup
+## Environment Setup
 
-1. Install dependencies:
-
-```sh
-yarn install
-```
-
-2. Install secrets
+Install the shared local secrets, if you have access:
 
 ```sh
-./scripts/setup-dev.sh
+./scripts/setup-secrets.sh
 ```
 
-3. start backstage
+That script downloads and installs:
+
+- `.env.local`
+- `.secrets/app.pem`
+
+The local app reads `.env.local` through `dotenvx`. The important database
+settings are `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME`.
+For the Docker Postgres service these are normally:
 
 ```sh
-yarn start
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=backstage
+DB_PASSWORD=backstage
+DB_NAME=backstage
 ```
 
-## Docker development
+## Start Required Containers
 
-For the normal local workflow, run only Postgres in Docker:
+For normal local development, run Postgres in Docker and run Backstage on your
+host machine:
 
 ```sh
 docker compose up -d postgres
 ```
 
-If you want the full app in containers with hot reload from your local checkout:
+Optional database UI:
+
+```sh
+docker compose up -d pgadmin
+```
+
+You can also run the full dev app in Docker:
 
 ```sh
 docker compose up --build
 ```
 
-This starts:
+The full Compose app bind-mounts the repo and installs dependencies into Docker
+volumes. It is convenient, but usually slower than running only Postgres in
+Docker.
 
-- `backstage` on `http://localhost:3000`
-- backend API on `http://localhost:7007`
-- `postgres` on `localhost:5432`
-- `pgadmin` on `http://localhost:5050`
-
-Notes:
-
-- The repo is bind-mounted into the `backstage` container, so source changes reload without rebuilding the image.
-- Container `node_modules` live in Docker volumes, so the container does not overwrite your host dependencies.
-- The first `docker compose up --build` will spend a while installing dependencies inside Docker-managed volumes before Backstage starts.
-- If `3000` or `7007` are already in use, stop your local `yarn start` process before running Compose.
-- `pgadmin` uses `bth@trafikverket.se` / `admin`
-
-## Gamification quality checks
-
-- `pre-commit` only checks staged files under `plugins/gamification` and `plugins/gamification-backend`. It runs Prettier write, Prettier check, and strict ESLint with autofix for fixable issues.
-- `pre-push` only runs `yarn gamification:verify` when the pushed refs touch gamification code or its test harness; unrelated pushes skip it.
-- Backend integration tests use your existing local Postgres cluster. The configured Postgres user must be able to create temporary databases for the test harness.
-- `yarn test:e2e` runs Playwright on your machine against a running local app. It checks the isolated `yarn start:e2e` app on `3001/7008` first, then falls back to the normal dev app on `3000/7007`. Full `docker compose up` is useful for container development but is slower for Playwright because Backstage, file watching, and dependency startup all run through Docker.
-- In the normal development app, the sign-in page now exposes both `Guest` and `GitHub`, so the Playwright flows can use guest auth against the dev stack.
-- `yarn gamification:verify` uses that same running app for its E2E step. For local verification, start the lighter e2e app with `yarn start:e2e`, then run `yarn gamification:verify`.
-- `yarn start:e2e` starts a lighter isolated app on `http://localhost:3001` and `http://localhost:7008` using the `backstage_e2e` database in the same Docker Postgres instance. It creates that database automatically if it does not already exist.
-- The e2e backend runs in a slimmed-down mode that keeps the auth, catalog, permission, and gamification pieces needed by the tests, while skipping unrelated plugin startup work.
-- `yarn gamification:verify` streams each check's normal output and prints per-step timings.
-
-Optional E2E env overrides:
+## Install Dependencies
 
 ```sh
-APP_BASE_URL_E2E=http://localhost:3001
-BACKEND_BASE_URL_E2E=http://localhost:7008
-BACKEND_PORT_E2E=7008
-CORS_ORIGIN_E2E=http://localhost:3001
-DB_HOST_E2E=localhost
-DB_PORT_E2E=5432
-DB_USER_E2E=backstage
-DB_PASSWORD_E2E=backstage
-DB_NAME_E2E=backstage_e2e
-
-# Explicit Playwright target override
-PLAYWRIGHT_URL=http://localhost:3001
-PLAYWRIGHT_BACKEND_URL=http://localhost:7008
+yarn install
 ```
 
-Useful commands:
+## Migrations And Seeds
+
+No separate migration command is needed for normal local development.
+
+When the backend starts, `plugins/gamification-backend/src/database.ts` runs the
+gamification Knex migrations from `plugins/gamification-backend/migrations`.
+Seeds are also applied on startup when `gamification.seed.enabled` is `true` in
+`app-config.yaml`. The local config enables seeds and leaves `reset` as `false`.
+
+## Start Locally
+
+Start Postgres first:
 
 ```sh
-# Sync the catalog API entity from the authoritative backend OpenAPI file
-yarn gamification:openapi:sync
+docker compose up -d postgres
+```
 
-# Full local verification for the gamification plugin against your local Postgres and running dev app
+Then start Backstage:
+
+```sh
+yarn start
+```
+
+For the isolated E2E app, use:
+
+```sh
+yarn start:e2e
+```
+
+`yarn start:e2e` starts Backstage on separate ports and creates the
+`backstage_e2e` database automatically if it does not exist.
+
+## Useful Local URLs
+
+- App: http://localhost:3000
+- Backend: http://localhost:7007
+- Gamification: http://localhost:3000/gamification
+- Gamification API: http://localhost:7007/api/gamification
+- PgAdmin: http://localhost:5050
+- E2E app: http://localhost:3001
+- E2E backend: http://localhost:7008
+
+PgAdmin credentials from `docker-compose.yaml`:
+
+- Email: `bth@trafikverket.se`
+- Password: `admin`
+
+## Tests And Verification
+
+Useful commands from `package.json`:
+
+```sh
+# Full required gamification verification
 yarn gamification:verify
 
-# Run only the frontend plugin tests
+# Gamification checks split out
+yarn gamification:openapi:check
+yarn gamification:prettier:check
+yarn gamification:lint
 yarn gamification:test:frontend
-
-# Run only the backend plugin tests against your local Postgres
 yarn gamification:test:backend
-
-# Run Playwright against the isolated e2e app or running dev app
 yarn test:e2e
 
-# Start the Docker Postgres service used by local checks
-docker compose up -d postgres
-
-# Isolated E2E app on host ports with a separate database in Docker Postgres
-yarn start:e2e
-
-# Run the full gamification plugin test suite
-yarn gamification:test
+# Broader repo tests/lint
+yarn test
+yarn test:ci
+yarn lint
+yarn lint:all
 ```
+
+`yarn gamification:verify` runs OpenAPI sync check, Prettier check, ESLint,
+frontend tests, backend database tests, and E2E tests. For local verification,
+keep Docker Postgres running and start the isolated app with `yarn start:e2e` in
+another terminal before running the verify command.
+
+Backend integration tests use local Postgres. The configured Postgres user needs
+permission to create temporary databases.
+
+## Troubleshooting
+
+- **Ports already in use:** stop any existing `yarn start` or Compose process
+  using ports `3000`, `7007`, `5432`, or `5050`.
+- **Backend cannot connect to Postgres:** run `docker compose up -d postgres`
+  and confirm `.env.local` points at `localhost:5432` for host-based development.
+- **Backend tests fail before running tests:** the Postgres user likely needs
+  `CREATEDB` or superuser privileges.
+- **E2E tests cannot find the app:** start `yarn start:e2e` first, or make sure
+  the normal app is running on `3000/7007`.
+- **Secrets are missing:** run `./scripts/setup-secrets.sh` and make sure `gh`
+  is authenticated with access to `BTH-Trafikverket/our-backstage`.
+- **Full Docker startup is slow:** use only `docker compose up -d postgres` and
+  run `yarn start` on the host for faster feedback.
