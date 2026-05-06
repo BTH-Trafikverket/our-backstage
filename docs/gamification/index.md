@@ -1,45 +1,57 @@
 # Gamification
 
-The gamification plugin adds quests, badges, XP, leaderboards, reminders, and webhook delivery to this Backstage instance.
+The gamification plugin adds quests, badges, XP, leaderboards, reminders, webhook delivery, and catalog quality quests to this Backstage instance.
+
+This TechDocs section keeps the main reading path short. These pages describe the product decisions, runtime boundaries, and current implementation outcomes that matter when changing the plugin.
+
+## Reading Path
+
+Read these pages in order when joining the project or changing gamification behavior:
+
+- [Feature Guide](feature-guide.md): the user-facing behaviors and the boundaries that shipped.
+- [System Design](system-design.md): the backend ownership model, persistence rules, workers, and idempotency guarantees.
+- [API and Integrations](api-and-integrations.md): route families, authorization, service callers, OpenAPI, webhooks, and catalog integration.
+- [Operations](operations.md): config, TechDocs publishing, local verification, testing, and troubleshooting.
+- [Delivery History](delivery-history.md): appendix that maps completed GitHub issues to shipped outcomes.
+
+## Runtime Shape
 
 The runtime path is:
 
 ```text
-frontend page -> /api/gamification route -> service -> repository -> Postgres tables/triggers
+Backstage UI or allowed service
+  -> /api/gamification
+  -> route validation and auth
+  -> service business rules
+  -> repository persistence
+  -> Postgres constraints and triggers
+  -> optional workers and webhooks
 ```
 
-The backend owns authorization, validation, lifecycle rules, and database consistency. The frontend should call the backend through Backstage discovery and should not duplicate business rules.
+The backend owns authorization, validation, lifecycle rules, and database consistency. The frontend renders helpful admin and user states, but it is not the authority for access control or business rules.
 
-## Source Map
+## Core Concepts
 
-| Area                        | Source                                                                                                                                                                   |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Frontend plugin             | [plugins/gamification/src](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification/src)                                                         |
-| Backend plugin registration | [plugins/gamification-backend/src/plugin.ts](https://github.com/BTH-Trafikverket/our-backstage/blob/main/plugins/gamification-backend/src/plugin.ts)                     |
-| Backend router assembly     | [plugins/gamification-backend/src/router.ts](https://github.com/BTH-Trafikverket/our-backstage/blob/main/plugins/gamification-backend/src/router.ts)                     |
-| Routes                      | [plugins/gamification-backend/src/routes](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification-backend/src/routes)                           |
-| Services                    | [plugins/gamification-backend/src/services](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification-backend/src/services)                       |
-| Repositories                | [plugins/gamification-backend/src/repositories](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification-backend/src/repositories)               |
-| Validation schemas          | [plugins/gamification-backend/src/schemas](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification-backend/src/schemas)                         |
-| Database migrations         | [plugins/gamification-backend/migrations](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification-backend/migrations)                           |
-| Authoritative OpenAPI       | [plugins/gamification-backend/src/schema/openapi.yaml](https://github.com/BTH-Trafikverket/our-backstage/blob/main/plugins/gamification-backend/src/schema/openapi.yaml) |
+- Quests define progress targets that award XP to either `user:` or `group:` subjects.
+- Badges combine quest criteria into visible achievements with their own XP reward.
+- XP is recorded as ledger rows. Aggregated level state is derived from that ledger.
+- Leaderboards rank users or teams from XP awards across weekly, monthly, or all-time windows.
+- Webhooks deliver immediate gamification events and scheduled progress summaries through one outbound delivery model.
+- Reminders turn stale gamification activity into user-visible prompts without adding a separate activity ingestion system.
+- Catalog-linked quests evaluate team-owned catalog entities and turn quality checks into normal team quest progress.
 
-## High Priority Docs
+## Code Anchors
 
-- [Auth and Config](auth-config.md) documents who can call what and which config keys control runtime behavior.
-- [Data Model](data-model.md) documents the tables, constraints, triggers, and persisted state.
-- [API Contracts](api-contracts.md) maps backend routes to schemas, authorization, and OpenAPI.
-- [Lifecycle and Invariants](lifecycle-invariants.md) documents quest, badge, XP, idempotency, webhook, and worker behavior.
-- [Delivery History](delivery-history.md) explains why completed GitHub Project work exists and what outcome shipped.
+Use these links when moving from TechDocs into the implementation:
 
-## Workflow Docs
-
-- [Frontend Workflows](frontend-workflows.md) documents user/admin UI flows and discovery-based backend calls.
-- [Webhooks](webhooks.md) documents webhook management, scheduling, delivery, and target policy.
-- [Reminders](reminders.md) documents reminder creation, visibility, dismissal, disablement, and notifications.
-- [Leaderboard](leaderboard.md) documents user/team XP ranking and time windows.
-- [Catalog-Linked Quests](catalog-linked-quests.md) documents catalog rules and automated team quest evaluation.
-
-## Maintenance Docs
-
-- [Maintenance Reference](maintenance-reference.md) maps smaller frontend/backend files, test helpers, and local verification commands.
+| Area                    | Code                                                                                                                             |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend plugin         | [plugins/gamification/src](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification/src)                 |
+| Backend startup         | [plugin.ts](https://github.com/BTH-Trafikverket/our-backstage/blob/main/plugins/gamification-backend/src/plugin.ts)              |
+| Backend router assembly | [router.ts](https://github.com/BTH-Trafikverket/our-backstage/blob/main/plugins/gamification-backend/src/router.ts)              |
+| Routes                  | [routes](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification-backend/src/routes)                    |
+| Services                | [services](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification-backend/src/services)                |
+| Repositories            | [repositories](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification-backend/src/repositories)        |
+| Validation schemas      | [schemas](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification-backend/src/schemas)                  |
+| Migrations              | [migrations](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification-backend/migrations)                |
+| OpenAPI                 | [openapi.yaml](https://github.com/BTH-Trafikverket/our-backstage/blob/main/plugins/gamification-backend/src/schema/openapi.yaml) |

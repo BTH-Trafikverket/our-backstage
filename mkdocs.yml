@@ -8,17 +8,10 @@ nav:
   - Home: index.md
   - Gamification:
       - Overview: gamification/index.md
-      - Auth and Config: gamification/auth-config.md
-      - Data Model: gamification/data-model.md
-      - API Contracts: gamification/api-contracts.md
-      - Lifecycle and Invariants: gamification/lifecycle-invariants.md
+      - Feature Guide: gamification/feature-guide.md
+      - System Design: gamification/system-design.md
+      - API and Integrations: gamification/api-and-integrations.md
+      - Operations: gamification/operations.md
       - Delivery History: gamification/delivery-history.md
-      - Frontend Workflows: gamification/frontend-workflows.md
-      - Webhooks: gamification/webhooks.md
-      - Reminders: gamification/reminders.md
-      - Leaderboard: gamification/leaderboard.md
-      - Catalog-Linked Quests: gamification/catalog-linked-quests.md
-      - Maintenance Reference: gamification/maintenance-reference.md
-      - Backend Notes: backend.md
 plugins:
   - techdocs-core
