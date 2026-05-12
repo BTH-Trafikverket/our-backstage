@@ -2,8 +2,6 @@
 
 Use this page for traceability after reading the main docs. It is not the primary guide for understanding or changing the system.
 
-Reviewed source: [Project planning board](https://github.com/orgs/BTH-Trafikverket/projects/1), status `Done`, for [BTH-Trafikverket/our-backstage](https://github.com/BTH-Trafikverket/our-backstage).
-
 ## Foundation
 
 The project started by setting up the Backstage repo, defining the first architecture shape, and adding the quality gates needed to keep later plugin work stable.
