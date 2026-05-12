@@ -1,7 +1,5 @@
 # Delivery History
 
-This appendix maps completed GitHub Project work to the product and engineering outcomes now present in the gamification plugin. It is intentionally outcome-oriented: when an issue checklist and the final implementation differ, this page describes the implementation that actually exists now.
-
 Use this page for traceability after reading the main docs. It is not the primary guide for understanding or changing the system.
 
 Reviewed source: [Project planning board](https://github.com/orgs/BTH-Trafikverket/projects/1), status `Done`, for [BTH-Trafikverket/our-backstage](https://github.com/BTH-Trafikverket/our-backstage).

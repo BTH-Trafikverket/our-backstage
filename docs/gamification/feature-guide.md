@@ -38,8 +38,6 @@ Delivered behavior:
 - Badge XP is awarded when the badge is first earned.
 - Badge images can be selected or uploaded, with backend image processing and config-driven limits.
 
-Badge progress is not recomputed from scratch on every read. The database keeps badge runtime state current as quest progress changes, so changes to badge logic must account for both migrations and service-level validation.
-
 Related code:
 
 - [Badges page](https://github.com/BTH-Trafikverket/our-backstage/tree/main/plugins/gamification/src/components/BadgesPage)

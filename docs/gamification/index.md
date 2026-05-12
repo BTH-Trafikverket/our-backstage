@@ -2,11 +2,7 @@
 
 The gamification plugin adds quests, badges, XP, leaderboards, reminders, webhook delivery, and catalog quality quests to this Backstage instance.
 
-This TechDocs section keeps the main reading path short. These pages describe the product decisions, runtime boundaries, and current implementation outcomes that matter when changing the plugin.
-
 ## Reading Path
-
-Read these pages in order when joining the project or changing gamification behavior:
 
 - [Feature Guide](feature-guide.md): the user-facing behaviors and the boundaries that shipped.
 - [System Design](system-design.md): the backend ownership model, persistence rules, workers, and idempotency guarantees.
@@ -41,8 +37,6 @@ The backend owns authorization, validation, lifecycle rules, and database consis
 - Catalog-linked quests evaluate team-owned catalog entities and turn quality checks into normal team quest progress.
 
 ## Code Anchors
-
-Use these links when moving from TechDocs into the implementation:
 
 | Area                    | Code                                                                                                                             |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
